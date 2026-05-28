@@ -179,6 +179,10 @@ function renderStocksTable() {
       <td><span class="chg-pill ${cls}">${sign}${pct.toFixed(2)}%</span></td>
       <td class="mono" style="font-size:10px;color:var(--text3)">${fmtN(s.volume)}</td>
       <td><div class="dbar"><div class="dbar-fill" style="width:${dr*100}%;background:${dr>.5?'var(--green2)':'var(--red2)'}"></div></div></td>
+      <td>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:2px">${((s.buys - s.sells > 0 ? s.buys - s.sells : 0) / s.shares * 100).toFixed(3)}% negociado</div>
+        <div class="dbar" style="width:90px"><div class="dbar-fill" style="width:${Math.min(100,(s.buys+s.sells)/s.shares*100*20)}%;background:var(--gold)"></div></div>
+      </td>
       <td><button class="btn btn-dark btn-sm" onclick="event.stopPropagation();goTrade('${s.sym}')">Negociar</button></td>
     </tr>`;
   }).join('');
@@ -317,11 +321,15 @@ function updateTradeInfo() {
       <span style="color:var(--red2)">O ${(s.supply*100).toFixed(0)}%</span>
     </div>
   `;
-  // load owned count
+  // load owned count + % of company
   GET('market/portfolio').then(data => {
     const owned = (data.portfolio || {})[sym] || 0;
     const el = document.getElementById('owned-count');
-    if (el) el.textContent = owned + ' cotas';
+    if (el && s) {
+      const pctCompany = (owned / s.shares * 100);
+      el.innerHTML = owned + ' cotas' +
+        (owned > 0 ? '<br><span style="font-size:9px;color:var(--gold)">' + pctCompany.toFixed(4) + '% da empresa</span>' : '');
+    }
   }).catch(() => {});
   updateTradeTotal();
 }
@@ -420,7 +428,7 @@ async function renderRanking() {
       const avHtml = r.photo
         ? `<div class="rank-av"><img src="${r.photo}"></div>`
         : `<div class="rank-av">${r.avatar||'🦁'}</div>`;
-      return `<div class="rank-row">
+      return `<div class="rank-row" onclick="openProfileModal('${r.id}')" style="cursor:pointer" title="Ver perfil">
         <div class="rank-n ${medals[i]||''} serif">${i+1}</div>
         ${avHtml}
         <div style="flex:1"><div style="font-weight:600;font-size:13px">${r.name} <span style="font-size:10px;color:var(--text3)">${r.country||''}</span></div><div style="font-size:10px;color:var(--text3)">Cash R$${fmtN(r.cash)}</div></div>
@@ -673,6 +681,51 @@ async function deleteUser(uid, name) {
 }
 
 function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
+
+// ── PUBLIC PROFILE MODAL ──
+async function openProfileModal(uid) {
+  try {
+    const p = await GET('users/' + uid + '/public');
+    const photoHtml = p.photo
+      ? `<img src="${p.photo}" style="width:70px;height:70px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)">`
+      : `<span style="font-size:40px">${p.avatar||'🦁'}</span>`;
+    const roleLabel = p.role === 'admin' ? '👑 Admin' : p.role === 'moderator' ? '🎩 Moderador' : '🦁 Investidor';
+
+    const holdingsHtml = p.holdings.length
+      ? p.holdings.map(h => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px">
+            <div><span class="sym-tag" style="font-size:10px">${h.sym}</span> <span style="color:var(--text2)">${h.name}</span></div>
+            <div style="text-align:right">
+              <div class="mono" style="font-size:11px">${h.qty} cotas</div>
+              <div style="font-size:9px;color:var(--gold)">${h.pctOfCompany.toFixed(4)}% empresa</div>
+            </div>
+          </div>`).join('')
+      : '<p style="color:var(--text3);font-size:12px;padding:8px 0">Carteira vazia.</p>';
+
+    document.getElementById('modal-content').innerHTML = `
+      <h2>Perfil do Investidor</h2>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+        <div style="width:70px;height:70px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--s3);overflow:hidden;flex-shrink:0">${photoHtml}</div>
+        <div>
+          <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;font-style:italic">${p.nick}</div>
+          <div style="font-size:11px;color:var(--text3)">${p.name} · ${p.country||''}</div>
+          <span class="role-badge ${p.role}" style="margin-top:4px;display:inline-block">${roleLabel}</span>
+          ${p.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${p.bio}"</div>` : ''}
+        </div>
+      </div>
+      <div class="grid2" style="gap:8px;margin-bottom:16px">
+        ${p.totalWealth !== null ? `<div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Patrimônio</div><div class="mono gold" style="font-size:16px">R$${fmtN(p.totalWealth)}</div></div>` : ''}
+        <div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Operações</div><div class="mono" style="font-size:16px">${p.totalTx}</div></div>
+        <div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Compras / Vendas</div><div class="mono" style="font-size:14px"><span style="color:var(--green2)">${p.buys}</span> / <span style="color:var(--red2)">${p.sells}</span></div></div>
+        <div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Membro desde</div><div class="mono" style="font-size:12px">${new Date(p.joined).toLocaleDateString('pt-BR')}</div></div>
+      </div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">Posições em Carteira</div>
+      ${holdingsHtml}
+      <div style="margin-top:16px"><button class="btn btn-ghost" onclick="closeModal()" style="width:100%">Fechar</button></div>
+    `;
+    document.getElementById('modal-bg').classList.add('open');
+  } catch(e) { console.error(e); }
+}
 
 // ── HELPERS ──
 function fmtN(n) {

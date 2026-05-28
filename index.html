@@ -1,1114 +1,521 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BolsaFX</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<title>Corleone Market</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0a0c10;--surface:#111420;--surface2:#161b2e;--surface3:#1e2540;
-  --border:#2a3050;--border2:#3a4570;
-  --green:#00e676;--green2:#00c853;--green-dim:#0a2a1a;
-  --red:#ff1744;--red2:#d50000;--red-dim:#2a0a0f;
-  --gold:#ffd600;--gold2:#f9a825;--gold-dim:#2a2000;
-  --blue:#2979ff;--blue2:#1565c0;--blue-dim:#0a1530;
-  --text:#e8eaf6;--text2:#9098b8;--text3:#5a6080;
-  --accent:#7c4dff;--accent2:#651fff;
+  --bg:#0d0d0f;--s1:#131318;--s2:#18181f;--s3:#1e1e28;--s4:#252535;
+  --border:#2a2a3a;--border2:#383850;
+  --gold:#c9a84c;--gold2:#e8c56a;--gold3:#f5d98a;--gold-dim:rgba(201,168,76,.1);
+  --red:#c0392b;--red2:#e74c3c;--red-dim:rgba(192,57,43,.12);
+  --green:#1a7a4a;--green2:#27ae60;--green-dim:rgba(39,174,96,.12);
+  --blue:#2471a3;--blue-dim:rgba(36,113,163,.12);
+  --text:#e8e6f0;--text2:#9890b0;--text3:#5a5570;
+  --radius:6px;
 }
-body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
-.mono{font-family:'Space Mono',monospace}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.serif{font-family:'Playfair Display',serif}
+.mono{font-family:'DM Mono',monospace}
 
-/* APP SHELL */
-#app{display:none;flex-direction:column;height:100vh}
-#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);position:relative;overflow:hidden}
-#login-screen::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(124,77,255,0.08) 0%,transparent 60%),radial-gradient(ellipse at 70% 20%,rgba(0,230,118,0.05) 0%,transparent 50%)}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--s1)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
-/* TICKER */
-#ticker-wrap{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 0;overflow:hidden;white-space:nowrap;flex-shrink:0}
-#ticker-inner{display:inline-flex;gap:32px;animation:tickerScroll 30s linear infinite}
-@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-.tick-item{display:inline-flex;align-items:center;gap:8px;font-size:12px}
-.tick-sym{font-weight:700;color:var(--text);font-family:'Space Mono',monospace}
-.tick-price{color:var(--text2);font-family:'Space Mono',monospace}
-.tick-chg.up{color:var(--green)}
-.tick-chg.dn{color:var(--red)}
+/* ── SCREENS ── */
+.screen{display:none;min-height:100vh;flex-direction:column}
+.screen.active{display:flex}
 
-/* NAV */
-#nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:0;flex-shrink:0;height:52px}
-.logo{font-size:20px;font-weight:800;letter-spacing:-1px;color:var(--text);margin-right:24px}
-.logo span{color:var(--green)}
-.nav-tabs{display:flex;gap:2px;flex:1}
-.nav-tab{padding:6px 16px;border:none;background:transparent;color:var(--text2);cursor:pointer;font-family:'Syne',sans-serif;font-size:13px;font-weight:600;border-radius:6px;transition:all .15s}
-.nav-tab:hover{background:var(--surface2);color:var(--text)}
-.nav-tab.active{background:var(--surface3);color:var(--text)}
-.nav-right{display:flex;align-items:center;gap:12px;margin-left:auto}
-.market-badge{padding:4px 12px;border-radius:4px;font-size:11px;font-weight:700;font-family:'Space Mono',monospace;letter-spacing:.5px}
-.market-badge.open{background:var(--green-dim);color:var(--green);border:1px solid var(--green2)}
-.market-badge.closed{background:var(--red-dim);color:var(--red);border:1px solid var(--red2)}
-.user-info{font-size:12px;color:var(--text2)}
-.btn-logout{padding:4px 12px;background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:6px;cursor:pointer;font-size:12px;transition:all .15s}
-.btn-logout:hover{border-color:var(--red);color:var(--red)}
+/* ── AUTH ── */
+#s-auth{align-items:center;justify-content:center;background:var(--bg);position:relative}
+#s-auth::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 50% at 30% 40%,rgba(201,168,76,.06),transparent),radial-gradient(ellipse 40% 40% at 80% 70%,rgba(39,174,96,.04),transparent)}
+.auth-wrap{position:relative;z-index:1;width:420px}
+.auth-logo-big{text-align:center;margin-bottom:28px}
+.auth-logo-big .al-main{font-family:'Playfair Display',serif;font-size:38px;font-weight:900;font-style:italic;letter-spacing:-1px;line-height:1}
+.auth-logo-big .al-main span{color:var(--gold2)}
+.auth-logo-big .al-sub{font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--text3);margin-top:6px}
+.auth-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:32px;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.auth-tabs{display:flex;background:var(--s2);border-radius:4px;padding:3px;gap:3px;margin-bottom:22px}
+.auth-tab{flex:1;padding:8px;text-align:center;border:none;background:transparent;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;border-radius:3px;transition:all .2s}
+.auth-tab.active{background:var(--s4);color:var(--text)}
+.fg{margin-bottom:13px}
+.fg label{display:block;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:5px}
+.fg input,.fg select,.fg textarea{width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none;transition:border .15s}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--gold)}
+.fg select option{background:var(--s2)}
+.fg textarea{resize:vertical;min-height:65px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn-primary{width:100%;padding:11px;background:var(--gold);color:var(--bg);border:none;border-radius:4px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .15s;margin-top:6px}
+.btn-primary:hover{background:var(--gold2)}
+.avatar-grid{display:flex;gap:7px;flex-wrap:wrap;padding:4px 0}
+.av-opt{width:38px;height:38px;border-radius:50%;border:2px solid var(--border);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;background:var(--s3);transition:all .15s}
+.av-opt:hover{border-color:var(--gold)}
+.av-opt.sel{border-color:var(--gold2);background:var(--gold-dim)}
+.auth-err{background:var(--red-dim);border:1px solid var(--red);color:var(--red2);padding:8px 12px;border-radius:4px;font-size:12px;margin-top:10px;display:none}
+.auth-demo{margin-top:16px;padding:12px;background:var(--s2);border-radius:4px;font-size:11px;color:var(--text3);line-height:1.8}
+.auth-demo b{color:var(--text2)}
 
-/* MAIN CONTENT */
-#content{flex:1;overflow-y:auto;padding:20px}
+/* ── APP HEADER ── */
+.app-header{background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 18px;height:52px;flex-shrink:0;position:sticky;top:0;z-index:50}
+.app-logo{font-family:'Playfair Display',serif;font-size:17px;font-weight:900;font-style:italic;margin-right:20px;white-space:nowrap}
+.app-logo span{color:var(--gold2)}
+.hn{display:flex;gap:1px;flex:1;overflow-x:auto}
+.hn::-webkit-scrollbar{height:0}
+.hn-btn{padding:5px 13px;border:none;background:transparent;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border-radius:4px;transition:all .15s;white-space:nowrap}
+.hn-btn:hover{color:var(--text);background:var(--s3)}
+.hn-btn.active{color:var(--gold2);background:var(--gold-dim)}
+.hdr-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0}
+.mkt-pill{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:.5px;white-space:nowrap}
+.mkt-pill.open{background:var(--green-dim);color:var(--green2);border:1px solid rgba(39,174,96,.3)}
+.mkt-pill.closed{background:var(--red-dim);color:var(--red2);border:1px solid rgba(192,57,43,.3)}
+.user-chip{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:4px;transition:background .15s}
+.user-chip:hover{background:var(--s3)}
+.uav{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--s3);border:1px solid var(--border2);overflow:hidden;flex-shrink:0}
+.uav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.uname{font-size:12px;font-weight:500;color:var(--text2);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-logout{padding:4px 10px;background:transparent;border:1px solid var(--border);color:var(--text3);border-radius:4px;cursor:pointer;font-size:11px;font-family:'DM Sans',sans-serif;transition:all .15s}
+.btn-logout:hover{border-color:var(--red);color:var(--red2)}
+
+/* ── TICKER ── */
+.ticker-bar{background:var(--s2);border-bottom:1px solid var(--border);padding:5px 0;overflow:hidden;white-space:nowrap;flex-shrink:0}
+.ticker-inner{display:inline-flex;gap:24px;animation:tick 40s linear infinite}
+@keyframes tick{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.ti{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-family:'DM Mono',monospace}
+.ti-sym{color:var(--gold2);font-weight:500}
+.ti-price{color:var(--text2)}
+.ti-chg.up{color:var(--green2)}
+.ti-chg.dn{color:var(--red2)}
+
+/* ── BODY / PAGES ── */
+.app-body{flex:1;overflow-y:auto;padding:18px;background:var(--bg)}
 .page{display:none}
 .page.active{display:block}
 
-/* GRID */
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
-.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+/* ── LAYOUT ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:900px){.grid4{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}}
 
-/* CARDS */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}
-.card-sm{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px}
-.card h3{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
+/* ── CARDS ── */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.card-title{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.ct-badge{font-family:'DM Mono',monospace;font-size:9px;font-weight:500;padding:2px 6px;background:var(--gold-dim);color:var(--gold);border:1px solid rgba(201,168,76,.3);border-radius:10px;letter-spacing:.5px}
+.ct-badge.red{background:var(--red-dim);color:var(--red2);border-color:rgba(192,57,43,.3)}
+.ct-badge.green{background:var(--green-dim);color:var(--green2);border-color:rgba(39,174,96,.3)}
 
-/* STAT CARDS */
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:4px}
-.stat-label{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
-.stat-value{font-size:22px;font-weight:700;font-family:'Space Mono',monospace}
-.stat-sub{font-size:11px;color:var(--text3)}
-.stat-value.green{color:var(--green)}
-.stat-value.red{color:var(--red)}
-.stat-value.gold{color:var(--gold)}
+/* ── STAT CARDS ── */
+.stat{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.stat-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
+.stat-val{font-family:'Playfair Display',serif;font-size:24px;font-weight:700;line-height:1.1}
+.stat-val.green{color:var(--green2)}
+.stat-val.red{color:var(--red2)}
+.stat-val.gold{color:var(--gold2)}
+.stat-sub{font-size:10px;color:var(--text3);margin-top:3px;font-family:'DM Mono',monospace}
 
-/* STOCK TABLE */
-.stock-table{width:100%;border-collapse:collapse}
-.stock-table th{text-align:left;padding:8px 12px;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
-.stock-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03);font-size:13px;vertical-align:middle}
-.stock-table tr:hover td{background:var(--surface2)}
-.sym-badge{display:inline-block;padding:2px 8px;background:var(--surface3);border-radius:4px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--text)}
-.price-up{color:var(--green);font-family:'Space Mono',monospace}
-.price-dn{color:var(--red);font-family:'Space Mono',monospace}
-.price-neu{color:var(--text2);font-family:'Space Mono',monospace}
-.chg-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-family:'Space Mono',monospace;font-weight:700}
-.chg-badge.up{background:var(--green-dim);color:var(--green)}
-.chg-badge.dn{background:var(--red-dim);color:var(--red)}
-.chg-badge.neu{background:var(--surface3);color:var(--text2)}
+/* ── TABLE ── */
+.mkt-table{width:100%;border-collapse:collapse}
+.mkt-table th{text-align:left;padding:7px 10px;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);background:var(--s2)}
+.mkt-table td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.03);font-size:12px;vertical-align:middle}
+.mkt-table tbody tr:hover td{background:var(--s2)}
+.sym-tag{display:inline-block;padding:2px 8px;background:var(--s3);border:1px solid var(--border2);color:var(--gold3);border-radius:3px;font-family:'DM Mono',monospace;font-size:11px;font-weight:500}
+.price-up{color:var(--green2);font-family:'DM Mono',monospace;font-weight:500}
+.price-dn{color:var(--red2);font-family:'DM Mono',monospace;font-weight:500}
+.price-neu{color:var(--text2);font-family:'DM Mono',monospace}
+.chg-pill{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-family:'DM Mono',monospace;font-weight:500}
+.chg-pill.up{background:var(--green-dim);color:var(--green2);border:1px solid rgba(39,174,96,.2)}
+.chg-pill.dn{background:var(--red-dim);color:var(--red2);border:1px solid rgba(192,57,43,.2)}
+.chg-pill.neu{background:var(--s3);color:var(--text3)}
+.sector-tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;background:var(--s3);color:var(--text3);border:1px solid var(--border)}
+.status-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.status-badge.active{background:var(--green-dim);color:var(--green2);border:1px solid rgba(39,174,96,.25)}
+.status-badge.suspended{background:var(--red-dim);color:var(--red2);border:1px solid rgba(192,57,43,.25)}
+.dbar{height:4px;background:var(--s3);border-radius:2px;overflow:hidden;width:70px;display:inline-block;vertical-align:middle}
+.dbar-fill{height:100%;border-radius:2px;transition:width .4s}
 
-/* BUTTONS */
-.btn{padding:8px 16px;border-radius:6px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;transition:all .15s}
-.btn-green{background:var(--green2);color:#000}
-.btn-green:hover{background:var(--green)}
-.btn-red{background:var(--red2);color:#fff}
-.btn-red:hover{background:var(--red)}
-.btn-blue{background:var(--blue2);color:#fff}
-.btn-blue:hover{background:var(--blue)}
-.btn-gold{background:var(--gold2);color:#000}
-.btn-gold:hover{background:var(--gold)}
-.btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--text2)}
+/* ── BUTTONS ── */
+.btn{padding:7px 14px;border-radius:4px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;letter-spacing:.5px;text-transform:uppercase;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-gold{background:var(--gold);color:var(--bg)}
+.btn-gold:hover{background:var(--gold2)}
+.btn-g{background:var(--green);color:#fff}
+.btn-g:hover{background:var(--green2)}
+.btn-r{background:var(--red);color:#fff}
+.btn-r:hover{background:var(--red2)}
+.btn-dark{background:var(--s3);color:var(--text);border:1px solid var(--border2)}
+.btn-dark:hover{background:var(--s4)}
+.btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--text3)}
 .btn-ghost:hover{border-color:var(--text2);color:var(--text)}
-.btn-sm{padding:5px 10px;font-size:12px}
+.btn-sm{padding:4px 10px;font-size:11px}
 .btn:disabled{opacity:.4;cursor:not-allowed}
+.btns-row{display:flex;gap:8px;flex-wrap:wrap}
 
-/* INPUTS */
-input[type=text],input[type=number],input[type=password],select{
-  background:var(--surface2);border:1px solid var(--border);color:var(--text);
-  padding:8px 12px;border-radius:6px;font-family:'Space Mono',monospace;font-size:13px;width:100%;
-  outline:none;transition:border .15s
-}
-input:focus,select:focus{border-color:var(--accent)}
-label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
-.form-group{margin-bottom:12px}
-select option{background:#1e2540}
+/* ── ORDER BOOK ── */
+.ob-row{display:flex;justify-content:space-between;padding:3px 8px;font-size:10px;font-family:'DM Mono',monospace;border-radius:3px;margin-bottom:1px;position:relative;overflow:hidden}
+.ob-row::before{content:'';position:absolute;top:0;left:0;bottom:0;border-radius:3px;z-index:0}
+.ob-row span{position:relative;z-index:1}
+.ob-row.ask::before{background:rgba(192,57,43,.07)}
+.ob-row.bid::before{background:rgba(39,174,96,.07)}
+.ob-row.ask{color:var(--red2)}
+.ob-row.bid{color:var(--green2)}
+.ob-spread{text-align:center;padding:5px;font-family:'DM Mono',monospace;font-size:11px;color:var(--gold2);background:var(--gold-dim);border:1px solid rgba(201,168,76,.15);margin:4px 0;border-radius:3px}
 
-/* LOGIN */
-.login-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:36px;width:360px;position:relative;z-index:1}
-.login-logo{font-size:28px;font-weight:800;text-align:center;margin-bottom:4px}
-.login-logo span{color:var(--green)}
-.login-sub{text-align:center;font-size:13px;color:var(--text2);margin-bottom:28px}
-.login-tabs{display:flex;gap:4px;background:var(--surface2);border-radius:6px;padding:3px;margin-bottom:20px}
-.login-tab{flex:1;padding:6px;text-align:center;border:none;background:transparent;color:var(--text2);cursor:pointer;border-radius:4px;font-family:'Syne',sans-serif;font-size:13px;font-weight:600;transition:all .15s}
-.login-tab.active{background:var(--surface3);color:var(--text)}
-.login-err{background:var(--red-dim);border:1px solid var(--red2);color:var(--red);padding:8px 12px;border-radius:6px;font-size:12px;margin-top:12px;display:none}
-.demo-creds{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:16px;font-size:11px;color:var(--text3)}
-.demo-creds b{color:var(--text2)}
+/* ── CHART ── */
+.chart-wrap{position:relative;height:255px}
 
-/* PROGRESS BAR */
-.progress-bar{height:4px;background:var(--surface3);border-radius:2px;overflow:hidden}
-.progress-fill{height:100%;border-radius:2px;transition:width .3s}
+/* ── TRADE INFO ── */
+.trade-info-box{background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px}
+.tib-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px}
+.tib-total{border-top:1px solid var(--border);padding-top:8px;margin-top:6px;display:flex;justify-content:space-between;font-size:13px;font-weight:600}
 
-/* ORDER BOOK */
-.order-row{display:flex;justify-content:space-between;padding:3px 8px;font-size:11px;font-family:'Space Mono',monospace;border-radius:3px}
-.order-row.ask{background:rgba(255,23,68,0.06);color:var(--red)}
-.order-row.bid{background:rgba(0,230,118,0.06);color:var(--green)}
+/* ── PORTFOLIO ── */
+.pf-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:4px;margin-bottom:6px}
 
-/* RANKING */
-.rank-row{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;border:1px solid var(--border);margin-bottom:6px;background:var(--surface)}
-.rank-num{font-size:20px;font-weight:800;color:var(--text3);min-width:32px;font-family:'Space Mono',monospace}
-.rank-num.gold{color:var(--gold)}
-.rank-num.silver{color:#aaa}
-.rank-num.bronze{color:#cd7f32}
-.rank-info{flex:1}
-.rank-name{font-weight:700;font-size:14px}
-.rank-sub{font-size:11px;color:var(--text2)}
-.rank-val{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;text-align:right}
+/* ── PROFILE ── */
+.profile-hero{display:flex;align-items:center;gap:18px;padding:20px;background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px}
+.profile-photo{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:34px;background:var(--s3);border:2px solid var(--gold);flex-shrink:0;overflow:hidden;cursor:pointer;position:relative}
+.profile-photo img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.profile-photo .ph-overlay{position:absolute;inset:0;background:rgba(0,0,0,.55);border-radius:50%;display:none;align-items:center;justify-content:center;font-size:11px;color:#fff;letter-spacing:.5px}
+.profile-photo:hover .ph-overlay{display:flex}
+.profile-name-big{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;font-style:italic}
+.role-badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-top:4px}
+.role-badge.admin{background:rgba(201,168,76,.15);color:var(--gold2);border:1px solid rgba(201,168,76,.3)}
+.role-badge.moderator{background:var(--blue-dim);color:#5dade2;border:1px solid rgba(36,113,163,.3)}
+.role-badge.user{background:var(--s3);color:var(--text3);border:1px solid var(--border2)}
 
-/* CHART CONTAINER */
-.chart-wrap{position:relative;height:280px}
+/* ── RANKING ── */
+.rank-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:4px;margin-bottom:6px;background:var(--s1)}
+.rank-n{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;min-width:28px;color:var(--text3)}
+.rank-n.r1{color:var(--gold2)}
+.rank-n.r2{color:#aaa}
+.rank-n.r3{color:#a07040}
+.rank-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;background:var(--s3);border:1px solid var(--border);overflow:hidden;flex-shrink:0}
+.rank-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 
-/* ADMIN PANEL */
-.admin-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
-.admin-section h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;color:var(--text2)}
-.admin-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.alert-box{padding:10px 14px;border-radius:6px;font-size:13px;margin-top:8px}
-.alert-box.success{background:var(--green-dim);border:1px solid var(--green2);color:var(--green)}
-.alert-box.error{background:var(--red-dim);border:1px solid var(--red2);color:var(--red)}
+/* ── ADMIN ── */
+.admin-zone{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.admin-zone h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.admin-zone h3.gold{color:var(--gold)}
+.admin-zone h3.red{color:var(--red2)}
+.role-select{padding:4px 8px;background:var(--s3);border:1px solid var(--border2);color:var(--text);border-radius:3px;font-size:11px;cursor:pointer;outline:none}
 
-/* PORTFOLIO */
-.pf-asset{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:6px;background:var(--surface2);margin-bottom:6px}
+/* ── ALERTS ── */
+.alert{padding:9px 13px;border-radius:4px;font-size:12px;margin-top:8px}
+.alert.ok{background:var(--green-dim);border:1px solid rgba(39,174,96,.3);color:var(--green2)}
+.alert.err{background:var(--red-dim);border:1px solid rgba(192,57,43,.3);color:var(--red2)}
 
-/* HISTORY */
-.hist-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px}
-.hist-type{padding:2px 8px;border-radius:3px;font-weight:700;font-size:10px;font-family:'Space Mono',monospace}
-.hist-type.buy{background:var(--green-dim);color:var(--green)}
-.hist-type.sell{background:var(--red-dim);color:var(--red)}
+/* ── HIST ── */
+.hist-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px}
+.hist-badge{padding:2px 6px;border-radius:3px;font-weight:700;font-size:9px;font-family:'DM Mono',monospace;letter-spacing:.5px}
+.hist-badge.buy{background:var(--green-dim);color:var(--green2);border:1px solid rgba(39,174,96,.25)}
+.hist-badge.sell{background:var(--red-dim);color:var(--red2);border:1px solid rgba(192,57,43,.25)}
 
-/* FLASH */
-.flash-green{animation:flashG .5s}
-.flash-red{animation:flashR .5s}
-@keyframes flashG{0%,100%{background:transparent}50%{background:rgba(0,230,118,0.15)}}
-@keyframes flashR{0%,100%{background:transparent}50%{background:rgba(255,23,68,0.15)}}
+/* ── LOG ── */
+.log-line{font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);padding:3px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.log-time{color:var(--gold);margin-right:8px}
 
-/* SCROLLBAR */
-::-webkit-scrollbar{width:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+/* ── FLASH ── */
+@keyframes flashG{0%,100%{background:transparent}50%{background:rgba(39,174,96,.12)}}
+@keyframes flashR{0%,100%{background:transparent}50%{background:rgba(192,57,43,.12)}}
+.flash-g td{animation:flashG .5s}
+.flash-r td{animation:flashR .5s}
 
-/* SECTOR BADGE */
-.sector{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;background:var(--surface3);color:var(--text3)}
+/* ── MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.modal-bg.open{display:flex}
+.modal{background:var(--s1);border:1px solid var(--border2);border-radius:var(--radius);padding:24px;width:460px;max-width:95vw;max-height:85vh;overflow-y:auto}
+.modal h2{font-family:'Playfair Display',serif;font-size:18px;font-style:italic;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border);color:var(--gold2)}
 
-/* VOLUME BAR */
-.vol-bar{display:inline-block;height:3px;background:var(--accent);border-radius:1px;vertical-align:middle}
+/* HIDDEN FILE INPUT */
+#photo-input{display:none}
 </style>
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
-<div id="login-screen">
-  <div class="login-card">
-    <div class="login-logo">Bolsa<span>FX</span></div>
-    <div class="login-sub">Simulador de Mercado de Capitais</div>
-    <div class="login-tabs">
-      <button class="login-tab active" onclick="switchLoginTab('user')">Investidor</button>
-      <button class="login-tab" onclick="switchLoginTab('admin')">Admin</button>
+<!-- ════════════ AUTH ════════════ -->
+<div class="screen active" id="s-auth">
+  <div class="auth-wrap">
+    <div class="auth-logo-big">
+      <div class="al-main serif"><em>Corleone</em><span>Market</span></div>
+      <div class="al-sub">Global Trading Platform</div>
     </div>
-    <div class="form-group">
-      <label>Usuário</label>
-      <input type="text" id="login-user" placeholder="seu@email.com" value="joao@email.com">
-    </div>
-    <div class="form-group">
-      <label>Senha</label>
-      <input type="password" id="login-pass" placeholder="••••••••" value="123456">
-    </div>
-    <button class="btn btn-green" style="width:100%;margin-top:4px" onclick="doLogin()">Entrar no Pregão →</button>
-    <div class="login-err" id="login-err"></div>
-    <div class="demo-creds">
-      <b>Investidores demo:</b> joao@email.com / 123456 &nbsp;|&nbsp; maria@email.com / 123456<br>
-      <b>Admin:</b> admin@bolsafx.com / admin123
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="authTab('login')">Entrar</button>
+        <button class="auth-tab" onclick="authTab('register')">Criar Conta</button>
+      </div>
+
+      <div id="auth-login">
+        <div class="fg"><label>E-mail</label><input type="email" id="l-email" value="don@corleone.com"></div>
+        <div class="fg"><label>Senha</label><input type="password" id="l-pass" value="123456" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <button class="btn-primary" onclick="doLogin()">Entrar no Pregão →</button>
+        <div class="auth-demo">
+          <b>Admin:</b> admin@corleone.com / admin123<br>
+          <b>Mod:</b> mod@corleone.com / mod123<br>
+          <b>User:</b> don@corleone.com / 123456
+        </div>
+      </div>
+
+      <div id="auth-register" style="display:none">
+        <div class="form-row">
+          <div class="fg"><label>Nome</label><input type="text" id="r-name" placeholder="Nome"></div>
+          <div class="fg"><label>Sobrenome</label><input type="text" id="r-lname" placeholder="Sobrenome"></div>
+        </div>
+        <div class="fg"><label>E-mail</label><input type="email" id="r-email" placeholder="voce@email.com"></div>
+        <div class="fg"><label>Senha</label><input type="password" id="r-pass" placeholder="Mínimo 6 caracteres"></div>
+        <div class="fg"><label>Apelido</label><input type="text" id="r-nick" placeholder="Como quer ser chamado"></div>
+        <div class="fg"><label>Avatar</label><div class="avatar-grid" id="reg-avatar-grid"></div></div>
+        <div class="fg"><label>País</label>
+          <select id="r-country">
+            <option>🇧🇷 Brasil</option><option>🇺🇸 Estados Unidos</option><option>🇮🇹 Itália</option>
+            <option>🇯🇵 Japão</option><option>🇩🇪 Alemanha</option><option>🇫🇷 França</option>
+            <option>🇦🇷 Argentina</option><option>🇵🇹 Portugal</option><option>🌍 Outro</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="doRegister()">Criar Conta →</button>
+      </div>
+      <div class="auth-err" id="auth-err"></div>
     </div>
   </div>
 </div>
 
-<!-- MAIN APP -->
-<div id="app">
-  <!-- TICKER -->
-  <div id="ticker-wrap">
-    <div id="ticker-inner"></div>
-  </div>
-
-  <!-- NAV -->
-  <div id="nav">
-    <div class="logo">Bolsa<span>FX</span></div>
-    <div class="nav-tabs">
-      <button class="nav-tab active" onclick="showPage('market')">Mercado</button>
-      <button class="nav-tab" onclick="showPage('trade')">Comprar/Vender</button>
-      <button class="nav-tab" onclick="showPage('portfolio')">Portfólio</button>
-      <button class="nav-tab" onclick="showPage('ranking')">Ranking</button>
-      <button class="nav-tab admin-only" style="display:none" onclick="showPage('admin')">⚙ Admin</button>
+<!-- ════════════ APP ════════════ -->
+<div class="screen" id="s-app">
+  <div class="app-header">
+    <div class="app-logo serif"><em>Corleone</em><span>Market</span></div>
+    <div class="hn">
+      <button class="hn-btn active" onclick="showPage('market')">Mercado</button>
+      <button class="hn-btn" onclick="showPage('trade')">Negociar</button>
+      <button class="hn-btn" onclick="showPage('portfolio')">Portfólio</button>
+      <button class="hn-btn" onclick="showPage('ranking')">Ranking</button>
+      <button class="hn-btn" onclick="showPage('profile')">Perfil</button>
+      <button class="hn-btn admin-only" style="display:none" onclick="showPage('admin')">⚙ Admin</button>
     </div>
-    <div class="nav-right">
-      <div id="market-status" class="market-badge open">● ABERTO</div>
-      <div class="user-info" id="nav-user"></div>
+    <div class="hdr-right">
+      <div class="mkt-pill open" id="mkt-status">● ABERTO</div>
+      <div class="user-chip" onclick="showPage('profile')">
+        <div class="uav" id="hdr-av">🦁</div>
+        <span class="uname" id="hdr-name">—</span>
+      </div>
       <button class="btn-logout btn" onclick="doLogout()">Sair</button>
     </div>
   </div>
 
-  <!-- CONTENT -->
-  <div id="content">
+  <div class="ticker-bar"><div class="ticker-inner" id="ticker">—</div></div>
 
-    <!-- MARKET PAGE -->
-    <div class="page active" id="page-market">
-      <div class="grid-4" style="margin-bottom:16px" id="market-stats"></div>
-      <div class="grid-2" style="margin-bottom:16px">
+  <div class="app-body">
+
+    <!-- MARKET -->
+    <div class="page active" id="p-market">
+      <div class="grid4" style="margin-bottom:14px" id="mkt-stats"></div>
+      <div class="grid2" style="margin-bottom:14px">
         <div class="card">
-          <h3 id="chart-title">BZAP4 — Gráfico em Tempo Real</h3>
-          <div class="chart-wrap">
-            <canvas id="mainChart" role="img" aria-label="Gráfico de preço em tempo real"></canvas>
-          </div>
+          <div class="card-title"><span id="chart-label">Gráfico</span><span class="ct-badge" id="chart-badge">LIVE</span></div>
+          <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
         </div>
         <div class="card">
-          <h3>Book de Ofertas</h3>
-          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);padding:0 8px 6px;font-family:'Space Mono',monospace">
-            <span>PREÇO</span><span>QTD</span><span>VOLUME</span>
+          <div class="card-title">Book de Ofertas</div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);padding:0 8px 4px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase">
+            <span>Preço</span><span>Qtd</span><span>Vol</span>
           </div>
-          <div id="order-book-asks"></div>
-          <div style="text-align:center;padding:6px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700" id="book-spread"></div>
-          <div id="order-book-bids"></div>
+          <div id="ob-asks"></div>
+          <div class="ob-spread" id="ob-spread">SPREAD —</div>
+          <div id="ob-bids"></div>
         </div>
       </div>
       <div class="card">
-        <h3>Todas as Ações</h3>
+        <div class="card-title">Ativos Listados <span class="ct-badge" id="stocks-ct">—</span></div>
         <div style="overflow-x:auto">
-          <table class="stock-table" id="stocks-table">
-            <thead>
-              <tr>
-                <th>Código</th><th>Empresa</th><th>Setor</th><th>Preço</th>
-                <th>Variação</th><th>Volume</th><th>Mkt Cap</th><th>Demanda</th><th>Ação</th>
-              </tr>
-            </thead>
+          <table class="mkt-table">
+            <thead><tr><th>Código</th><th>Empresa</th><th>Setor</th><th>Status</th><th>Preço</th><th>Var.</th><th>Volume</th><th>D/O</th><th>Cotas</th><th></th></tr></thead>
             <tbody id="stocks-body"></tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- TRADE PAGE -->
-    <div class="page" id="page-trade">
-      <div class="grid-2">
+    <!-- TRADE -->
+    <div class="page" id="p-trade">
+      <div class="grid2">
         <div>
-          <div class="card" style="margin-bottom:16px">
-            <h3>Nova Ordem</h3>
-            <div class="form-group">
-              <label>Ação</label>
-              <select id="trade-symbol" onchange="updateTradeInfo()">
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Tipo</label>
-              <div style="display:flex;gap:6px">
-                <button class="btn btn-green" style="flex:1" id="btn-buy-type" onclick="setOrderType('buy')">COMPRAR</button>
-                <button class="btn btn-ghost" style="flex:1" id="btn-sell-type" onclick="setOrderType('sell')">VENDER</button>
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-title">Nova Ordem</div>
+            <div class="fg"><label>Ativo</label><select id="trade-sym" onchange="updateTradeInfo()"></select></div>
+            <div class="fg"><label>Operação</label>
+              <div class="btns-row">
+                <button class="btn btn-g" id="btn-buy" onclick="setOT('buy')" style="flex:1">Comprar</button>
+                <button class="btn btn-ghost" id="btn-sell" onclick="setOT('sell')" style="flex:1">Vender</button>
               </div>
             </div>
-            <div class="form-group">
-              <label>Quantidade de Cotas</label>
-              <input type="number" id="trade-qty" min="1" step="1" value="10" oninput="updateTradeTotal()">
+            <div class="fg"><label>Quantidade</label><input type="number" id="trade-qty" min="1" value="10" oninput="updateTradeTotal()"></div>
+            <div class="trade-info-box">
+              <div class="tib-row"><span style="color:var(--text3)">Preço atual</span><span class="mono" id="td-price">—</span></div>
+              <div class="tib-row"><span style="color:var(--text3)">Saldo cash</span><span class="mono" id="td-bal">—</span></div>
+              <div class="tib-total"><span>Total</span><span class="mono" id="td-total">—</span></div>
             </div>
-            <div style="background:var(--surface2);border-radius:6px;padding:12px;margin-bottom:14px">
-              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
-                <span style="color:var(--text2)">Preço atual</span>
-                <span class="mono" id="trade-price-display">—</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
-                <span style="color:var(--text2)">Saldo disponível</span>
-                <span class="mono" id="trade-balance-display">—</span>
-              </div>
-              <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:6px;display:flex;justify-content:space-between;font-size:14px;font-weight:700">
-                <span>Total</span>
-                <span class="mono" id="trade-total-display">—</span>
-              </div>
-            </div>
-            <button class="btn btn-green" style="width:100%" id="btn-execute-order" onclick="executeOrder()">Executar Ordem</button>
-            <div id="trade-msg" style="margin-top:10px"></div>
+            <button class="btn btn-gold" style="width:100%" id="exec-btn" onclick="executeOrder()">Executar Ordem</button>
+            <div id="trade-msg" style="margin-top:8px"></div>
           </div>
         </div>
         <div>
-          <div class="card" style="margin-bottom:16px">
-            <h3>Info da Ação</h3>
-            <div id="trade-stock-info"></div>
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-title">Informações</div>
+            <div id="trade-info"></div>
           </div>
           <div class="card">
-            <h3>Histórico de Ordens</h3>
-            <div id="trade-history" style="max-height:260px;overflow-y:auto"></div>
+            <div class="card-title">Minhas Ordens <span class="ct-badge" id="orders-ct">0</span></div>
+            <div id="trade-hist" style="max-height:220px;overflow-y:auto"></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- PORTFOLIO PAGE -->
-    <div class="page" id="page-portfolio">
-      <div class="grid-4" style="margin-bottom:16px" id="pf-stats"></div>
-      <div class="grid-2">
-        <div class="card">
-          <h3>Meus Ativos</h3>
-          <div id="pf-assets"></div>
-        </div>
-        <div class="card">
-          <h3>Histórico de Operações</h3>
-          <div id="pf-history" style="max-height:400px;overflow-y:auto"></div>
-        </div>
+    <!-- PORTFOLIO -->
+    <div class="page" id="p-portfolio">
+      <div class="grid4" style="margin-bottom:14px" id="pf-stats"></div>
+      <div class="grid2">
+        <div class="card"><div class="card-title">Carteira</div><div id="pf-assets"></div></div>
+        <div class="card"><div class="card-title">Histórico</div><div id="pf-hist" style="max-height:380px;overflow-y:auto"></div></div>
       </div>
     </div>
 
-    <!-- RANKING PAGE -->
-    <div class="page" id="page-ranking">
-      <div class="grid-2">
+    <!-- RANKING -->
+    <div class="page" id="p-ranking">
+      <div class="grid2">
         <div>
-          <div class="card" style="margin-bottom:16px">
-            <h3>🏆 Ranking de Investidores</h3>
-            <div id="investor-ranking"></div>
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-title">🏆 Ranking de Patrimônio</div>
+            <div id="rank-inv"></div>
           </div>
         </div>
         <div>
-          <div class="card" style="margin-bottom:16px">
-            <h3>📈 Ranking por Oferta & Demanda</h3>
-            <div id="supply-demand-ranking"></div>
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-title">📈 Demanda &amp; Oferta</div>
+            <div id="rank-sd"></div>
           </div>
           <div class="card">
-            <h3>🔥 Ações Mais Negociadas</h3>
-            <div id="top-traded"></div>
+            <div class="card-title">🔥 Mais Negociados</div>
+            <div id="rank-top"></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ADMIN PAGE -->
-    <div class="page" id="page-admin">
-      <div class="admin-section">
-        <h3>⚡ Controle do Mercado</h3>
-        <div class="admin-controls">
-          <button class="btn btn-green" id="admin-open-btn" onclick="adminOpenMarket()">Abrir Mercado</button>
-          <button class="btn btn-red" id="admin-close-btn" onclick="adminCloseMarket()">Fechar Mercado</button>
-          <button class="btn btn-gold" onclick="adminResetMarket()">🔄 Resetar Mercado</button>
-          <button class="btn btn-blue" onclick="adminSendCrash()">💥 Simular Crash</button>
-          <button class="btn btn-blue" onclick="adminSendBull()">🚀 Simular Alta Geral</button>
-        </div>
-        <div id="admin-status-msg" style="margin-top:10px"></div>
-      </div>
-      <div class="grid-2">
-        <div class="admin-section">
-          <h3>➕ Criar Nova Ação</h3>
-          <div class="form-group">
-            <label>Código (Ex: XPTO3)</label>
-            <input type="text" id="new-sym" placeholder="XPTO3" maxlength="6">
-          </div>
-          <div class="form-group">
-            <label>Nome da Empresa</label>
-            <input type="text" id="new-name" placeholder="XptoTech S.A.">
-          </div>
-          <div class="form-group">
-            <label>Setor</label>
-            <select id="new-sector">
-              <option>Tecnologia</option><option>Energia</option><option>Financeiro</option>
-              <option>Saúde</option><option>Varejo</option><option>Indústria</option>
-              <option>Alimentação</option><option>Transporte</option>
+    <!-- PROFILE -->
+    <div class="page" id="p-profile">
+      <div class="profile-hero" id="prof-hero"></div>
+      <input type="file" id="photo-input" accept="image/*" onchange="uploadPhoto(this)">
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">Editar Perfil</div>
+          <div class="fg"><label>Apelido</label><input type="text" id="edit-nick"></div>
+          <div class="fg"><label>Avatar Emoji</label><div class="avatar-grid" id="edit-av-grid"></div></div>
+          <div class="fg"><label>País</label>
+            <select id="edit-country">
+              <option>🇧🇷 Brasil</option><option>🇺🇸 Estados Unidos</option><option>🇮🇹 Itália</option>
+              <option>🇯🇵 Japão</option><option>🇩🇪 Alemanha</option><option>🇫🇷 França</option>
+              <option>🇦🇷 Argentina</option><option>🇵🇹 Portugal</option><option>🌍 Outro</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Preço Inicial (R$)</label>
-            <input type="number" id="new-price" placeholder="25.00" min="1" step="0.01">
-          </div>
-          <div class="form-group">
-            <label>Total de Cotas Emitidas</label>
-            <input type="number" id="new-shares" placeholder="1000000" min="1000">
-          </div>
-          <button class="btn btn-green" onclick="adminCreateStock()">Criar Ação</button>
-          <div id="admin-stock-msg" style="margin-top:10px"></div>
+          <div class="fg"><label>Bio</label><textarea id="edit-bio" placeholder="Sua estratégia..."></textarea></div>
+          <button class="btn btn-gold" onclick="saveProfile()">Salvar Perfil</button>
+          <div id="prof-msg" style="margin-top:8px"></div>
         </div>
-        <div>
-          <div class="admin-section">
-            <h3>📊 Manipular Preço</h3>
-            <div class="form-group">
-              <label>Ação</label>
-              <select id="admin-sym-select"></select>
-            </div>
-            <div class="form-group">
-              <label>Fator de Variação (%)</label>
-              <input type="number" id="admin-pct" placeholder="+10 ou -15" step="0.1">
-            </div>
-            <button class="btn btn-blue" onclick="adminManipulate()">Aplicar Variação</button>
-            <div id="admin-manip-msg" style="margin-top:10px"></div>
-          </div>
-          <div class="admin-section">
-            <h3>📋 Log de Operações</h3>
-            <div id="admin-log" style="max-height:200px;overflow-y:auto;font-size:11px;font-family:'Space Mono',monospace;color:var(--text2)"></div>
-          </div>
+        <div class="card">
+          <div class="card-title">Estatísticas</div>
+          <div id="prof-stats"></div>
         </div>
       </div>
     </div>
 
-  </div><!-- /content -->
-</div><!-- /app -->
-
-<script>
-// ===================== DATA =====================
-const USERS = [
-  {id:'u1',name:'João Silva',email:'joao@email.com',pass:'123456',balance:50000,role:'user'},
-  {id:'u2',name:'Maria Santos',email:'maria@email.com',pass:'123456',balance:75000,role:'user'},
-  {id:'u3',name:'Carlos Mendes',email:'carlos@email.com',pass:'123456',balance:30000,role:'user'},
-  {id:'u4',name:'Admin Sistema',email:'admin@bolsafx.com',pass:'admin123',balance:9999999,role:'admin'},
-];
-
-const INITIAL_STOCKS = [
-  {sym:'BZAP4',name:'BrasilZap Tecnologia',sector:'Tecnologia',price:42.50,shares:5000000,volatility:0.015},
-  {sym:'PETFK3',name:'PetrolFake S.A.',sector:'Energia',price:28.70,shares:8000000,volatility:0.012},
-  {sym:'BNKX4',name:'BancoNex S.A.',sector:'Financeiro',price:63.20,shares:3000000,volatility:0.008},
-  {sym:'SAUDE3',name:'MedCenter SA',sector:'Saúde',price:19.80,shares:4000000,volatility:0.018},
-  {sym:'MKLV4',name:'MercadoLivre Fake',sector:'Varejo',price:95.40,shares:2000000,volatility:0.022},
-  {sym:'AGRO5',name:'AgroFaz do Brasil',sector:'Alimentação',price:31.60,shares:6000000,volatility:0.013},
-  {sym:'LOGX3',name:'LogExpress SA',sector:'Transporte',price:14.90,shares:10000000,volatility:0.020},
-  {sym:'ELTR4',name:'EletroMax SA',sector:'Indústria',price:55.30,shares:2500000,volatility:0.011},
-];
-
-// STATE
-let stocks = [];
-let users = JSON.parse(JSON.stringify(USERS));
-let portfolios = {}; // userId -> {sym: qty}
-let transactions = []; // {id,userId,type,sym,qty,price,time}
-let marketOpen = true;
-let currentUser = null;
-let currentLoginMode = 'user';
-let selectedStockSym = 'BZAP4';
-let orderType = 'buy';
-let adminLog = [];
-let priceHistory = {}; // sym -> [{t,p}]
-let mainChart = null;
-let txCounter = 1;
-
-function initStocks() {
-  stocks = INITIAL_STOCKS.map(s => ({
-    ...s,
-    price: s.price,
-    open: s.price,
-    high: s.price,
-    low: s.price,
-    prev: s.price,
-    change: 0,
-    changePct: 0,
-    volume: 0,
-    demand: Math.random() * 0.6 + 0.2,
-    supply: Math.random() * 0.6 + 0.2,
-    buys: 0,
-    sells: 0,
-  }));
-  priceHistory = {};
-  stocks.forEach(s => {
-    const arr = [];
-    let p = s.price;
-    for(let i=59;i>=0;i--){
-      p *= 1 + (Math.random()-0.5)*0.003;
-      arr.push({t: Date.now() - i*5000, p: Math.round(p*100)/100});
-    }
-    priceHistory[s.sym] = arr;
-  });
-}
-
-function initPortfolios() {
-  users.forEach(u => { portfolios[u.id] = {}; });
-  // Give some initial holdings to demo users
-  portfolios['u1']['BZAP4'] = 100;
-  portfolios['u1']['PETFK3'] = 200;
-  portfolios['u2']['BNKX4'] = 50;
-  portfolios['u2']['MKLV4'] = 30;
-  portfolios['u3']['SAUDE3'] = 500;
-  portfolios['u3']['AGRO5'] = 150;
-  // Adjust balances for initial holdings
-  users[0].balance -= 100*42.50 + 200*28.70;
-  users[1].balance -= 50*63.20 + 30*95.40;
-  users[2].balance -= 500*19.80 + 150*31.60;
-}
-
-// ===================== AUTH =====================
-function switchLoginTab(mode) {
-  currentLoginMode = mode;
-  document.querySelectorAll('.login-tab').forEach((t,i) => t.classList.toggle('active', (i===0&&mode==='user')||(i===1&&mode==='admin')));
-  if(mode==='admin'){
-    document.getElementById('login-user').value='admin@bolsafx.com';
-    document.getElementById('login-pass').value='admin123';
-  } else {
-    document.getElementById('login-user').value='joao@email.com';
-    document.getElementById('login-pass').value='123456';
-  }
-}
-
-function doLogin() {
-  const email = document.getElementById('login-user').value.trim();
-  const pass = document.getElementById('login-pass').value;
-  const user = users.find(u => u.email===email && u.pass===pass);
-  const err = document.getElementById('login-err');
-  if(!user){ err.style.display='block'; err.textContent='Usuário ou senha incorretos.'; return; }
-  if(currentLoginMode==='admin' && user.role!=='admin'){ err.style.display='block'; err.textContent='Acesso admin não autorizado.'; return; }
-  err.style.display='none';
-  currentUser = user;
-  startApp();
-}
-
-function doLogout() {
-  currentUser = null;
-  document.getElementById('app').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
-  if(mainChart){ mainChart.destroy(); mainChart=null; }
-  clearInterval(window._tickerInt);
-  clearInterval(window._priceInt);
-}
-
-// ===================== APP START =====================
-function startApp() {
-  document.getElementById('login-screen').style.display='none';
-  document.getElementById('app').style.display='flex';
-  document.getElementById('nav-user').textContent = currentUser.name;
-  if(currentUser.role==='admin') document.querySelectorAll('.admin-only').forEach(e=>e.style.display='');
-  showPage('market');
-  renderAll();
-  buildChart();
-  startPriceSimulation();
-  buildTicker();
-}
-
-function showPage(page) {
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('page-'+page).classList.add('active');
-  const tabs = document.querySelectorAll('.nav-tab');
-  const idx = {market:0,trade:1,portfolio:2,ranking:3,admin:4};
-  tabs[idx[page]]?.classList.add('active');
-  if(page==='trade') renderTradePage();
-  if(page==='portfolio') renderPortfolio();
-  if(page==='ranking') renderRanking();
-  if(page==='admin') renderAdmin();
-}
-
-// ===================== RENDER =====================
-function renderAll() {
-  renderMarketStats();
-  renderStocksTable();
-  updateOrderBook();
-  updateMarketBadge();
-}
-
-function renderMarketStats() {
-  const totalVol = stocks.reduce((a,s)=>a+s.volume*s.price,0);
-  const gainers = stocks.filter(s=>s.changePct>0).length;
-  const losers = stocks.filter(s=>s.changePct<0).length;
-  const ibfx = stocks.reduce((a,s)=>a+(s.price/s.open*1000),0)/stocks.length;
-  document.getElementById('market-stats').innerHTML = `
-    <div class="stat-card">
-      <div class="stat-label">IBFX (Índice)</div>
-      <div class="stat-value ${ibfx>=1000?'green':'red'}">${ibfx.toFixed(0)}</div>
-      <div class="stat-sub">${ibfx>=1000?'▲':'▼'} ${Math.abs(((ibfx-1000)/10)).toFixed(2)}%</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Vol. Financeiro</div>
-      <div class="stat-value">R$${formatNum(totalVol)}</div>
-      <div class="stat-sub">Total do dia</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Alta / Queda</div>
-      <div class="stat-value"><span class="green">${gainers}</span>/<span class="red">${losers}</span></div>
-      <div class="stat-sub">Ações em variação</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Status</div>
-      <div class="stat-value ${marketOpen?'green':'red'}">${marketOpen?'ABERTO':'FECHADO'}</div>
-      <div class="stat-sub">${stocks.length} ações listadas</div>
-    </div>
-  `;
-}
-
-function renderStocksTable() {
-  const maxVol = Math.max(...stocks.map(s=>s.volume+1));
-  document.getElementById('stocks-body').innerHTML = stocks.map(s => {
-    const chgCls = s.changePct>0?'up':s.changePct<0?'dn':'neu';
-    const chgSign = s.changePct>0?'+':'';
-    const dratio = s.demand/(s.demand+s.supply+0.001);
-    const mktcap = s.price * s.shares;
-    return `<tr onclick="selectStock('${s.sym}')" style="cursor:pointer" id="row-${s.sym}">
-      <td><span class="sym-badge">${s.sym}</span></td>
-      <td style="font-weight:600">${s.name}</td>
-      <td><span class="sector">${s.sector}</span></td>
-      <td class="price-${chgCls} mono">R$ ${s.price.toFixed(2)}</td>
-      <td><span class="chg-badge ${chgCls}">${chgSign}${s.changePct.toFixed(2)}%</span></td>
-      <td style="font-size:12px;color:var(--text2)">${formatNum(s.volume)}<br><span class="vol-bar" style="width:${Math.round(s.volume/maxVol*60)}px"></span></td>
-      <td style="font-size:12px;color:var(--text2)">R$ ${formatNum(mktcap)}</td>
-      <td>
-        <div style="font-size:10px;color:var(--green);margin-bottom:2px">D ${(dratio*100).toFixed(0)}%</div>
-        <div class="progress-bar" style="width:80px"><div class="progress-fill" style="width:${dratio*100}%;background:${dratio>0.5?'var(--green)':'var(--red)'}"></div></div>
-      </td>
-      <td><button class="btn btn-green btn-sm" onclick="event.stopPropagation();goTrade('${s.sym}')">Negociar</button></td>
-    </tr>`;
-  }).join('');
-}
-
-function selectStock(sym) {
-  selectedStockSym = sym;
-  document.getElementById('chart-title').textContent = sym + ' — Gráfico em Tempo Real';
-  updateMainChart();
-  updateOrderBook();
-}
-
-function updateOrderBook() {
-  const s = stocks.find(x=>x.sym===selectedStockSym);
-  if(!s) return;
-  const asks = [];
-  const bids = [];
-  for(let i=0;i<6;i++){
-    const askP = s.price*(1+0.001*(i+1));
-    const bidP = s.price*(1-0.001*(i+1));
-    const qty = Math.floor(Math.random()*500+100);
-    asks.push({p:askP,q:qty,v:askP*qty});
-    bids.push({p:bidP,q:qty,v:bidP*qty});
-  }
-  asks.reverse();
-  document.getElementById('order-book-asks').innerHTML = asks.map(a=>`
-    <div class="order-row ask"><span>R$ ${a.p.toFixed(2)}</span><span>${a.q}</span><span>R$ ${formatNum(a.v)}</span></div>
-  `).join('');
-  document.getElementById('book-spread').innerHTML = `<span style="color:var(--text2);font-size:11px">SPREAD</span> <span style="color:var(--gold)">R$ ${(asks[0].p-bids[0].p).toFixed(2)}</span>`;
-  document.getElementById('order-book-bids').innerHTML = bids.map(b=>`
-    <div class="order-row bid"><span>R$ ${b.p.toFixed(2)}</span><span>${b.q}</span><span>R$ ${formatNum(b.v)}</span></div>
-  `).join('');
-}
-
-// ===================== CHART =====================
-function buildChart() {
-  const ctx = document.getElementById('mainChart').getContext('2d');
-  const s = stocks.find(x=>x.sym===selectedStockSym);
-  const hist = priceHistory[selectedStockSym] || [];
-  mainChart = new Chart(ctx, {
-    type:'line',
-    data:{
-      labels: hist.map((_,i)=>i===hist.length-1?'Agora':''),
-      datasets:[{
-        data: hist.map(h=>h.p),
-        borderColor:'#00e676',
-        borderWidth:2,
-        pointRadius:0,
-        fill:true,
-        backgroundColor: (ctx2) => {
-          const g = ctx2.chart.ctx.createLinearGradient(0,0,0,280);
-          g.addColorStop(0,'rgba(0,230,118,0.15)');
-          g.addColorStop(1,'rgba(0,230,118,0)');
-          return g;
-        },
-        tension:0.3
-      }]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      animation:{duration:0},
-      plugins:{legend:{display:false},tooltip:{
-        callbacks:{label:c=>'R$ '+c.parsed.y.toFixed(2)},
-        backgroundColor:'#161b2e',borderColor:'#2a3050',borderWidth:1,
-        titleColor:'#9098b8',bodyColor:'#e8eaf6'
-      }},
-      scales:{
-        x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5a6080',font:{size:10}}},
-        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5a6080',font:{size:10},callback:v=>'R$'+v.toFixed(0)},position:'right'}
-      }
-    }
-  });
-}
-
-function updateMainChart() {
-  if(!mainChart) return;
-  const hist = priceHistory[selectedStockSym] || [];
-  mainChart.data.labels = hist.map((_,i)=>i===hist.length-1?'Agora':'');
-  mainChart.data.datasets[0].data = hist.map(h=>h.p);
-  const s = stocks.find(x=>x.sym===selectedStockSym);
-  mainChart.data.datasets[0].borderColor = s && s.changePct >= 0 ? '#00e676' : '#ff1744';
-  mainChart.update('none');
-}
-
-// ===================== PRICE SIMULATION =====================
-function startPriceSimulation() {
-  clearInterval(window._priceInt);
-  window._priceInt = setInterval(() => {
-    if(!marketOpen) return;
-    stocks.forEach(s => {
-      const dRatio = s.demand / (s.demand + s.supply + 0.001);
-      const drift = (dRatio - 0.5) * 0.002;
-      const noise = (Math.random()-0.5) * s.volatility;
-      const factor = 1 + drift + noise;
-      const oldPrice = s.price;
-      s.price = Math.max(0.01, s.price * factor);
-      s.price = Math.round(s.price * 100) / 100;
-      s.high = Math.max(s.high, s.price);
-      s.low = Math.min(s.low, s.price);
-      s.change = s.price - s.open;
-      s.changePct = (s.change / s.open) * 100;
-      s.volume += Math.floor(Math.random() * 500 + 100);
-      s.demand = Math.max(0.05, Math.min(0.95, s.demand + (Math.random()-0.51)*0.02));
-      s.supply = Math.max(0.05, Math.min(0.95, s.supply + (Math.random()-0.49)*0.02));
-      if(!priceHistory[s.sym]) priceHistory[s.sym]=[];
-      priceHistory[s.sym].push({t:Date.now(), p:s.price});
-      if(priceHistory[s.sym].length > 80) priceHistory[s.sym].shift();
-      // flash row
-      const row = document.getElementById('row-'+s.sym);
-      if(row){
-        row.classList.remove('flash-green','flash-red');
-        void row.offsetWidth;
-        row.classList.add(s.price>=oldPrice?'flash-green':'flash-red');
-      }
-    });
-    renderAll();
-    updateMainChart();
-    updateOrderBook();
-    updateTicker();
-    if(document.getElementById('page-trade').classList.contains('active')) updateTradeInfo();
-    if(document.getElementById('page-portfolio').classList.contains('active')) renderPortfolio();
-    if(document.getElementById('page-ranking').classList.contains('active')) renderRanking();
-  }, 2500);
-}
-
-// ===================== TICKER =====================
-function buildTicker() {
-  updateTicker();
-  clearInterval(window._tickerInt);
-  window._tickerInt = setInterval(updateTicker, 3000);
-}
-
-function updateTicker() {
-  const items = [...stocks,...stocks].map(s => {
-    const cls = s.changePct>0?'up':s.changePct<0?'dn':'neu';
-    const sign = s.changePct>0?'+':'';
-    return `<span class="tick-item"><span class="tick-sym">${s.sym}</span><span class="tick-price">R$${s.price.toFixed(2)}</span><span class="tick-chg ${cls}">${sign}${s.changePct.toFixed(2)}%</span></span>`;
-  }).join('<span style="color:var(--border2);padding:0 8px">|</span>');
-  document.getElementById('ticker-inner').innerHTML = items;
-}
-
-function updateMarketBadge() {
-  const b = document.getElementById('market-status');
-  b.textContent = marketOpen ? '● ABERTO' : '● FECHADO';
-  b.className = 'market-badge ' + (marketOpen?'open':'closed');
-}
-
-// ===================== TRADE =====================
-function goTrade(sym) {
-  selectedStockSym = sym;
-  showPage('trade');
-}
-
-function renderTradePage() {
-  const sel = document.getElementById('trade-symbol');
-  sel.innerHTML = stocks.map(s=>`<option value="${s.sym}" ${s.sym===selectedStockSym?'selected':''}>${s.sym} — ${s.name}</option>`).join('');
-  setOrderType(orderType);
-  updateTradeInfo();
-  renderTradeHistory();
-}
-
-function setOrderType(type) {
-  orderType = type;
-  document.getElementById('btn-buy-type').className = 'btn btn-'+(type==='buy'?'green':'ghost');
-  document.getElementById('btn-sell-type').className = 'btn btn-'+(type==='sell'?'red':'ghost');
-  updateTradeTotal();
-}
-
-function updateTradeInfo() {
-  const sym = document.getElementById('trade-symbol').value;
-  selectedStockSym = sym;
-  const s = stocks.find(x=>x.sym===sym);
-  if(!s) return;
-  const pf = portfolios[currentUser.id] || {};
-  document.getElementById('trade-price-display').textContent = 'R$ '+s.price.toFixed(2);
-  document.getElementById('trade-balance-display').textContent = 'R$ '+currentUser.balance.toFixed(2);
-  const chgCls = s.changePct>=0?'green':'red';
-  document.getElementById('trade-stock-info').innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-      <div>
-        <div style="font-size:20px;font-weight:800">${s.sym}</div>
-        <div style="font-size:13px;color:var(--text2)">${s.name}</div>
+    <!-- ADMIN -->
+    <div class="page" id="p-admin">
+      <div class="admin-zone">
+        <h3 class="red">⚡ Controle do Mercado</h3>
+        <div class="btns-row">
+          <button class="btn btn-g" onclick="adminAct('market/open')">Abrir</button>
+          <button class="btn btn-r" onclick="adminAct('market/close')">Fechar</button>
+          <button class="btn btn-gold" onclick="adminAct('market/reset',true)">🔄 Resetar Preços</button>
+          <button class="btn btn-dark" onclick="adminAct('market/crash')">💥 Crash</button>
+          <button class="btn btn-dark" onclick="adminAct('market/bull')">🚀 Alta Geral</button>
+        </div>
+        <div id="adm-mkt-msg"></div>
       </div>
-      <div style="margin-left:auto;text-align:right">
-        <div style="font-size:24px;font-weight:700;font-family:'Space Mono',monospace">R$ ${s.price.toFixed(2)}</div>
-        <div class="${chgCls}" style="font-size:13px">${s.changePct>=0?'+':''}${s.changePct.toFixed(2)}% hoje</div>
+
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="admin-zone">
+          <h3 class="gold">➕ Criar Ativo</h3>
+          <div class="fg"><label>Código (ex: XPTO3)</label><input type="text" id="na-sym" maxlength="7" placeholder="XPTO3" style="text-transform:uppercase"></div>
+          <div class="fg"><label>Nome</label><input type="text" id="na-name" placeholder="Empresa SA"></div>
+          <div class="fg"><label>Setor</label>
+            <select id="na-sector"><option>Tecnologia</option><option>Energia</option><option>Financeiro</option><option>Saúde</option><option>Varejo</option><option>Indústria</option><option>Alimentação</option><option>Transporte</option><option>Mineração</option><option>Imobiliário</option></select>
+          </div>
+          <div class="fg"><label>Descrição</label><textarea id="na-desc" placeholder="Descrição..."></textarea></div>
+          <div class="form-row">
+            <div class="fg"><label>Preço (R$)</label><input type="number" id="na-price" placeholder="30.00" step="0.01"></div>
+            <div class="fg"><label>Cotas</label><input type="number" id="na-shares" placeholder="1000000"></div>
+          </div>
+          <div class="form-row">
+            <div class="fg"><label>Volatilidade</label>
+              <select id="na-vol"><option value="0.008">Baixa</option><option value="0.015" selected>Média</option><option value="0.025">Alta</option><option value="0.04">Extrema</option></select>
+            </div>
+            <div class="fg"><label>Status</label>
+              <select id="na-status"><option value="active">Ativa</option><option value="suspended">Suspensa</option></select>
+            </div>
+          </div>
+          <button class="btn btn-g" onclick="adminCreateStock()">Criar Ativo</button>
+          <div id="adm-create-msg"></div>
+        </div>
+
+        <div class="admin-zone">
+          <h3>✏️ Editar Ativo</h3>
+          <div class="fg"><label>Selecionar</label><select id="edit-sym-sel" onchange="loadEditStock()"><option value="">— Selecionar —</option></select></div>
+          <div id="edit-stock-form" style="display:none">
+            <div class="fg"><label>Nome</label><input type="text" id="es-name"></div>
+            <div class="fg"><label>Setor</label><select id="es-sector"><option>Tecnologia</option><option>Energia</option><option>Financeiro</option><option>Saúde</option><option>Varejo</option><option>Indústria</option><option>Alimentação</option><option>Transporte</option><option>Mineração</option><option>Imobiliário</option></select></div>
+            <div class="fg"><label>Descrição</label><textarea id="es-desc"></textarea></div>
+            <div class="form-row">
+              <div class="fg"><label>Volatilidade</label><select id="es-vol"><option value="0.008">Baixa</option><option value="0.015">Média</option><option value="0.025">Alta</option><option value="0.04">Extrema</option></select></div>
+              <div class="fg"><label>Status</label><select id="es-status"><option value="active">Ativa</option><option value="suspended">Suspensa</option></select></div>
+            </div>
+            <div class="fg"><label>Ajustar Preço (%)</label><input type="number" id="es-pct" placeholder="+10 ou -20" step="0.1"></div>
+            <div class="btns-row">
+              <button class="btn btn-gold" style="flex:1" onclick="adminSaveStock()">Salvar</button>
+              <button class="btn btn-r btn-sm" onclick="adminDeleteStock()">Deletar</button>
+            </div>
+            <div id="adm-edit-msg"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-zone">
+        <h3>👥 Usuários</h3>
+        <div style="overflow-x:auto">
+          <table class="mkt-table" id="users-tbl">
+            <thead><tr><th>Foto</th><th>Nome</th><th>E-mail</th><th>País</th><th>Papel</th><th>Saldo</th><th>Ações</th></tr></thead>
+            <tbody id="users-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-zone">
+        <h3>📋 Log</h3>
+        <div id="adm-log" style="max-height:180px;overflow-y:auto"></div>
       </div>
     </div>
-    <div class="grid-2" style="gap:8px;margin-bottom:12px">
-      <div class="card-sm"><div style="font-size:10px;color:var(--text3)">ABERTURA</div><div class="mono" style="font-size:13px">R$ ${s.open.toFixed(2)}</div></div>
-      <div class="card-sm"><div style="font-size:10px;color:var(--text3)">MÁX / MÍN</div><div class="mono" style="font-size:13px">R$${s.high.toFixed(2)} / R$${s.low.toFixed(2)}</div></div>
-      <div class="card-sm"><div style="font-size:10px;color:var(--text3)">VOLUME</div><div class="mono" style="font-size:13px">${formatNum(s.volume)}</div></div>
-      <div class="card-sm"><div style="font-size:10px;color:var(--text3)">EM CARTEIRA</div><div class="mono" style="font-size:13px">${pf[sym]||0} cotas</div></div>
-    </div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:6px">DEMANDA vs OFERTA</div>
-    <div style="display:flex;gap:4px;align-items:center;font-size:11px">
-      <span style="color:var(--green)">D ${(s.demand*100).toFixed(0)}%</span>
-      <div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden">
-        <div style="width:${s.demand/(s.demand+s.supply)*100}%;height:100%;background:linear-gradient(90deg,var(--green),var(--red));"></div>
-      </div>
-      <span style="color:var(--red)">O ${(s.supply*100).toFixed(0)}%</span>
-    </div>
-  `;
-  updateTradeTotal();
-}
 
-function updateTradeTotal() {
-  const sym = document.getElementById('trade-symbol')?.value;
-  const s = stocks.find(x=>x.sym===sym);
-  const qty = parseInt(document.getElementById('trade-qty')?.value)||0;
-  if(!s||!qty) return;
-  const total = s.price * qty;
-  document.getElementById('trade-total-display').textContent = 'R$ '+total.toFixed(2);
-}
+  </div><!-- /app-body -->
+</div><!-- /s-app -->
 
-function executeOrder() {
-  if(!marketOpen){ showMsg('trade-msg','Mercado fechado! Não é possível operar.','error'); return; }
-  const sym = document.getElementById('trade-symbol').value;
-  const qty = parseInt(document.getElementById('trade-qty').value)||0;
-  const s = stocks.find(x=>x.sym===sym);
-  if(!s||qty<1){ showMsg('trade-msg','Quantidade inválida.','error'); return; }
-  const total = s.price * qty;
-  const pf = portfolios[currentUser.id];
-  if(orderType==='buy'){
-    if(currentUser.balance < total){ showMsg('trade-msg','Saldo insuficiente!','error'); return; }
-    currentUser.balance -= total;
-    pf[sym] = (pf[sym]||0) + qty;
-    s.demand = Math.min(0.95, s.demand + 0.02);
-    s.buys += qty;
-    s.volume += qty;
-    showMsg('trade-msg',`✅ Compra executada: ${qty}x ${sym} a R$${s.price.toFixed(2)}. Total: R$${total.toFixed(2)}`,'success');
-  } else {
-    if((pf[sym]||0)<qty){ showMsg('trade-msg','Cotas insuficientes em carteira!','error'); return; }
-    currentUser.balance += total;
-    pf[sym] -= qty;
-    if(pf[sym]===0) delete pf[sym];
-    s.supply = Math.min(0.95, s.supply + 0.02);
-    s.sells += qty;
-    s.volume += qty;
-    showMsg('trade-msg',`✅ Venda executada: ${qty}x ${sym} a R$${s.price.toFixed(2)}. Total: R$${total.toFixed(2)}`,'success');
-  }
-  const userRef = users.find(u=>u.id===currentUser.id);
-  userRef.balance = currentUser.balance;
-  transactions.push({id:txCounter++,userId:currentUser.id,userName:currentUser.name,type:orderType,sym,qty,price:s.price,total,time:new Date().toLocaleTimeString('pt-BR')});
-  addAdminLog(`${currentUser.name} ${orderType==='buy'?'COMPROU':'VENDEU'} ${qty}x ${sym} @ R$${s.price.toFixed(2)}`);
-  renderTradeHistory();
-  updateTradeInfo();
-}
+<!-- MODAL (balance edit) -->
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-content"></div>
+</div>
 
-function renderTradeHistory() {
-  const myTx = transactions.filter(t=>t.userId===currentUser.id).reverse().slice(0,20);
-  document.getElementById('trade-history').innerHTML = myTx.length ? myTx.map(t=>`
-    <div class="hist-row">
-      <span class="hist-type ${t.type}">${t.type==='buy'?'COMPRA':'VENDA'}</span>
-      <span style="font-weight:700">${t.sym}</span>
-      <span style="color:var(--text2)">${t.qty}x</span>
-      <span class="mono" style="font-size:11px">R$${t.price.toFixed(2)}</span>
-      <span class="mono ${t.type==='buy'?'price-dn':'price-up'}" style="margin-left:auto">R$${t.total.toFixed(2)}</span>
-      <span style="color:var(--text3);font-size:10px">${t.time}</span>
-    </div>
-  `).join('') : '<p style="color:var(--text3);font-size:13px;padding:10px 0">Nenhuma operação ainda.</p>';
-}
-
-// ===================== PORTFOLIO =====================
-function renderPortfolio() {
-  const pf = portfolios[currentUser.id];
-  let invested = 0, marketVal = 0;
-  Object.entries(pf).forEach(([sym,qty]) => {
-    const s = stocks.find(x=>x.sym===sym);
-    if(s){ marketVal += s.price*qty; invested += s.open*qty; }
-  });
-  const totalPL = marketVal - invested;
-  const totalAssets = currentUser.balance + marketVal;
-  document.getElementById('pf-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Saldo Cash</div><div class="stat-value">R$${formatNum(currentUser.balance)}</div></div>
-    <div class="stat-card"><div class="stat-label">Valor em Ações</div><div class="stat-value">R$${formatNum(marketVal)}</div></div>
-    <div class="stat-card"><div class="stat-label">P&L Hoje</div><div class="stat-value ${totalPL>=0?'green':'red'}">${totalPL>=0?'+':''}R$${formatNum(Math.abs(totalPL))}</div></div>
-    <div class="stat-card"><div class="stat-label">Patrimônio Total</div><div class="stat-value gold">R$${formatNum(totalAssets)}</div></div>
-  `;
-  const pfAssets = Object.entries(pf).filter(([,q])=>q>0);
-  document.getElementById('pf-assets').innerHTML = pfAssets.length ? pfAssets.map(([sym,qty]) => {
-    const s = stocks.find(x=>x.sym===sym);
-    if(!s) return '';
-    const val = s.price*qty;
-    const pl = (s.price-s.open)*qty;
-    return `<div class="pf-asset">
-      <div><span class="sym-badge">${sym}</span></div>
-      <div style="margin-left:12px;flex:1"><div style="font-weight:600;font-size:13px">${s.name}</div><div style="font-size:11px;color:var(--text2)">${qty} cotas</div></div>
-      <div style="text-align:right">
-        <div class="mono" style="font-size:13px;font-weight:700">R$${val.toFixed(2)}</div>
-        <div class="${pl>=0?'price-up':'price-dn'} mono" style="font-size:11px">${pl>=0?'+':''}R$${pl.toFixed(2)}</div>
-      </div>
-      <button class="btn btn-red btn-sm" style="margin-left:12px" onclick="quickSell('${sym}')">Vender</button>
-    </div>`;
-  }).join('') : '<p style="color:var(--text3);font-size:13px;padding:10px 0">Nenhum ativo em carteira.</p>';
-  const myTx = transactions.filter(t=>t.userId===currentUser.id).reverse();
-  document.getElementById('pf-history').innerHTML = myTx.length ? myTx.map(t=>`
-    <div class="hist-row">
-      <span class="hist-type ${t.type}">${t.type==='buy'?'C':'V'}</span>
-      <span style="font-weight:700;font-size:12px">${t.sym}</span>
-      <span style="color:var(--text2);font-size:11px">${t.qty}x @ R$${t.price.toFixed(2)}</span>
-      <span class="mono ${t.type==='buy'?'price-dn':'price-up'}" style="margin-left:auto;font-size:11px">R$${t.total.toFixed(2)}</span>
-      <span style="color:var(--text3);font-size:10px">${t.time}</span>
-    </div>
-  `).join('') : '<p style="color:var(--text3);font-size:13px">Nenhuma operação.</p>';
-}
-
-function quickSell(sym) {
-  document.getElementById('trade-symbol') && null;
-  orderType = 'sell';
-  selectedStockSym = sym;
-  showPage('trade');
-  setTimeout(()=>{
-    document.getElementById('trade-symbol').value = sym;
-    setOrderType('sell');
-    updateTradeInfo();
-  },100);
-}
-
-// ===================== RANKING =====================
-function renderRanking() {
-  // Investor ranking by total portfolio value
-  const rankings = users.filter(u=>u.role!=='admin').map(u => {
-    const pf = portfolios[u.id]||{};
-    let marketVal = 0;
-    Object.entries(pf).forEach(([sym,qty])=>{ const s=stocks.find(x=>x.sym===sym); if(s) marketVal+=s.price*qty; });
-    return {name:u.name, total: u.balance+marketVal, cash:u.balance, stocks:marketVal};
-  }).sort((a,b)=>b.total-a.total);
-  const medals = ['gold','silver','bronze'];
-  document.getElementById('investor-ranking').innerHTML = rankings.map((r,i)=>`
-    <div class="rank-row">
-      <div class="rank-num ${medals[i]||''}">${i+1}</div>
-      <div class="rank-info">
-        <div class="rank-name">${r.name}</div>
-        <div class="rank-sub">Cash: R$${formatNum(r.cash)} | Ações: R$${formatNum(r.stocks)}</div>
-      </div>
-      <div class="rank-val gold">R$${formatNum(r.total)}</div>
-    </div>
-  `).join('');
-
-  // Supply/Demand ranking
-  const sdRank = [...stocks].sort((a,b)=>(b.demand/(b.demand+b.supply))-(a.demand/(a.demand+a.supply)));
-  document.getElementById('supply-demand-ranking').innerHTML = sdRank.map((s,i)=>{
-    const ratio = s.demand/(s.demand+s.supply);
-    return `<div class="rank-row">
-      <div class="rank-num ${medals[i]||''}">${i+1}</div>
-      <div class="rank-info">
-        <div class="rank-name"><span class="sym-badge">${s.sym}</span> ${s.name}</div>
-        <div class="rank-sub">Demanda ${(ratio*100).toFixed(0)}% | Oferta ${((1-ratio)*100).toFixed(0)}%</div>
-      </div>
-      <div class="rank-val ${ratio>0.5?'price-up':'price-dn'}">${(ratio*100).toFixed(1)}%</div>
-    </div>`;
-  }).slice(0,5).join('');
-
-  // Top traded
-  const topTraded = [...stocks].sort((a,b)=>b.volume-a.volume).slice(0,5);
-  document.getElementById('top-traded').innerHTML = topTraded.map((s,i)=>`
-    <div class="rank-row">
-      <div class="rank-num ${medals[i]||''}">${i+1}</div>
-      <div class="rank-info">
-        <div class="rank-name"><span class="sym-badge">${s.sym}</span> ${s.name}</div>
-        <div class="rank-sub">Vol: ${formatNum(s.volume)} | C:${s.buys} V:${s.sells}</div>
-      </div>
-      <div class="rank-val">R$${formatNum(s.volume*s.price)}</div>
-    </div>
-  `).join('');
-}
-
-// ===================== ADMIN =====================
-function renderAdmin() {
-  const sel = document.getElementById('admin-sym-select');
-  sel.innerHTML = stocks.map(s=>`<option value="${s.sym}">${s.sym} — ${s.name}</option>`).join('');
-  const log = document.getElementById('admin-log');
-  log.innerHTML = adminLog.slice().reverse().slice(0,50).map(l=>`<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04)">[${new Date().toLocaleTimeString('pt-BR')}] ${l}</div>`).join('');
-}
-
-function adminOpenMarket() {
-  marketOpen = true;
-  updateMarketBadge();
-  showMsg('admin-status-msg','✅ Mercado ABERTO com sucesso!','success');
-  addAdminLog('Admin ABRIU o mercado');
-}
-
-function adminCloseMarket() {
-  marketOpen = false;
-  updateMarketBadge();
-  showMsg('admin-status-msg','🔴 Mercado FECHADO com sucesso!','success');
-  addAdminLog('Admin FECHOU o mercado');
-}
-
-function adminResetMarket() {
-  if(!confirm('Resetar o mercado? Isso zerará preços, volumes e carteiras.')) return;
-  users = JSON.parse(JSON.stringify(USERS));
-  currentUser = users.find(u=>u.id===currentUser.id);
-  transactions = [];
-  initStocks();
-  initPortfolios();
-  txCounter = 1;
-  marketOpen = true;
-  addAdminLog('Admin RESETOU o mercado');
-  showMsg('admin-status-msg','🔄 Mercado resetado com sucesso!','success');
-  renderAll();
-}
-
-function adminSendCrash() {
-  stocks.forEach(s => { s.price = Math.max(0.01, s.price * (0.88 + Math.random()*0.07)); s.price=Math.round(s.price*100)/100; s.change=s.price-s.open; s.changePct=(s.change/s.open)*100; s.supply=Math.min(0.9,s.supply+0.2); s.demand=Math.max(0.1,s.demand-0.2); });
-  showMsg('admin-status-msg','💥 Crash simulado! Mercado em queda.','error');
-  addAdminLog('Admin simulou CRASH de mercado');
-  renderAll(); updateMainChart();
-}
-
-function adminSendBull() {
-  stocks.forEach(s => { s.price *= (1.05 + Math.random()*0.06); s.price=Math.round(s.price*100)/100; s.change=s.price-s.open; s.changePct=(s.change/s.open)*100; s.demand=Math.min(0.9,s.demand+0.2); s.supply=Math.max(0.1,s.supply-0.2); });
-  showMsg('admin-status-msg','🚀 Alta geral simulada!','success');
-  addAdminLog('Admin simulou ALTA geral');
-  renderAll(); updateMainChart();
-}
-
-function adminCreateStock() {
-  const sym = document.getElementById('new-sym').value.trim().toUpperCase();
-  const name = document.getElementById('new-name').value.trim();
-  const sector = document.getElementById('new-sector').value;
-  const price = parseFloat(document.getElementById('new-price').value);
-  const shares = parseInt(document.getElementById('new-shares').value);
-  if(!sym||!name||!price||!shares){ showMsg('admin-stock-msg','Preencha todos os campos.','error'); return; }
-  if(stocks.find(s=>s.sym===sym)){ showMsg('admin-stock-msg','Código já existe!','error'); return; }
-  if(!/^[A-Z]{3,5}\d{1,2}$/.test(sym)){ showMsg('admin-stock-msg','Código inválido (Ex: XPTO3)','error'); return; }
-  const newStock = {sym,name,sector,price,open:price,high:price,low:price,prev:price,shares,change:0,changePct:0,volume:0,volatility:0.015,demand:0.5,supply:0.5,buys:0,sells:0};
-  stocks.push(newStock);
-  priceHistory[sym] = [{t:Date.now(),p:price}];
-  users.forEach(u=>{ if(!portfolios[u.id]) portfolios[u.id]={}; });
-  showMsg('admin-stock-msg',`✅ Ação ${sym} criada com sucesso!`,'success');
-  addAdminLog(`Admin criou ação ${sym} (${name}) @ R$${price}`);
-  renderAdmin();
-  renderAll();
-  ['trade-symbol'].forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML+=`<option value="${sym}">${sym} — ${name}</option>`; });
-}
-
-function adminManipulate() {
-  const sym = document.getElementById('admin-sym-select').value;
-  const pct = parseFloat(document.getElementById('admin-pct').value);
-  if(!sym||isNaN(pct)){ showMsg('admin-manip-msg','Preencha os campos.','error'); return; }
-  const s = stocks.find(x=>x.sym===sym);
-  if(!s) return;
-  const old = s.price;
-  s.price = Math.max(0.01, s.price * (1 + pct/100));
-  s.price = Math.round(s.price*100)/100;
-  s.change = s.price-s.open; s.changePct=(s.change/s.open)*100;
-  if(pct>0){s.demand=Math.min(0.9,s.demand+0.05);}else{s.supply=Math.min(0.9,s.supply+0.05);}
-  showMsg('admin-manip-msg',`✅ ${sym}: R$${old.toFixed(2)} → R$${s.price.toFixed(2)} (${pct>0?'+':''}${pct}%)`,'success');
-  addAdminLog(`Admin manipulou ${sym} ${pct>0?'+':''}${pct}% (R$${old.toFixed(2)}→R$${s.price.toFixed(2)})`);
-  renderAll(); updateMainChart();
-}
-
-// ===================== HELPERS =====================
-function formatNum(n) {
-  if(n>=1e9) return (n/1e9).toFixed(1)+'B';
-  if(n>=1e6) return (n/1e6).toFixed(1)+'M';
-  if(n>=1e3) return (n/1e3).toFixed(1)+'K';
-  return n.toFixed(0);
-}
-
-function showMsg(id, msg, type) {
-  const el = document.getElementById(id);
-  if(!el) return;
-  el.innerHTML = `<div class="alert-box ${type}">${msg}</div>`;
-  setTimeout(()=>{ if(el) el.innerHTML=''; }, 4000);
-}
-
-function addAdminLog(msg) {
-  adminLog.push(msg);
-  if(adminLog.length>200) adminLog.shift();
-  if(document.getElementById('page-admin').classList.contains('active')) renderAdmin();
-}
-
-// ===================== INIT =====================
-initStocks();
-initPortfolios();
-</script>
+<script src="/js/app.js"></script>
 </body>
 </html>
