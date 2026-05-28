@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const db = require('../data/db');
 const { requireAdmin, requireMod } = require('../middleware/auth');
+const simulator = require('../data/simulator');
 
 // GET /api/admin/log
 router.get('/log', requireMod, (req, res) => {
@@ -20,6 +21,7 @@ router.get('/users', requireMod, (req, res) => {
 // POST /api/admin/market/open
 router.post('/market/open', requireMod, (req, res) => {
   db.set('market.open', true).write();
+  simulator.start();
   db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Mercado ABERTO por ${req.session.userId}` }).write();
   res.json({ ok: true, open: true });
 });
@@ -36,7 +38,7 @@ router.post('/market/crash', requireMod, (req, res) => {
   const arr = db.get('stocks').value();
   arr.forEach(s => {
     if (s.status !== 'active') return;
-    s.price = Math.max(0.01, Math.round(s.price * (0.88 + Math.random() * 0.07) * 100) / 100);
+    s.price = Math.max(s.open * 0.10, Math.round(s.price * (0.91 + Math.random() * 0.05) * 100) / 100);  // -4% to -9%
     s.supply = Math.min(0.9, s.supply + 0.2);
     s.demand = Math.max(0.1, s.demand - 0.2);
   });
@@ -50,7 +52,7 @@ router.post('/market/bull', requireMod, (req, res) => {
   const arr = db.get('stocks').value();
   arr.forEach(s => {
     if (s.status !== 'active') return;
-    s.price = Math.round(s.price * (1.05 + Math.random() * 0.06) * 100) / 100;
+    s.price = Math.round(s.price * (1.02 + Math.random() * 0.04) * 100) / 100;  // max +6%
     s.demand = Math.min(0.9, s.demand + 0.2);
     s.supply = Math.max(0.1, s.supply - 0.2);
   });

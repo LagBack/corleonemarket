@@ -70,3 +70,42 @@ router.delete('/me/photo', requireAuth, (req, res) => {
 });
 
 module.exports = router;
+
+// GET /api/users/:id/public  — public profile (anyone can view)
+router.get('/:id/public', (req, res) => {
+  const user = db.get('users').find({ id: req.params.id }).value();
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+  const stocks = db.get('stocks').value();
+  const pf     = db.get('portfolios').get(req.params.id).value() || {};
+  const txs    = db.get('transactions').filter({ uid: req.params.id }).value();
+
+  let mv = 0;
+  const holdings = Object.entries(pf).map(([sym, qty]) => {
+    const s = stocks.find(x => x.sym === sym);
+    if (!s) return null;
+    const val   = s.price * qty;
+    const pct   = qty / s.shares * 100;   // % of total company shares owned
+    mv += val;
+    return { sym, name: s.name, qty, price: s.price, value: val, pctOfCompany: pct };
+  }).filter(Boolean);
+
+  res.json({
+    id:       user.id,
+    nick:     user.nick || user.name,
+    name:     user.name,
+    avatar:   user.avatar,
+    photo:    user.photo,
+    country:  user.country,
+    bio:      user.bio,
+    role:     user.role,
+    joined:   user.joined,
+    balance:  user.role === 'admin' ? null : user.balance,  // hide admin balance
+    totalTx:  txs.length,
+    buys:     txs.filter(t => t.type === 'buy').length,
+    sells:    txs.filter(t => t.type === 'sell').length,
+    holdings,
+    marketValue: mv,
+    totalWealth: user.role === 'admin' ? null : user.balance + mv,
+  });
+});
