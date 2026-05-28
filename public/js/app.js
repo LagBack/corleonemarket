@@ -8,6 +8,7 @@ let CU = null;           // current user
 let stocks = [];         // cached stock list
 let priceHistory = {};   // sym -> [{p}]
 let mainChart = null;
+let pieChart  = null;
 let selectedSym = null;
 let orderType = 'buy';
 let editAvatar = null;
@@ -480,18 +481,164 @@ function renderProfile() {
   const csel = document.getElementById('edit-country');
   for (let o of csel.options) if (o.value === CU.country || o.textContent === CU.country) o.selected = true;
   buildAvatarGrid('edit-av-grid', a => editAvatar = a, CU.avatar || '🦁');
-  // stats
-  GET('market/portfolio').then(({ transactions }) => {
-    const txs = transactions || [];
+
+  // Stats + pie chart + dividends — load in parallel
+  Promise.all([
+    GET('market/portfolio'),
+    GET('users/me/dividends')
+  ]).then(([pfData, divData]) => {
+    const txs = pfData.transactions || [];
+    const pf  = pfData.portfolio   || {};
+
     document.getElementById('prof-stats').innerHTML = `
       <div style="display:grid;gap:8px">
         <div style="background:var(--s2);padding:12px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Total Operações</div><div class="stat-val serif">${txs.length}</div></div>
-        <div style="background:var(--s2);padding:12px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Compras</div><div class="stat-val green serif">${txs.filter(t=>t.type==='buy').length}</div></div>
-        <div style="background:var(--s2);padding:12px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Vendas</div><div class="stat-val red serif">${txs.filter(t=>t.type==='sell').length}</div></div>
+        <div style="background:var(--s2);padding:12px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Compras / Vendas</div><div class="stat-val serif"><span class="green">${txs.filter(t=>t.type==='buy').length}</span> / <span class="red">${txs.filter(t=>t.type==='sell').length}</span></div></div>
         <div style="background:var(--s2);padding:12px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Membro desde</div><div class="mono" style="font-size:12px;color:var(--text2)">${new Date(CU.joined||Date.now()).toLocaleDateString('pt-BR')}</div></div>
+        ${divData.founded.length ? `<div style="background:var(--gold-dim);padding:12px;border:1px solid rgba(201,168,76,.3);border-radius:4px"><div class="stat-label">Empresas Fundadas</div><div class="stat-val gold serif">${divData.founded.length}</div><div style="font-size:10px;color:var(--gold);margin-top:2px">${divData.founded.map(f=>f.sym).join(', ')}</div></div>` : ''}
       </div>
     `;
-  }).catch(() => {});
+
+    // ── Pie chart ──
+    renderPieChart(pf);
+
+    // ── Dividends section ──
+    renderDividends(divData);
+
+  }).catch(e => console.error(e));
+}
+
+function renderPieChart(pf) {
+  const pfArr = Object.entries(pf).filter(([, q]) => q > 0);
+  const canvas = document.getElementById('pieChart');
+  const empty  = document.getElementById('pie-empty');
+  const legend = document.getElementById('pie-legend');
+
+  if (!pfArr.length) {
+    if (canvas) canvas.style.display = 'none';
+    if (empty)  empty.style.display  = 'block';
+    if (legend) legend.innerHTML = '';
+    return;
+  }
+  if (canvas) canvas.style.display = 'block';
+  if (empty)  empty.style.display  = 'none';
+
+  // Build data: % ownership of each company
+  const COLORS = [
+    '#c9a84c','#27ae60','#2980b9','#8e44ad','#e74c3c',
+    '#e67e22','#1abc9c','#f39c12','#3498db','#e91e63'
+  ];
+
+  const labels  = [];
+  const data    = [];
+  const colors  = [];
+  const details = [];
+
+  pfArr.forEach(([sym, qty], i) => {
+    const s = stocks.find(x => x.sym === sym);
+    if (!s) return;
+    const pctCompany = qty / s.shares * 100;
+    const val = s.price * qty;
+    labels.push(sym);
+    data.push(parseFloat(pctCompany.toFixed(6)));
+    colors.push(COLORS[i % COLORS.length]);
+    details.push({ sym, name: s.name, qty, pctCompany, val });
+  });
+
+  if (pieChart) { pieChart.destroy(); pieChart = null; }
+
+  const ctx = canvas.getContext('2d');
+  pieChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors.map(c => c + 'cc'),
+        borderColor:     colors,
+        borderWidth: 1.5,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const d = details[ctx.dataIndex];
+              return [
+                ` ${d.qty} cotas`,
+                ` ${d.pctCompany.toFixed(4)}% da empresa`,
+                ` Val: R$${d.val.toFixed(2)}`
+              ];
+            }
+          },
+          backgroundColor: '#131318',
+          borderColor: '#2a2a3a',
+          borderWidth: 1,
+          titleColor: '#c9a84c',
+          bodyColor: '#e8e6f0',
+          padding: 10
+        }
+      }
+    }
+  });
+
+  // Custom legend
+  legend.innerHTML = details.map((d, i) => `
+    <div style="display:flex;align-items:center;gap:5px;font-size:10px;padding:3px 6px;background:var(--s2);border-radius:3px;border:1px solid var(--border)">
+      <span style="width:8px;height:8px;border-radius:50%;background:${colors[i]};flex-shrink:0;display:inline-block"></span>
+      <span class="mono" style="color:var(--gold3)">${d.sym}</span>
+      <span style="color:var(--text3)">${d.pctCompany.toFixed(4)}%</span>
+    </div>
+  `).join('');
+}
+
+function renderDividends(divData) {
+  const badge = document.getElementById('div-total-badge');
+  if (badge) badge.textContent = 'R$' + fmtN(divData.total);
+
+  const divHist = document.getElementById('div-history');
+  if (divHist) {
+    divHist.innerHTML = divData.dividends.length
+      ? divData.dividends.map(d => `
+        <div class="hist-item">
+          <span class="hist-badge buy" style="background:rgba(201,168,76,.15);color:var(--gold);border-color:rgba(201,168,76,.3)">TAXA</span>
+          <span class="sym-tag" style="font-size:10px">${d.sym}</span>
+          <span style="color:var(--text3);font-size:10px">${d.traderName}</span>
+          <span style="color:var(--text3);font-size:9px">${d.type==='buy'?'comprou':'vendeu'}</span>
+          <span class="mono gold" style="margin-left:auto;font-size:11px">+R$${d.fee.toFixed(2)}</span>
+          <span style="color:var(--text3);font-size:9px">${d.time}</span>
+        </div>
+      `).join('')
+      : '<p style="color:var(--text3);font-size:12px;padding:10px 0">Nenhum dividendo ainda.</p>';
+  }
+
+  const divCreated = document.getElementById('div-created');
+  if (divCreated && divData.founded.length) {
+    divCreated.innerHTML = `
+      <div class="card-title" style="border:none;padding:0;margin-bottom:8px">🏭 Empresas que você fundou</div>
+      ${divData.founded.map(f => `
+        <div class="pf-item" style="margin-bottom:6px">
+          <span class="sym-tag">${f.sym}</span>
+          <div style="flex:1;margin-left:10px">
+            <div style="font-size:12px;font-weight:600">${f.name}</div>
+            <div style="font-size:10px;color:var(--text3)">Taxa: ${(f.founderFee*100).toFixed(1)}% por trade</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:9px;color:var(--text3)">Receita total</div>
+            <div class="mono gold" style="font-size:13px">R$${fmtN(f.totalRevenue)}</div>
+          </div>
+        </div>
+      `).join('')}
+    `;
+  } else if (divCreated) {
+    divCreated.innerHTML = '';
+  }
 }
 
 async function saveProfile() {

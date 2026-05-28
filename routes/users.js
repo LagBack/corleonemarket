@@ -109,3 +109,20 @@ router.get('/:id/public', (req, res) => {
     totalWealth: user.role === 'admin' ? null : user.balance + mv,
   });
 });
+
+// GET /api/users/me/dividends  — founder revenue history
+router.get('/me/dividends', requireAuth, (req, res) => {
+  const uid  = req.session.userId;
+  const divs = (db.get('dividends').value() || [])
+    .filter(d => d.founderId === uid)
+    .sort((a, b) => b.ts - a.ts)
+    .slice(0, 100);
+
+  const total = divs.reduce((a, d) => a + d.fee, 0);
+
+  // stocks this user founded
+  const founded = db.get('stocks').filter({ founderId: uid }).value()
+    .map(s => ({ sym: s.sym, name: s.name, totalRevenue: s.totalRevenue || 0, founderFee: s.founderFee }));
+
+  res.json({ dividends: divs, total: Math.round(total * 100) / 100, founded });
+});
