@@ -16,6 +16,7 @@
   --red:#c0392b;--red2:#e74c3c;--red-dim:rgba(192,57,43,.12);
   --green:#1a7a4a;--green2:#27ae60;--green-dim:rgba(39,174,96,.12);
   --blue:#2471a3;--blue-dim:rgba(36,113,163,.12);
+  --gold-dim:rgba(201,168,76,.12);
   --text:#e8e6f0;--text2:#9890b0;--text3:#5a5570;
   --radius:6px;
 }
@@ -409,7 +410,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="page" id="p-profile">
       <div class="profile-hero" id="prof-hero"></div>
       <input type="file" id="photo-input" accept="image/*" onchange="uploadPhoto(this)">
-      <div class="grid2">
+      <div class="grid2" style="margin-bottom:14px">
         <div class="card">
           <div class="card-title">Editar Perfil</div>
           <div class="fg"><label>Apelido</label><input type="text" id="edit-nick"></div>
@@ -428,6 +429,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div class="card">
           <div class="card-title">Estatísticas</div>
           <div id="prof-stats"></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">🥧 Participação nas Empresas</div>
+          <div style="position:relative;height:260px;display:flex;align-items:center;justify-content:center">
+            <canvas id="pieChart" style="max-height:240px"></canvas>
+            <div id="pie-empty" style="display:none;color:var(--text3);font-size:13px;position:absolute">Sem ativos em carteira</div>
+          </div>
+          <div id="pie-legend" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">💰 Dividendos Recebidos <span class="ct-badge gold" id="div-total-badge">R$0</span></div>
+          <div id="div-history" style="max-height:220px;overflow-y:auto"></div>
+          <div id="div-created" style="margin-top:12px"></div>
         </div>
       </div>
     </div>

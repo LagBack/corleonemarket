@@ -90,6 +90,36 @@ router.post('/order', requireAuth, (req, res) => {
     ts:    Date.now()
   };
   db.get('transactions').push(tx).write();
+
+  // ── Founder fee: pay 0.3% of trade volume to the stock's founder (if mod-created) ──
+  const freshStock = db.get('stocks').find({ sym }).value();
+  if (freshStock && freshStock.founderId && freshStock.founderFee > 0) {
+    const fee = Math.round(total * freshStock.founderFee * 100) / 100;
+    if (fee > 0.01) {
+      const founder = db.get('users').find({ id: freshStock.founderId }).value();
+      if (founder) {
+        db.get('users').find({ id: freshStock.founderId })
+          .assign({ balance: Math.round((founder.balance + fee) * 100) / 100 }).write();
+        db.get('stocks').find({ sym })
+          .assign({ totalRevenue: (freshStock.totalRevenue || 0) + fee }).write();
+        // Store dividend record so founder can see it in their profile
+        const divs = db.get('dividends').value() || [];
+        divs.push({
+          id: Date.now() + Math.random(),
+          founderId: freshStock.founderId,
+          sym,
+          traderName: user.nick || user.name,
+          type,
+          tradeTotal: total,
+          fee,
+          time: new Date().toLocaleTimeString('pt-BR'),
+          ts: Date.now()
+        });
+        db.set('dividends', divs).write();
+      }
+    }
+  }
+
   db.get('adminLog').push({
     t:   new Date().toLocaleTimeString('pt-BR'),
     msg: `${user.nick || user.name} ${type === 'buy' ? 'COMPROU' : 'VENDEU'} ${quantity}× ${sym} @ R$${stock.price.toFixed(2)}`
