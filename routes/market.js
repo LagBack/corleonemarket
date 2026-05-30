@@ -91,32 +91,41 @@ router.post('/order', requireAuth, (req, res) => {
   };
   db.get('transactions').push(tx).write();
 
-  // ── Founder fee: pay 0.3% of trade volume to the stock's founder (if mod-created) ──
+  // ── Owner revenue share: pay each listed owner their % of trade volume ──
   const freshStock = db.get('stocks').find({ sym }).value();
-  if (freshStock && freshStock.founderId && freshStock.founderFee > 0) {
-    const fee = Math.round(total * freshStock.founderFee * 100) / 100;
-    if (fee > 0.01) {
-      const founder = db.get('users').find({ id: freshStock.founderId }).value();
-      if (founder) {
-        db.get('users').find({ id: freshStock.founderId })
-          .assign({ balance: Math.round((founder.balance + fee) * 100) / 100 }).write();
-        db.get('stocks').find({ sym })
-          .assign({ totalRevenue: (freshStock.totalRevenue || 0) + fee }).write();
-        // Store dividend record so founder can see it in their profile
-        const divs = db.get('dividends').value() || [];
-        divs.push({
-          id: Date.now() + Math.random(),
-          founderId: freshStock.founderId,
-          sym,
-          traderName: user.nick || user.name,
-          type,
-          tradeTotal: total,
-          fee,
-          time: new Date().toLocaleTimeString('pt-BR'),
-          ts: Date.now()
-        });
-        db.set('dividends', divs).write();
-      }
+  if (freshStock && Array.isArray(freshStock.owners) && freshStock.owners.length > 0) {
+    let totalPaid = 0;
+    const divs = db.get('dividends').value() || [];
+
+    freshStock.owners.forEach(owner => {
+      // pct is stored as a percentage value like 0.15, meaning 0.15% of trade
+      const fee = Math.round(total * (owner.pct / 100) * 100) / 100;
+      if (fee < 0.01) return;
+      const ownerUser = db.get('users').find({ id: owner.userId }).value();
+      if (!ownerUser) return;
+      db.get('users').find({ id: owner.userId })
+        .assign({ balance: Math.round((ownerUser.balance + fee) * 100) / 100 }).write();
+      totalPaid += fee;
+      divs.push({
+        id:         Date.now() + Math.random(),
+        founderId:  owner.userId,
+        sym,
+        stockName:  freshStock.name,
+        ownerName:  owner.name,
+        traderName: user.nick || user.name,
+        type,
+        tradeTotal: total,
+        pct:        owner.pct,
+        fee,
+        time: new Date().toLocaleTimeString('pt-BR'),
+        ts:   Date.now()
+      });
+    });
+
+    if (totalPaid > 0) {
+      db.set('dividends', divs).write();
+      db.get('stocks').find({ sym })
+        .assign({ totalRevenue: (freshStock.totalRevenue || 0) + totalPaid }).write();
     }
   }
 
@@ -160,3 +169,139 @@ router.get('/ranking', (req, res) => {
 });
 
 module.exports = router;
+
+// ── P2P OWNERSHIP MARKETPLACE ──
+// Owners can list their % stake for sale; only other players can buy it
+
+// GET /api/market/ownership-offers  — list active P2P ownership offers
+router.get('/ownership-offers', (req, res) => {
+  const offers = db.get('ownershipOffers').value() || [];
+  // enrich with current stock info
+  const enriched = offers.filter(o => o.status === 'open').map(o => {
+    const s = db.get('stocks').find({ sym: o.sym }).value();
+    const seller = db.get('users').find({ id: o.sellerId }).value();
+    return {
+      ...o,
+      stockName: s ? s.name : o.sym,
+      sellerName: seller ? (seller.nick || seller.name) : '?',
+    };
+  });
+  res.json(enriched);
+});
+
+// POST /api/market/ownership-offers  — create a sell offer for ownership stake
+router.post('/ownership-offers', requireAuth, (req, res) => {
+  const { sym, pctToSell, askPrice } = req.body;
+  if (!sym || !pctToSell || !askPrice)
+    return res.status(400).json({ error: 'sym, pctToSell e askPrice são obrigatórios.' });
+
+  const uid   = req.session.userId;
+  const stock = db.get('stocks').find({ sym }).value();
+  if (!stock) return res.status(404).json({ error: 'Ativo não encontrado.' });
+
+  const ownedPct = (stock.ownershipShares || {})[uid] || 0;
+  const pct = parseFloat(pctToSell);
+  if (ownedPct <= 0) return res.status(403).json({ error: 'Você não tem participação nessa empresa.' });
+  if (pct > ownedPct) return res.status(400).json({ error: `Você só pode vender até ${ownedPct.toFixed(3)}% da sua participação.` });
+  if (pct <= 0)       return res.status(400).json({ error: 'Porcentagem inválida.' });
+
+  const offer = {
+    id:        'offer_' + Date.now(),
+    sym,
+    sellerId:  uid,
+    pct,
+    askPrice:  parseFloat(askPrice),  // R$ total price for this stake
+    status:    'open',
+    createdAt: Date.now(),
+    time:      new Date().toLocaleTimeString('pt-BR'),
+  };
+
+  const offers = db.get('ownershipOffers').value() || [];
+  offers.push(offer);
+  db.set('ownershipOffers', offers).write();
+
+  const user = db.get('users').find({ id: uid }).value();
+  db.get('adminLog').push({
+    t:   new Date().toLocaleTimeString('pt-BR'),
+    msg: `${user.nick||user.name} listou ${pct.toFixed(3)}% de ${sym} para venda por R$${parseFloat(askPrice).toFixed(2)}`
+  }).write();
+
+  res.json({ ok: true, offer });
+});
+
+// POST /api/market/ownership-offers/:id/buy  — buy someone's ownership stake
+router.post('/ownership-offers/:id/buy', requireAuth, (req, res) => {
+  const uid    = req.session.userId;
+  const offers = db.get('ownershipOffers').value() || [];
+  const offerIdx = offers.findIndex(o => o.id === req.params.id && o.status === 'open');
+  if (offerIdx < 0) return res.status(404).json({ error: 'Oferta não encontrada ou já encerrada.' });
+
+  const offer = offers[offerIdx];
+  if (offer.sellerId === uid) return res.status(400).json({ error: 'Você não pode comprar sua própria oferta.' });
+
+  const buyer  = db.get('users').find({ id: uid }).value();
+  const seller = db.get('users').find({ id: offer.sellerId }).value();
+  const stock  = db.get('stocks').find({ sym: offer.sym }).value();
+  if (!buyer || !seller || !stock)
+    return res.status(404).json({ error: 'Usuário ou ativo não encontrado.' });
+
+  if (buyer.balance < offer.askPrice)
+    return res.status(400).json({ error: 'Saldo insuficiente para comprar esta participação.' });
+
+  // Transfer money
+  db.get('users').find({ id: uid })
+    .assign({ balance: Math.round((buyer.balance - offer.askPrice) * 100) / 100 }).write();
+  db.get('users').find({ id: offer.sellerId })
+    .assign({ balance: Math.round((seller.balance + offer.askPrice) * 100) / 100 }).write();
+
+  // Transfer ownership stake in stock
+  const os = stock.ownershipShares || {};
+  os[offer.sellerId] = Math.round(((os[offer.sellerId] || 0) - offer.pct) * 10000) / 10000;
+  if (os[offer.sellerId] <= 0) delete os[offer.sellerId];
+  os[uid] = Math.round(((os[uid] || 0) + offer.pct) * 10000) / 10000;
+
+  // Update owners array (fee recipients) in the stock
+  const owners = stock.owners || [];
+  const sellerOwnerIdx = owners.findIndex(o => o.userId === offer.sellerId);
+  if (sellerOwnerIdx >= 0) {
+    owners[sellerOwnerIdx].pct -= offer.pct;
+    if (owners[sellerOwnerIdx].pct <= 0) owners.splice(sellerOwnerIdx, 1);
+  }
+  // Add or update buyer as owner
+  const buyerOwnerIdx = owners.findIndex(o => o.userId === uid);
+  const buyerUser = db.get('users').find({ id: uid }).value();
+  if (buyerOwnerIdx >= 0) {
+    owners[buyerOwnerIdx].pct += offer.pct;
+  } else {
+    owners.push({ userId: uid, name: buyerUser.nick || buyerUser.name, pct: offer.pct });
+  }
+
+  db.get('stocks').find({ sym: offer.sym })
+    .assign({ ownershipShares: os, owners }).write();
+
+  // Close offer
+  offers[offerIdx].status = 'sold';
+  offers[offerIdx].buyerId = uid;
+  offers[offerIdx].soldAt = Date.now();
+  db.set('ownershipOffers', offers).write();
+
+  db.get('adminLog').push({
+    t:   new Date().toLocaleTimeString('pt-BR'),
+    msg: `${buyerUser.nick||buyerUser.name} comprou ${offer.pct.toFixed(3)}% de ${offer.sym} de ${seller.nick||seller.name} por R$${offer.askPrice.toFixed(2)}`
+  }).write();
+
+  const updatedBuyer = db.get('users').find({ id: uid }).value();
+  const { pass, ...safeBuyer } = updatedBuyer;
+  res.json({ ok: true, user: safeBuyer });
+});
+
+// DELETE /api/market/ownership-offers/:id  — cancel own offer
+router.delete('/ownership-offers/:id', requireAuth, (req, res) => {
+  const uid    = req.session.userId;
+  const offers = db.get('ownershipOffers').value() || [];
+  const idx    = offers.findIndex(o => o.id === req.params.id && o.sellerId === uid && o.status === 'open');
+  if (idx < 0) return res.status(404).json({ error: 'Oferta não encontrada.' });
+  offers[idx].status = 'cancelled';
+  db.set('ownershipOffers', offers).write();
+  res.json({ ok: true });
+});
