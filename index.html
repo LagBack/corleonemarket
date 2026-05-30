@@ -294,6 +294,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <button class="hn-btn" onclick="showPage('portfolio')">Portfólio</button>
       <button class="hn-btn" onclick="showPage('ranking')">Ranking</button>
       <button class="hn-btn" onclick="showPage('profile')">Perfil</button>
+      <button class="hn-btn" onclick="showPage('p2p')">🏭 Participações</button>
       <button class="hn-btn admin-only" style="display:none" onclick="showPage('admin')">⚙ Admin</button>
     </div>
     <div class="hdr-right">
@@ -448,6 +449,34 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       </div>
     </div>
 
+    <!-- P2P OWNERSHIP -->
+    <div class="page" id="p-p2p">
+      <div class="grid2">
+        <div>
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-title">🏭 Minhas Participações</div>
+            <div id="my-ownership-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">📤 Vender Participação</div>
+            <div class="fg"><label>Empresa</label><select id="sell-own-sym" onchange="updateSellOwnershipInfo()" style="width:100%"><option value="">— Selecionar —</option></select></div>
+            <div id="sell-own-info" style="margin-bottom:10px"></div>
+            <div class="form-row">
+              <div class="fg"><label>% a vender</label><input type="number" id="sell-own-pct" placeholder="0.010" step="0.001" min="0.001" oninput="updateSellOwnershipInfo()"></div>
+              <div class="fg"><label>Preço pedido (R$)</label><input type="number" id="sell-own-price" placeholder="500.00" step="0.01" min="0.01"></div>
+            </div>
+            <button class="btn btn-gold" style="width:100%" onclick="createOwnershipOffer()">Publicar Oferta</button>
+            <div id="sell-own-msg" style="margin-top:8px"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">📋 Mercado de Participações <span class="ct-badge" id="offers-ct">0</span></div>
+          <p style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.6">Compre participações de empresas de outros players. Donos recebem taxa de cada trade nessa ação — é renda passiva real.</p>
+          <div id="ownership-market-list"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ADMIN -->
     <div class="page" id="p-admin">
       <div class="admin-zone">
@@ -462,28 +491,85 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div id="adm-mkt-msg"></div>
       </div>
 
-      <div class="grid2" style="margin-bottom:14px">
+      <div style="margin-bottom:14px">
         <div class="admin-zone">
           <h3 class="gold">➕ Criar Ativo</h3>
-          <div class="fg"><label>Código (ex: XPTO3)</label><input type="text" id="na-sym" maxlength="7" placeholder="XPTO3" style="text-transform:uppercase"></div>
-          <div class="fg"><label>Nome</label><input type="text" id="na-name" placeholder="Empresa SA"></div>
-          <div class="fg"><label>Setor</label>
-            <select id="na-sector"><option>Tecnologia</option><option>Energia</option><option>Financeiro</option><option>Saúde</option><option>Varejo</option><option>Indústria</option><option>Alimentação</option><option>Transporte</option><option>Mineração</option><option>Imobiliário</option></select>
+
+          <!-- Tabs -->
+          <div style="display:flex;background:var(--s3);border:1px solid var(--border);border-radius:4px;padding:3px;gap:3px;margin-bottom:16px;width:fit-content">
+            <button id="create-tab-info" onclick="switchCreateTab('info')"
+              style="padding:6px 20px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:none;border-radius:3px;cursor:pointer;background:var(--gold);color:var(--bg);font-family:'DM Sans',sans-serif">
+              📋 Informações
+            </button>
+            <button id="create-tab-owners" onclick="switchCreateTab('owners')"
+              style="padding:6px 20px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:none;border-radius:3px;cursor:pointer;background:transparent;color:var(--text3);font-family:'DM Sans',sans-serif">
+              👑 Donos
+            </button>
           </div>
-          <div class="fg"><label>Descrição</label><textarea id="na-desc" placeholder="Descrição..."></textarea></div>
-          <div class="form-row">
-            <div class="fg"><label>Preço (R$)</label><input type="number" id="na-price" placeholder="30.00" step="0.01"></div>
-            <div class="fg"><label>Cotas</label><input type="number" id="na-shares" placeholder="1000000"></div>
-          </div>
-          <div class="form-row">
-            <div class="fg"><label>Volatilidade</label>
-              <select id="na-vol"><option value="0.008">Baixa</option><option value="0.015" selected>Média</option><option value="0.025">Alta</option><option value="0.04">Extrema</option></select>
+
+          <!-- Tab: Info -->
+          <div id="create-panel-info">
+            <div class="grid2" style="gap:10px">
+              <div>
+                <div class="fg"><label>Código (ex: XPTO3)</label><input type="text" id="na-sym" maxlength="7" placeholder="XPTO3" style="text-transform:uppercase"></div>
+                <div class="fg"><label>Nome da Empresa</label><input type="text" id="na-name" placeholder="Empresa SA"></div>
+                <div class="fg"><label>Setor</label>
+                  <select id="na-sector"><option>Tecnologia</option><option>Energia</option><option>Financeiro</option><option>Saúde</option><option>Varejo</option><option>Indústria</option><option>Alimentação</option><option>Transporte</option><option>Mineração</option><option>Imobiliário</option></select>
+                </div>
+                <div class="fg"><label>Descrição</label><textarea id="na-desc" placeholder="Descrição da empresa..."></textarea></div>
+              </div>
+              <div>
+                <div class="form-row">
+                  <div class="fg"><label>Preço Inicial (R$)</label><input type="number" id="na-price" placeholder="30.00" step="0.01"></div>
+                  <div class="fg"><label>Total de Cotas</label><input type="number" id="na-shares" placeholder="1000000"></div>
+                </div>
+                <div class="form-row">
+                  <div class="fg"><label>Volatilidade</label>
+                    <select id="na-vol"><option value="0.008">Baixa</option><option value="0.015" selected>Média</option><option value="0.025">Alta</option><option value="0.04">Extrema</option></select>
+                  </div>
+                  <div class="fg"><label>Status</label>
+                    <select id="na-status"><option value="active">Ativa</option><option value="suspended">Suspensa</option></select>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="fg"><label>Status</label>
-              <select id="na-status"><option value="active">Ativa</option><option value="suspended">Suspensa</option></select>
-            </div>
           </div>
-          <button class="btn btn-g" onclick="adminCreateStock()">Criar Ativo</button>
+
+          <!-- Tab: Owners -->
+          <div id="create-panel-owners" style="display:none">
+            <div style="background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:14px">
+              <p style="font-size:11px;color:var(--text2);line-height:1.7">
+                Os donos recebem uma <strong style="color:var(--gold)">porcentagem mínima de cada trade</strong> na ação como receita passiva.
+                Cada dono pode ter uma % diferente. O total de % de todos os donos não deve ultrapassar <strong style="color:var(--gold)">1%</strong> (para ser justo com os traders).<br>
+                <span style="color:var(--red2)">⚠ Vender cotas de empresa entre donos é P2P — a IA não compra essas posições.</span>
+              </p>
+            </div>
+
+            <!-- Add owner row -->
+            <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:12px">
+              <div class="fg" style="flex:1;margin:0">
+                <label>Selecionar Player</label>
+                <select id="owner-player-sel" style="width:100%"><option value="">— Escolher player —</option></select>
+              </div>
+              <div class="fg" style="width:130px;margin:0">
+                <label>% por trade</label>
+                <input type="number" id="owner-pct-inp" placeholder="0.05" step="0.001" min="0.001" max="0.5" style="width:100%">
+              </div>
+              <button class="btn btn-gold btn-sm" style="margin-bottom:1px;white-space:nowrap" onclick="addOwnerRow()">+ Adicionar</button>
+            </div>
+
+            <div id="owners-list" style="margin-bottom:10px"></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding:6px 8px;background:var(--s3);border-radius:3px">
+              <span style="color:var(--text3)">Total alocado:</span>
+              <span class="mono" id="owners-total-pct" style="color:var(--gold)">0.000%</span>
+            </div>
+            <div id="owners-warning" style="margin-top:6px;font-size:11px;color:var(--red2);display:none">⚠ Total ultrapassa 1%. Reduza as porcentagens.</div>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;display:flex;align-items:center;gap:10px">
+            <button class="btn btn-g" onclick="adminCreateStock()">✓ Criar Ativo</button>
+            <span style="font-size:11px;color:var(--text3)" id="owners-summary-line"></span>
+          </div>
           <div id="adm-create-msg"></div>
         </div>
 

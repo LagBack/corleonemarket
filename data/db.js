@@ -12,6 +12,7 @@ db.defaults({
   portfolios: {},
   transactions: [],
   dividends: [],
+  ownershipListings: [],
   market: { open: true },
   adminLog: []
 }).write();

@@ -9,6 +9,7 @@ let stocks = [];         // cached stock list
 let priceHistory = {};   // sym -> [{p}]
 let mainChart = null;
 let pieChart  = null;
+let ownerRows = [];  // [{userId, name, nick, pct}]
 let selectedSym = null;
 let orderType = 'buy';
 let editAvatar = null;
@@ -263,12 +264,13 @@ function showPage(pg) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.hn-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('p-' + pg).classList.add('active');
-  const map = { market: 0, trade: 1, portfolio: 2, ranking: 3, profile: 4, admin: 5 };
+  const map = { market: 0, trade: 1, portfolio: 2, ranking: 3, profile: 4, p2p: 5, admin: 6 };
   document.querySelectorAll('.hn-btn')[map[pg]]?.classList.add('active');
   if (pg === 'trade')     renderTradePage();
   if (pg === 'portfolio') renderPortfolio();
   if (pg === 'ranking')   renderRanking();
   if (pg === 'profile')   renderProfile();
+  if (pg === 'p2p')       renderP2PPage();
   if (pg === 'admin')     renderAdmin();
 }
 
@@ -670,6 +672,149 @@ async function uploadPhoto(input) {
   } catch(e) { showMsg('prof-msg', e.message, 'err'); }
 }
 
+// ── P2P OWNERSHIP MARKETPLACE ──
+async function renderP2PPage() {
+  try {
+    const [pfData, offersData] = await Promise.all([
+      GET('market/portfolio'),
+      GET('market/ownership-offers')
+    ]);
+    const pf = pfData.portfolio || {};
+
+    // My ownership positions
+    const myOwned = stocks.filter(s => {
+      const os = s.ownershipShares || {};
+      return os[CU.id] && os[CU.id] > 0;
+    });
+
+    document.getElementById('my-ownership-list').innerHTML = myOwned.length
+      ? myOwned.map(s => {
+          const myPct = (s.ownershipShares||{})[CU.id] || 0;
+          const owner = (s.owners||[]).find(o => o.userId === CU.id);
+          const feePct = owner ? owner.pct : 0;
+          const totalRev = s.totalRevenue || 0;
+          const myShare = totalRev * feePct / (s.owners||[]).reduce((a,o)=>a+o.pct,feePct||1);
+          return `<div class="pf-item" style="flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:10px;width:100%">
+              <span class="sym-tag">${s.sym}</span>
+              <div style="flex:1"><div style="font-weight:600;font-size:12px">${s.name}</div><div style="font-size:10px;color:var(--text3)">${s.sector}</div></div>
+              <div style="text-align:right">
+                <div style="font-size:9px;color:var(--text3)">Sua participação</div>
+                <div class="mono gold" style="font-size:14px">${myPct.toFixed(4)}%</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;font-size:10px;width:100%">
+              <div style="background:var(--s3);padding:4px 8px;border-radius:3px;flex:1;text-align:center">
+                <div style="color:var(--text3)">Taxa/trade</div><div class="mono gold">${feePct.toFixed(3)}%</div>
+              </div>
+              <div style="background:var(--s3);padding:4px 8px;border-radius:3px;flex:1;text-align:center">
+                <div style="color:var(--text3)">Vol. total</div><div class="mono">${fmtN(s.volume)} cotas</div>
+              </div>
+              <div style="background:var(--s3);padding:4px 8px;border-radius:3px;flex:1;text-align:center">
+                <div style="color:var(--text3)">Receita total empresa</div><div class="mono green">R$${fmtN(totalRev)}</div>
+              </div>
+            </div>
+          </div>`;
+        }).join('')
+      : '<p style="color:var(--text3);font-size:12px;padding:8px 0">Você não tem participações em nenhuma empresa.</p>';
+
+    // Populate sell selector
+    const sellSel = document.getElementById('sell-own-sym');
+    sellSel.innerHTML = '<option value="">— Selecionar —</option>' +
+      myOwned.map(s => `<option value="${s.sym}">${s.sym} — ${s.name}</option>`).join('');
+
+    // Ownership market
+    const offers = offersData || [];
+    document.getElementById('offers-ct').textContent = offers.length;
+    document.getElementById('ownership-market-list').innerHTML = offers.length
+      ? offers.map(o => {
+          const isMine = o.sellerId === CU.id;
+          return `<div style="background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+              <span class="sym-tag">${o.sym}</span>
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:12px">${o.stockName}</div>
+                <div style="font-size:10px;color:var(--text3)">Vendido por <span style="color:var(--text2)">${o.sellerName}</span></div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:9px;color:var(--text3)">Preço pedido</div>
+                <div class="mono gold" style="font-size:15px">R$${o.askPrice.toFixed(2)}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;font-size:10px;margin-bottom:10px">
+              <div style="background:var(--s3);padding:4px 8px;border-radius:3px;flex:1;text-align:center">
+                <div style="color:var(--text3)">Participação</div><div class="mono gold">${o.pct.toFixed(4)}%</div>
+              </div>
+              <div style="background:var(--s3);padding:4px 8px;border-radius:3px;flex:1;text-align:center">
+                <div style="color:var(--text3)">Taxa/trade incluída</div><div class="mono">${o.pct.toFixed(4)}% do volume</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px">
+              ${!isMine
+                ? `<button class="btn btn-gold btn-sm" style="flex:1" onclick="buyOwnershipOffer('${o.id}', '${o.sym}', ${o.askPrice}, ${o.pct})">Comprar Participação</button>`
+                : `<span style="font-size:11px;color:var(--text3);flex:1;display:flex;align-items:center">Sua oferta</span>`}
+              ${isMine ? `<button class="btn btn-ghost btn-sm" onclick="cancelOwnershipOffer('${o.id}')">Cancelar</button>` : ''}
+            </div>
+          </div>`;
+        }).join('')
+      : '<p style="color:var(--text3);font-size:12px;padding:10px 0">Nenhuma participação à venda no momento.</p>';
+
+  } catch(e) { console.error(e); }
+}
+
+function updateSellOwnershipInfo() {
+  const sym = document.getElementById('sell-own-sym').value;
+  const pctInp = document.getElementById('sell-own-pct');
+  const infoEl = document.getElementById('sell-own-info');
+  if (!sym) { infoEl.innerHTML = ''; return; }
+  const s = stocks.find(x => x.sym === sym);
+  if (!s) return;
+  const myPct = (s.ownershipShares||{})[CU.id] || 0;
+  const inputPct = parseFloat(pctInp?.value) || 0;
+  infoEl.innerHTML = `
+    <div style="background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:10px;font-size:11px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:var(--text3)">Sua participação atual</span>
+        <span class="mono gold">${myPct.toFixed(4)}%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between">
+        <span style="color:var(--text3)">Ficará com</span>
+        <span class="mono">${Math.max(0, myPct - inputPct).toFixed(4)}%</span>
+      </div>
+      ${myPct <= 0 ? '<div style="color:var(--red2);margin-top:6px">Você não tem participação nessa empresa.</div>' : ''}
+    </div>
+  `;
+}
+
+async function createOwnershipOffer() {
+  const sym      = document.getElementById('sell-own-sym').value;
+  const pctToSell = document.getElementById('sell-own-pct').value;
+  const askPrice = document.getElementById('sell-own-price').value;
+  try {
+    await POST('market/ownership-offers', { sym, pctToSell, askPrice });
+    showMsg('sell-own-msg', '✓ Oferta publicada!', 'ok');
+    renderP2PPage();
+  } catch(e) { showMsg('sell-own-msg', e.message, 'err'); }
+}
+
+async function buyOwnershipOffer(offerId, sym, price, pct) {
+  if (!confirm(`Comprar ${pct.toFixed(4)}% de participação em ${sym} por R$${price.toFixed(2)}?\n\nVocê passará a receber ${pct.toFixed(4)}% do volume de cada trade nessa ação.`)) return;
+  try {
+    const { user } = await POST(`market/ownership-offers/${offerId}/buy`);
+    CU.balance = user.balance;
+    showMsg('sell-own-msg', `✓ Participação adquirida! Agora você recebe ${pct.toFixed(4)}% dos trades em ${sym}.`, 'ok');
+    renderP2PPage();
+  } catch(e) { alert(e.message); }
+}
+
+async function cancelOwnershipOffer(offerId) {
+  if (!confirm('Cancelar esta oferta?')) return;
+  try {
+    await DEL(`market/ownership-offers/${offerId}`);
+    renderP2PPage();
+  } catch(e) { alert(e.message); }
+}
+
 // ── ADMIN ──
 async function renderAdmin() {
   try {
@@ -721,6 +866,91 @@ async function adminAct(path, confirm_) {
   } catch(e) { showMsg('adm-mkt-msg', e.message, 'err'); }
 }
 
+// ── OWNER MANAGEMENT ──
+function switchCreateTab(tab) {
+  document.getElementById('create-panel-info').style.display   = tab === 'info'   ? 'block' : 'none';
+  document.getElementById('create-panel-owners').style.display = tab === 'owners' ? 'block' : 'none';
+  // Style active tab gold, inactive transparent
+  const btnInfo   = document.getElementById('create-tab-info');
+  const btnOwners = document.getElementById('create-tab-owners');
+  if (btnInfo && btnOwners) {
+    btnInfo.style.background   = tab === 'info'   ? 'var(--gold)' : 'transparent';
+    btnInfo.style.color        = tab === 'info'   ? 'var(--bg)'   : 'var(--text3)';
+    btnOwners.style.background = tab === 'owners' ? 'var(--gold)' : 'transparent';
+    btnOwners.style.color      = tab === 'owners' ? 'var(--bg)'   : 'var(--text3)';
+  }
+  if (tab === 'owners') populateOwnerPlayerSel();
+}
+
+async function populateOwnerPlayerSel() {
+  try {
+    const users = await GET('admin/users');
+    const sel = document.getElementById('owner-player-sel');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Escolher player —</option>' +
+      users.filter(u => u.role !== 'admin').map(u =>
+        `<option value="${u.id}" data-nick="${u.nick||u.name}">${u.nick||u.name} (${u.email})</option>`
+      ).join('');
+  } catch(e) {}
+}
+
+function addOwnerRow() {
+  const sel = document.getElementById('owner-player-sel');
+  const pctInp = document.getElementById('owner-pct-inp');
+  const uid  = sel.value;
+  const nick = sel.options[sel.selectedIndex]?.dataset.nick || sel.options[sel.selectedIndex]?.text || '';
+  const pct  = parseFloat(pctInp.value);
+
+  if (!uid) { alert('Selecione um player.'); return; }
+  if (!pct || pct <= 0) { alert('Insira uma porcentagem válida (ex: 0.05).'); return; }
+  if (ownerRows.find(r => r.userId === uid)) { alert('Este player já foi adicionado.'); return; }
+
+  ownerRows.push({ userId: uid, name: nick, pct });
+  pctInp.value = '';
+  sel.value = '';
+  renderOwnerRows();
+}
+
+function removeOwnerRow(uid) {
+  ownerRows = ownerRows.filter(r => r.userId !== uid);
+  renderOwnerRows();
+}
+
+function renderOwnerRows() {
+  const container = document.getElementById('owners-list');
+  const totalPctEl = document.getElementById('owners-total-pct');
+  const warning = document.getElementById('owners-warning');
+  const summary = document.getElementById('owners-summary-line');
+  if (!container) return;
+
+  const total = ownerRows.reduce((a, r) => a + r.pct, 0);
+  if (totalPctEl) totalPctEl.textContent = total.toFixed(3) + '%';
+  if (warning)    warning.style.display  = total > 1 ? 'block' : 'none';
+  if (summary)    summary.textContent    = ownerRows.length ? `${ownerRows.length} dono(s) · ${total.toFixed(3)}% total por trade` : '';
+
+  container.innerHTML = ownerRows.length
+    ? ownerRows.map(r => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:4px;margin-bottom:6px">
+        <div style="font-size:16px">👤</div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:12px">${r.name}</div>
+          <div style="font-size:10px;color:var(--text3)">Recebe <span class="mono gold">${r.pct.toFixed(3)}%</span> de cada trade nessa ação</div>
+        </div>
+        <input type="number" value="${r.pct}" min="0.001" max="0.5" step="0.001"
+          style="width:80px;text-align:right;font-size:12px"
+          onchange="updateOwnerPct('${r.userId}', this.value)">
+        <span style="font-size:11px;color:var(--text3)">%</span>
+        <button class="btn btn-r btn-sm" onclick="removeOwnerRow('${r.userId}')">✕</button>
+      </div>
+    `).join('')
+    : '<p style="color:var(--text3);font-size:12px;padding:4px 0">Nenhum dono adicionado. A ação pertencerá ao mercado.</p>';
+}
+
+function updateOwnerPct(uid, val) {
+  const r = ownerRows.find(r => r.userId === uid);
+  if (r) { r.pct = parseFloat(val) || 0; renderOwnerRows(); }
+}
+
 async function adminCreateStock() {
   const sym    = document.getElementById('na-sym').value.trim().toUpperCase();
   const name   = document.getElementById('na-name').value.trim();
@@ -730,9 +960,15 @@ async function adminCreateStock() {
   const shares = document.getElementById('na-shares').value;
   const vol    = document.getElementById('na-vol').value;
   const status = document.getElementById('na-status').value;
+
+  const total = ownerRows.reduce((a, r) => a + r.pct, 0);
+  if (total > 1) { showMsg('adm-create-msg', 'Total de % dos donos não pode ultrapassar 1%.', 'err'); return; }
+
   try {
-    await POST('stocks', { sym, name, sector, desc, price, shares, vol, status });
-    showMsg('adm-create-msg', `✓ Ativo ${sym} criado!`, 'ok');
+    await POST('stocks', { sym, name, sector, desc, price, shares, vol, status, owners: ownerRows });
+    showMsg('adm-create-msg', `✓ Ativo ${sym} criado${ownerRows.length ? ` com ${ownerRows.length} dono(s)!` : '!'}`, 'ok');
+    ownerRows = [];
+    renderOwnerRows();
     await loadMarketState();
     renderAdmin();
   } catch(e) { showMsg('adm-create-msg', e.message, 'err'); }
