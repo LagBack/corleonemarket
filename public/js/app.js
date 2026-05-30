@@ -874,10 +874,10 @@ function switchCreateTab(tab) {
   const btnInfo   = document.getElementById('create-tab-info');
   const btnOwners = document.getElementById('create-tab-owners');
   if (btnInfo && btnOwners) {
-    btnInfo.style.background   = tab === 'info'   ? 'var(--gold)' : 'transparent';
-    btnInfo.style.color        = tab === 'info'   ? 'var(--bg)'   : 'var(--text3)';
-    btnOwners.style.background = tab === 'owners' ? 'var(--gold)' : 'transparent';
-    btnOwners.style.color      = tab === 'owners' ? 'var(--bg)'   : 'var(--text3)';
+    btnInfo.style.background   = tab === 'info'   ? '#c9a84c' : 'transparent';
+    btnInfo.style.color        = tab === 'info'   ? '#0d0d0f' : '#c9a84c';
+    btnOwners.style.background = tab === 'owners' ? '#c9a84c' : 'transparent';
+    btnOwners.style.color      = tab === 'owners' ? '#0d0d0f' : '#c9a84c';
   }
   if (tab === 'owners') populateOwnerPlayerSel();
 }
