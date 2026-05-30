@@ -818,6 +818,7 @@ async function cancelOwnershipOffer(offerId) {
 // ── ADMIN ──
 async function renderAdmin() {
   try {
+    populateOwnerPlayerSel();
     const [usersData, logData] = await Promise.all([GET('admin/users'), GET('admin/log')]);
     document.getElementById('adm-log').innerHTML = (logData || []).map(l =>
       `<div class="log-line"><span class="log-time">[${l.t}]</span>${l.msg}</div>`).join('');
@@ -867,21 +868,6 @@ async function adminAct(path, confirm_) {
 }
 
 // ── OWNER MANAGEMENT ──
-function switchCreateTab(tab) {
-  document.getElementById('create-panel-info').style.display   = tab === 'info'   ? 'block' : 'none';
-  document.getElementById('create-panel-owners').style.display = tab === 'owners' ? 'block' : 'none';
-  // Style active tab gold, inactive transparent
-  const btnInfo   = document.getElementById('create-tab-info');
-  const btnOwners = document.getElementById('create-tab-owners');
-  if (btnInfo && btnOwners) {
-    btnInfo.style.background   = tab === 'info'   ? '#c9a84c' : 'transparent';
-    btnInfo.style.color        = tab === 'info'   ? '#0d0d0f' : '#c9a84c';
-    btnOwners.style.background = tab === 'owners' ? '#c9a84c' : 'transparent';
-    btnOwners.style.color      = tab === 'owners' ? '#0d0d0f' : '#c9a84c';
-  }
-  if (tab === 'owners') populateOwnerPlayerSel();
-}
-
 async function populateOwnerPlayerSel() {
   try {
     const users = await GET('admin/users');
