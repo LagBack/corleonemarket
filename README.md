@@ -1,2 +1,1 @@
-# corleonemarket
-projeto de ações, finanças ficticias
+Corleone Market é um simulador completo de bolsa de valores fictícia com backend Node.js, mercado em tempo real, sistema de autenticação, compra e venda de ações, ranking de investidores, participações societárias P2P e painel de administração completo.
