@@ -7,3 +7,15 @@ Corleone Market é um simulador completo de bolsa de valores fictícia com backe
 - Índice **IBCX** calculado em tempo real
 - **Eventos de notícia** aleatórios a cada ~90s (escândalos, contratos, investigações) que impactam preços
 - **Mean reversion** — preços retornam gradualmente ao valor inicial, evitando deflação/inflação infinita
+
+| Categoria | Tecnologia |
+|-----------|-----------|
+| Runtime | Node.js |
+| Framework | Express 4 |
+| Banco de dados | lowdb (JSON file) |
+| Autenticação | express-session + bcryptjs |
+| Upload | multer |
+| IDs únicos | uuid |
+| Frontend | HTML + CSS + Vanilla JS |
+| Gráficos | Chart.js 4 |
+| Dev | nodemon |
