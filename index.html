@@ -491,99 +491,100 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div id="adm-mkt-msg"></div>
       </div>
 
-      <!-- CREATE + EDIT side by side -->
-      <div class="grid2" style="margin-bottom:14px">
+      <!-- ── CRIAR ATIVO (único card, tudo junto) ── -->
+      <div class="admin-zone" style="margin-bottom:14px">
+        <h3 class="gold">➕ Criar Ativo</h3>
 
-        <!-- ── CRIAR ATIVO ── -->
-        <div class="admin-zone">
-          <h3 class="gold">➕ Criar Ativo</h3>
-
-          <div class="fg"><label>Código (ex: XPTO3)</label><input type="text" id="na-sym" maxlength="7" placeholder="XPTO3" style="text-transform:uppercase"></div>
-          <div class="fg"><label>Nome da Empresa</label><input type="text" id="na-name" placeholder="Empresa SA"></div>
-          <div class="fg"><label>Setor</label>
-            <select id="na-sector"><option>Tecnologia</option><option>Energia</option><option>Financeiro</option><option>Saúde</option><option>Varejo</option><option>Indústria</option><option>Alimentação</option><option>Transporte</option><option>Mineração</option><option>Imobiliário</option></select>
-          </div>
-          <div class="fg"><label>Descrição</label><textarea id="na-desc" placeholder="Descrição da empresa..."></textarea></div>
-          <div class="form-row">
-            <div class="fg"><label>Preço Inicial (R$)</label><input type="number" id="na-price" placeholder="30.00" step="0.01"></div>
-            <div class="fg"><label>Total de Cotas</label><input type="number" id="na-shares" placeholder="1000000"></div>
-          </div>
-          <div class="form-row">
-            <div class="fg"><label>Volatilidade</label>
-              <select id="na-vol"><option value="0.008">Baixa</option><option value="0.015" selected>Média</option><option value="0.025">Alta</option><option value="0.04">Extrema</option></select>
+        <div class="grid2" style="gap:10px">
+          <!-- Coluna esquerda: dados da empresa -->
+          <div>
+            <div class="fg"><label>Código (ex: XPTO3)</label><input type="text" id="na-sym" maxlength="7" placeholder="XPTO3" style="text-transform:uppercase"></div>
+            <div class="fg"><label>Nome da Empresa</label><input type="text" id="na-name" placeholder="Empresa SA"></div>
+            <div class="fg"><label>Setor</label>
+              <select id="na-sector"><option>Tecnologia</option><option>Energia</option><option>Financeiro</option><option>Saúde</option><option>Varejo</option><option>Indústria</option><option>Alimentação</option><option>Transporte</option><option>Mineração</option><option>Imobiliário</option></select>
             </div>
-            <div class="fg"><label>Status</label>
-              <select id="na-status"><option value="active">Ativa</option><option value="suspended">Suspensa</option></select>
+            <div class="fg"><label>Descrição</label><textarea id="na-desc" placeholder="Descrição da empresa..."></textarea></div>
+            <div class="form-row">
+              <div class="fg"><label>Preço Inicial (R$)</label><input type="number" id="na-price" placeholder="30.00" step="0.01"></div>
+              <div class="fg"><label>Total de Cotas</label><input type="number" id="na-shares" placeholder="1000000"></div>
+            </div>
+            <div class="form-row">
+              <div class="fg"><label>Volatilidade</label>
+                <select id="na-vol"><option value="0.008">Baixa</option><option value="0.015" selected>Média</option><option value="0.025">Alta</option><option value="0.04">Extrema</option></select>
+              </div>
+              <div class="fg"><label>Status</label>
+                <select id="na-status"><option value="active">Ativa</option><option value="suspended">Suspensa</option></select>
+              </div>
             </div>
           </div>
 
+          <!-- Coluna direita: donos -->
+          <div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#c9a84c;margin-bottom:8px">👑 Donos da Empresa (opcional)</div>
+            <div style="font-size:11px;color:#9890b0;line-height:1.6;margin-bottom:12px;padding:8px 10px;background:#18181f;border-left:2px solid #c9a84c;border-radius:0 4px 4px 0">
+              Donos recebem uma <strong style="color:#c9a84c">% de cada trade</strong> como renda passiva. Total máximo: <strong style="color:#c9a84c">1%</strong>.
+            </div>
+
+            <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:8px">
+              <div style="flex:1">
+                <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#5a5570;margin-bottom:4px">Player</div>
+                <select id="owner-player-sel" style="width:100%;padding:7px 9px;background:#18181f;border:1px solid #2a2a3a;color:#e8e6f0;border-radius:4px;font-size:12px;font-family:'DM Mono',monospace">
+                  <option value="">— Escolher —</option>
+                </select>
+              </div>
+              <div style="width:90px">
+                <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#5a5570;margin-bottom:4px">% / trade</div>
+                <input type="number" id="owner-pct-inp" placeholder="0.05" step="0.001" min="0.001" max="1"
+                  style="width:100%;padding:7px 9px;background:#18181f;border:1px solid #2a2a3a;color:#e8e6f0;border-radius:4px;font-size:12px;font-family:'DM Mono',monospace">
+              </div>
+              <button onclick="addOwnerRow()"
+                style="padding:7px 12px;background:#c9a84c;color:#0d0d0f;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+                + Add
+              </button>
+            </div>
+
+            <div id="owners-list" style="min-height:36px;margin-bottom:8px">
+              <p style="font-size:11px;color:#5a5570;padding:4px 0">Nenhum dono adicionado.</p>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#18181f;border:1px solid #2a2a3a;border-radius:4px;font-size:11px">
+              <span style="color:#5a5570">Total alocado:</span>
+              <span id="owners-total-pct" style="font-family:'DM Mono',monospace;color:#c9a84c;font-weight:700">0.000%</span>
+            </div>
+            <div id="owners-warning" style="margin-top:5px;font-size:11px;color:#e74c3c;display:none">⚠ Ultrapassa 1%.</div>
+            <div id="owners-summary-line" style="margin-top:5px;font-size:11px;color:#9890b0"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #2a2a3a;display:flex;gap:10px;align-items:center">
           <button class="btn btn-g" onclick="adminCreateStock()">✓ Criar Ativo</button>
-          <div id="adm-create-msg"></div>
         </div>
+        <div id="adm-create-msg"></div>
+      </div>
 
-        <!-- ── DONOS DA EMPRESA ── -->
-        <div class="admin-zone">
-          <h3 style="color:#c9a84c;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">👑 Donos da Empresa</h3>
-          <p style="font-size:11px;color:#9890b0;line-height:1.7;margin-bottom:14px;padding:10px;background:#18181f;border:1px solid #2a2a3a;border-radius:4px">
-            Cada dono recebe uma <strong style="color:#c9a84c">% mínima de todo trade</strong> como renda passiva.
-            Máximo de <strong style="color:#c9a84c">1%</strong> no total entre todos os donos.
-          </p>
-
-          <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px">
-            <div style="flex:1">
-              <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#5a5570;margin-bottom:4px">Player</label>
-              <select id="owner-player-sel" style="width:100%;padding:8px 10px;background:#18181f;border:1px solid #2a2a3a;color:#e8e6f0;border-radius:4px;font-size:12px">
-                <option value="">— Selecionar player —</option>
-              </select>
+      <!-- ── EDITAR ATIVO ── -->
+      <div class="admin-zone" style="margin-bottom:14px">
+        <h3>✏️ Editar Ativo Existente</h3>
+        <div class="fg"><label>Selecionar</label><select id="edit-sym-sel" onchange="loadEditStock()"><option value="">— Selecionar —</option></select></div>
+        <div id="edit-stock-form" style="display:none">
+          <div class="grid2" style="gap:10px">
+            <div>
+              <div class="fg"><label>Nome</label><input type="text" id="es-name"></div>
+              <div class="fg"><label>Setor</label><select id="es-sector"><option>Tecnologia</option><option>Energia</option><option>Financeiro</option><option>Saúde</option><option>Varejo</option><option>Indústria</option><option>Alimentação</option><option>Transporte</option><option>Mineração</option><option>Imobiliário</option></select></div>
+              <div class="fg"><label>Descrição</label><textarea id="es-desc"></textarea></div>
             </div>
-            <div style="width:110px">
-              <label style="display:block;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#5a5570;margin-bottom:4px">% por trade</label>
-              <input type="number" id="owner-pct-inp" placeholder="0.050" step="0.001" min="0.001" max="1"
-                style="width:100%;padding:8px 10px;background:#18181f;border:1px solid #2a2a3a;color:#e8e6f0;border-radius:4px;font-size:12px">
+            <div>
+              <div class="fg"><label>Volatilidade</label><select id="es-vol"><option value="0.008">Baixa</option><option value="0.015">Média</option><option value="0.025">Alta</option><option value="0.04">Extrema</option></select></div>
+              <div class="fg"><label>Status</label><select id="es-status"><option value="active">Ativa</option><option value="suspended">Suspensa</option></select></div>
+              <div class="fg"><label>Ajustar Preço (%)</label><input type="number" id="es-pct" placeholder="+10 ou -20" step="0.1"></div>
             </div>
-            <button onclick="addOwnerRow()"
-              style="padding:8px 14px;background:#c9a84c;color:#0d0d0f;border:none;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;height:36px">
-              + Adicionar
-            </button>
           </div>
-
-          <div id="owners-list" style="min-height:40px;margin-bottom:10px">
-            <p style="font-size:11px;color:#5a5570;padding:6px 0">Nenhum dono adicionado ainda.</p>
+          <div class="btns-row">
+            <button class="btn btn-gold" onclick="adminSaveStock()">Salvar Alterações</button>
+            <button class="btn btn-r btn-sm" onclick="adminDeleteStock()">Deletar Ativo</button>
           </div>
-
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#18181f;border:1px solid #2a2a3a;border-radius:4px">
-            <span style="font-size:11px;color:#5a5570">Total alocado:</span>
-            <span id="owners-total-pct" style="font-family:'DM Mono',monospace;font-size:12px;color:#c9a84c;font-weight:700">0.000%</span>
-          </div>
-          <div id="owners-warning" style="margin-top:6px;font-size:11px;color:#e74c3c;display:none">⚠ Total ultrapassa 1%. Reduza as porcentagens.</div>
-          <div id="owners-summary-line" style="margin-top:6px;font-size:11px;color:#9890b0"></div>
+          <div id="adm-edit-msg"></div>
         </div>
-
-        <!-- ── EDITAR ATIVO ── -->
-        <div class="admin-zone" style="grid-column:1/-1">
-          <h3>✏️ Editar Ativo Existente</h3>
-          <div class="fg"><label>Selecionar</label><select id="edit-sym-sel" onchange="loadEditStock()"><option value="">— Selecionar —</option></select></div>
-          <div id="edit-stock-form" style="display:none">
-            <div class="grid2" style="gap:10px">
-              <div>
-                <div class="fg"><label>Nome</label><input type="text" id="es-name"></div>
-                <div class="fg"><label>Setor</label><select id="es-sector"><option>Tecnologia</option><option>Energia</option><option>Financeiro</option><option>Saúde</option><option>Varejo</option><option>Indústria</option><option>Alimentação</option><option>Transporte</option><option>Mineração</option><option>Imobiliário</option></select></div>
-                <div class="fg"><label>Descrição</label><textarea id="es-desc"></textarea></div>
-              </div>
-              <div>
-                <div class="fg"><label>Volatilidade</label><select id="es-vol"><option value="0.008">Baixa</option><option value="0.015">Média</option><option value="0.025">Alta</option><option value="0.04">Extrema</option></select></div>
-                <div class="fg"><label>Status</label><select id="es-status"><option value="active">Ativa</option><option value="suspended">Suspensa</option></select></div>
-                <div class="fg"><label>Ajustar Preço (%)</label><input type="number" id="es-pct" placeholder="+10 ou -20" step="0.1"></div>
-              </div>
-            </div>
-            <div class="btns-row">
-              <button class="btn btn-gold" onclick="adminSaveStock()">Salvar Alterações</button>
-              <button class="btn btn-r btn-sm" onclick="adminDeleteStock()">Deletar Ativo</button>
-            </div>
-            <div id="adm-edit-msg"></div>
-          </div>
-        </div>
-
       </div>
 
       <div class="admin-zone">
