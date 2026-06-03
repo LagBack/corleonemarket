@@ -3,14 +3,16 @@ const db = require('../data/db');
 const { requireAdmin, requireMod } = require('../middleware/auth');
 const simulator = require('../data/simulator');
 
+router.use(requireMod);
+
 // GET /api/admin/log
-router.get('/log', requireMod, (req, res) => {
+router.get('/log', (req, res) => {
   const log = db.get('adminLog').value();
   res.json(log.slice().reverse().slice(0, 100));
 });
 
 // GET /api/admin/users
-router.get('/users', requireMod, (req, res) => {
+router.get('/users', (req, res) => {
   const users = db.get('users').value().map(u => {
     const { pass, ...safe } = u;
     return safe;
@@ -19,7 +21,7 @@ router.get('/users', requireMod, (req, res) => {
 });
 
 // POST /api/admin/market/open
-router.post('/market/open', requireMod, (req, res) => {
+router.post('/market/open', (req, res) => {
   db.set('market.open', true).write();
   simulator.start();
   db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Mercado ABERTO por ${req.session.userId}` }).write();
@@ -27,14 +29,14 @@ router.post('/market/open', requireMod, (req, res) => {
 });
 
 // POST /api/admin/market/close
-router.post('/market/close', requireMod, (req, res) => {
+router.post('/market/close', (req, res) => {
   db.set('market.open', false).write();
   db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Mercado FECHADO por ${req.session.userId}` }).write();
   res.json({ ok: true, open: false });
 });
 
 // POST /api/admin/market/crash
-router.post('/market/crash', requireMod, (req, res) => {
+router.post('/market/crash', (req, res) => {
   const arr = db.get('stocks').value();
   arr.forEach(s => {
     if (s.status !== 'active') return;
@@ -48,7 +50,7 @@ router.post('/market/crash', requireMod, (req, res) => {
 });
 
 // POST /api/admin/market/bull
-router.post('/market/bull', requireMod, (req, res) => {
+router.post('/market/bull', (req, res) => {
   const arr = db.get('stocks').value();
   arr.forEach(s => {
     if (s.status !== 'active') return;
@@ -90,7 +92,7 @@ router.put('/users/:id/role', requireAdmin, (req, res) => {
 });
 
 // PUT /api/admin/users/:id/balance  — admin/mod
-router.put('/users/:id/balance', requireMod, (req, res) => {
+router.put('/users/:id/balance', (req, res) => {
   const { balance, mode } = req.body; // mode: 'set' | 'add' | 'subtract'
   const target = db.get('users').find({ id: req.params.id }).value();
   if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });

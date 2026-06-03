@@ -290,13 +290,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <div class="app-header">
     <div class="app-logo serif"><em>Corleone</em><span>Market</span></div>
     <div class="hn">
-      <button class="hn-btn active" onclick="showPage('market')">Mercado</button>
-      <button class="hn-btn" onclick="showPage('trade')">Negociar</button>
-      <button class="hn-btn" onclick="showPage('portfolio')">Portfólio</button>
-      <button class="hn-btn" onclick="showPage('ranking')">Ranking</button>
-      <button class="hn-btn" onclick="showPage('profile')">Perfil</button>
-      <button class="hn-btn" onclick="showPage('p2p')">🏭 Participações</button>
-      <button class="hn-btn admin-only" style="display:none" onclick="showPage('admin')">⚙ Admin</button>
+      <button class="hn-btn active" data-page="market" onclick="showPage('market')">Mercado</button>
+      <button class="hn-btn" data-page="trade" onclick="showPage('trade')">Negociar</button>
+      <button class="hn-btn" data-page="portfolio" onclick="showPage('portfolio')">Portfólio</button>
+      <button class="hn-btn" data-page="ranking" onclick="showPage('ranking')">Ranking</button>
+      <button class="hn-btn" data-page="profile" onclick="showPage('profile')">Perfil</button>
+      <button class="hn-btn admin-only" data-page="admin" style="display:none" onclick="showPage('admin')">⚙ Admin</button>
     </div>
     <div class="hdr-right">
       <div class="mkt-pill open" id="mkt-status">● ABERTO</div>
@@ -480,6 +479,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
     <!-- ADMIN -->
     <div class="page" id="p-admin">
+      <div class="admin-zone" id="admin-ownership-zone">
+        <h3 class="gold">🏭 Participações</h3>
+        <div id="admin-ownership-content"></div>
+      </div>
+
       <div class="admin-zone">
         <h3 class="red">⚡ Controle do Mercado</h3>
         <div class="btns-row">
