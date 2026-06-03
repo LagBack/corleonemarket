@@ -1,6 +1,8 @@
 const router = require('express').Router();
+const fs = require('fs');
+const path = require('path');
 const db = require('../data/db');
-const { requireAdmin, requireMod } = require('../middleware/auth');
+const { requireAdmin, requireMod, requireDev } = require('../middleware/auth');
 const simulator = require('../data/simulator');
 
 router.use(requireMod);
@@ -18,6 +20,64 @@ router.get('/users', (req, res) => {
     return safe;
   });
   res.json(users);
+});
+
+// GET /api/admin/dev/history
+router.get('/dev/history', requireDev, (req, res) => {
+  const log = db.get('adminLog').value() || [];
+  const transactions = db.get('transactions').value() || [];
+  const dividends = db.get('dividends').value() || [];
+
+  res.json({
+    adminLog: log.slice().reverse().slice(0, 200),
+    transactions: transactions.slice().reverse().slice(0, 100),
+    dividends: dividends.slice().reverse().slice(0, 100)
+  });
+});
+
+// GET /api/admin/dev/database-report
+router.get('/dev/database-report', requireDev, (req, res) => {
+  const dataDir = path.join(__dirname, '..', 'data');
+  const state = db.getState();
+  const files = fs.readdirSync(dataDir)
+    .filter(name => name.endsWith('.json'))
+    .map(name => {
+      const full = path.join(dataDir, name);
+      const stat = fs.statSync(full);
+      return {
+        name,
+        sizeBytes: stat.size,
+        modifiedAt: stat.mtime.toISOString()
+      };
+    });
+
+  const collections = Object.entries(state).map(([name, value]) => {
+    const isArray = Array.isArray(value);
+    const isObject = value && typeof value === 'object' && !isArray;
+    return {
+      name,
+      type: isArray ? 'array' : isObject ? 'object' : typeof value,
+      count: isArray ? value.length : isObject ? Object.keys(value).length : 1,
+      sizeBytes: Buffer.byteLength(JSON.stringify(value || null)),
+      sampleKeys: isArray && value[0] && typeof value[0] === 'object'
+        ? Object.keys(value[0]).slice(0, 8)
+        : isObject ? Object.keys(value).slice(0, 8) : []
+    };
+  });
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    files,
+    collections,
+    totals: {
+      users: (state.users || []).length,
+      stocks: (state.stocks || []).length,
+      transactions: (state.transactions || []).length,
+      dividends: (state.dividends || []).length,
+      adminLog: (state.adminLog || []).length
+    },
+    market: state.market || {}
+  });
 });
 
 // POST /api/admin/market/open
@@ -82,8 +142,9 @@ router.post('/market/reset', requireAdmin, (req, res) => {
 
 // PUT /api/admin/users/:id/role  — admin only
 router.put('/users/:id/role', requireAdmin, (req, res) => {
-  const { role } = req.body;
-  if (!['user','moderator','admin'].includes(role)) return res.status(400).json({ error: 'Papel inválido.' });
+  const { role, devPassword } = req.body;
+  if (!['user','moderator','admin','dev'].includes(role)) return res.status(400).json({ error: 'Papel inválido.' });
+  if (role === 'dev' && devPassword !== 'corleonedev') return res.status(403).json({ error: 'Senha dev incorreta.' });
   const target = db.get('users').find({ id: req.params.id }).value();
   if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
   db.get('users').find({ id: req.params.id }).assign({ role }).write();
