@@ -250,13 +250,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       </div>
 
       <div id="auth-login">
-        <div class="fg"><label>E-mail</label><input type="email" id="l-email" value="don@corleone.com"></div>
-        <div class="fg"><label>Senha</label><input type="password" id="l-pass" value="123456" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <div class="fg"><label>E-mail</label><input type="email" id="l-email" placeholder='email@email.com'></div>
+        <div class="fg"><label>Senha</label><input type="password" id="l-pass" placeholder='Insira sua senha aqui' onkeydown="if(event.key==='Enter')doLogin()"></div>
         <button class="btn-primary" onclick="doLogin()">Entrar no Pregão →</button>
         <div class="auth-demo">
-          <b>Admin:</b> admin@corleone.com / admin123<br>
-          <b>Mod:</b> mod@corleone.com / mod123<br>
-          <b>User:</b> don@corleone.com / 123456
+          <b>GITHUB</b> https://github.com/LagBack/corleonemarket<br>
         </div>
       </div>
 
@@ -277,6 +275,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           </select>
         </div>
         <button class="btn-primary" onclick="doRegister()">Criar Conta →</button>
+          <div class="auth-demo">
+          <b>LEMBRE-SE</b>, não há necessidade de usar seu email real, mas lembre que caso você esqueça seus dados não é possivel recuperar<br>
+        </div>
       </div>
       <div class="auth-err" id="auth-err"></div>
     </div>
