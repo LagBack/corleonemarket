@@ -2,12 +2,16 @@ const db = require('./db');
 const bcrypt = require('bcryptjs');
 const { v4: uuid } = require('uuid');
 
+
+
 if (db.get('users').size().value() === 0) {
   console.log('🌱 Seeding database...');
 
   const adminPass = bcrypt.hashSync('admin123', 10);
   const userPass  = bcrypt.hashSync('123456', 10);
 
+  //THIS IS THE INITIAL ACCOUNTS FOR STARTING THE DB.JSON FILE, THEY ARE NOT FINAL AND YOU SHOULD DELETE THEM AFTER YOU MAKE YOUR OWN ACCOUNTS
+  //ESTAS SÃO AS CONTAS INICIAIS PARA INICIAR O ARQUIVO DB.JSON. ELAS NÃO SÃO DEFINITIVAS E VOCÊ DEVE EXCLUÍ-LAS APÓS CRIAR SUAS PRÓPRIAS CONTAS.
   const users = [
     {
       id: 'adm1',

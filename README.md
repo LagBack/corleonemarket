@@ -1,4 +1,4 @@
-Corleone Market é um simulador completo de bolsa de valores fictícia com backend Node.js, mercado em tempo real, sistema de autenticação, compra e venda de ações, ranking de investidores, participações societárias P2P e painel de administração completo.
+Corleone Market é um simulador completo de bolsa de valores fictícia com backend Node.js, mercado em tempo real, sistema de autenticação, compra e venda de ações, ranking de investidores e painel de administração completo.
 
  Preços atualizados automaticamente a cada **2.5 segundos** via simulador server-side
 - Gráfico de linha interativo com histórico de preços
