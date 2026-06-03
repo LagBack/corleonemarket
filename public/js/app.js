@@ -30,6 +30,13 @@ const POST = (p, b)  => api('POST', p, b);
 const PUT  = (p, b)  => api('PUT', p, b);
 const DEL  = p       => api('DELETE', p);
 
+function roleLabel(role) {
+  if (role === 'admin') return '👑 Admin';
+  if (role === 'moderator') return '🎩 Moderador';
+  if (role === 'dev') return '🛠 Dev';
+  return '🦁 Investidor';
+}
+
 // ── AUTH TAB ──
 function authTab(t) {
   document.querySelectorAll('.auth-tab').forEach((b, i) =>
@@ -91,6 +98,7 @@ async function doLogout() {
   clearInterval(pollInterval);
   if (mainChart) { mainChart.destroy(); mainChart = null; }
   document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
+  document.querySelectorAll('.dev-only').forEach(e => e.style.display = 'none');
   document.getElementById('s-app').classList.remove('active');
   document.getElementById('s-auth').classList.add('active');
 }
@@ -101,8 +109,11 @@ async function startApp() {
   document.getElementById('s-app').classList.add('active');
   updateHeaderUser();
   document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
+  document.querySelectorAll('.dev-only').forEach(e => e.style.display = 'none');
   if (canAccessAdmin())
     document.querySelectorAll('.admin-only').forEach(e => e.style.display = '');
+  if (canAccessDev())
+    document.querySelectorAll('.dev-only').forEach(e => e.style.display = '');
   await loadMarketState();
   buildChart();
   showPage('market');
@@ -110,7 +121,11 @@ async function startApp() {
 }
 
 function canAccessAdmin() {
-  return !!CU && ['admin', 'moderator'].includes(CU.role);
+  return !!CU && ['admin', 'moderator', 'dev'].includes(CU.role);
+}
+
+function canAccessDev() {
+  return !!CU && CU.role === 'dev';
 }
 
 function updateHeaderUser() {
@@ -272,6 +287,10 @@ function showPage(pg) {
     showPage('market');
     return;
   }
+  if (pg === 'dev' && !canAccessDev()) {
+    showPage('market');
+    return;
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.hn-btn').forEach(b => b.classList.remove('active'));
   const page = document.getElementById('p-' + pg);
@@ -283,6 +302,7 @@ function showPage(pg) {
   if (pg === 'ranking')   renderRanking();
   if (pg === 'profile')   renderProfile();
   if (pg === 'admin')     renderAdmin();
+  if (pg === 'dev')       renderDev();
 }
 
 // ── TRADE ──
@@ -445,7 +465,11 @@ async function renderRanking() {
       return `<div class="rank-row" onclick="openProfileModal('${r.id}')" style="cursor:pointer" title="Ver perfil">
         <div class="rank-n ${medals[i]||''} serif">${i+1}</div>
         ${avHtml}
-        <div style="flex:1"><div style="font-weight:600;font-size:13px">${r.name} <span style="font-size:10px;color:var(--text3)">${r.country||''}</span></div><div style="font-size:10px;color:var(--text3)">Cash R$${fmtN(r.cash)}</div></div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${r.name} <span style="font-size:10px;color:var(--text3)">${r.country||''}</span></div>
+          <span class="role-badge ${r.role}">${roleLabel(r.role)}</span>
+          <div style="font-size:10px;color:var(--text3)">Cash R$${fmtN(r.cash)}</div>
+        </div>
         <div class="mono gold" style="font-size:13px">R$${fmtN(r.total)}</div>
       </div>`;
     }).join('');
@@ -481,7 +505,7 @@ function renderProfile() {
     <div>
       <div class="profile-name-big">${CU.nick || CU.name}</div>
       <div style="font-size:12px;color:var(--text3)">${CU.name} · ${CU.country||''}</div>
-      <span class="role-badge ${CU.role}">${CU.role === 'admin' ? '👑 Admin' : CU.role === 'moderator' ? '🎩 Moderador' : '🦁 Investidor'}</span>
+      <span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span>
       ${CU.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${CU.bio}"</div>` : ''}
     </div>
     <div style="margin-left:auto;text-align:right">
@@ -865,8 +889,9 @@ async function renderAdmin() {
                 <option ${u.role==='user'?'selected':''} value="user">user</option>
                 <option ${u.role==='moderator'?'selected':''} value="moderator">moderator</option>
                 <option ${u.role==='admin'?'selected':''} value="admin">admin</option>
+                <option ${u.role==='dev'?'selected':''} value="dev">dev</option>
               </select>`
-            : `<span class="role-badge ${u.role}">${u.role}</span>`}
+            : `<span class="role-badge ${u.role}">${roleLabel(u.role)}</span>`}
         </td>
         <td class="mono" style="font-size:11px">R$${fmtN(u.balance)}</td>
         <td>
@@ -890,6 +915,70 @@ async function adminAct(path, confirm_) {
 }
 
 // ── OWNER MANAGEMENT ──
+function fmtBytes(bytes) {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0)} ${units[i]}`;
+}
+
+async function renderDev() {
+  if (!canAccessDev()) return showPage('market');
+  try {
+    const [report, history] = await Promise.all([
+      GET('admin/dev/database-report'),
+      GET('admin/dev/history')
+    ]);
+
+    document.getElementById('dev-msg').innerHTML =
+      `<div class="msg ok" style="display:block">Relatorio atualizado em ${new Date(report.generatedAt).toLocaleString('pt-BR')}</div>`;
+
+    document.getElementById('dev-db-summary').innerHTML = `
+      <div class="grid2">
+        <div class="stat"><div class="stat-label">Usuarios</div><div class="stat-val gold">${report.totals.users}</div></div>
+        <div class="stat"><div class="stat-label">Ativos</div><div class="stat-val gold">${report.totals.stocks}</div></div>
+        <div class="stat"><div class="stat-label">Transacoes</div><div class="stat-val gold">${report.totals.transactions}</div></div>
+        <div class="stat"><div class="stat-label">Logs</div><div class="stat-val gold">${report.totals.adminLog}</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:10px">Mercado: ${report.market.open ? 'Aberto' : 'Fechado'}</div>
+    `;
+
+    document.getElementById('dev-db-files').innerHTML = report.files.map(f => `
+      <div class="hist-item">
+        <span class="sym-tag" style="font-size:10px">${f.name}</span>
+        <span class="mono" style="font-size:11px">${fmtBytes(f.sizeBytes)}</span>
+        <span style="margin-left:auto;color:var(--text3);font-size:10px">${new Date(f.modifiedAt).toLocaleString('pt-BR')}</span>
+      </div>
+    `).join('');
+
+    document.getElementById('dev-db-collections').innerHTML = report.collections.map(c => `
+      <tr>
+        <td style="font-size:12px;font-weight:600">${c.name}</td>
+        <td style="font-size:11px">${c.type}</td>
+        <td class="mono" style="font-size:11px">${c.count}</td>
+        <td class="mono" style="font-size:11px">${fmtBytes(c.sizeBytes)}</td>
+        <td style="font-size:10px;color:var(--text3)">${c.sampleKeys.join(', ') || '-'}</td>
+      </tr>
+    `).join('');
+
+    document.getElementById('dev-tech-history').innerHTML = (history.adminLog || []).map(l =>
+      `<div class="log-line"><span class="log-time">[${l.t}]</span>${l.msg}</div>`).join('') ||
+      '<p style="color:var(--text3);font-size:12px;padding:8px 0">Sem historico.</p>';
+
+    document.getElementById('dev-tx-history').innerHTML = (history.transactions || []).map(t => `
+      <div class="hist-item">
+        <span class="hist-badge ${t.type === 'buy' ? 'buy' : 'sell'}">${t.type}</span>
+        <span class="sym-tag" style="font-size:10px">${t.sym || '-'}</span>
+        <span style="font-size:10px;color:var(--text3)">${t.userName || t.userId || ''}</span>
+        <span class="mono" style="margin-left:auto;font-size:11px">${t.qty || 0} cotas</span>
+        <span class="mono gold" style="font-size:11px">R$${fmtN(t.total || 0)}</span>
+      </div>
+    `).join('') || '<p style="color:var(--text3);font-size:12px;padding:8px 0">Sem transacoes.</p>';
+  } catch(e) {
+    showMsg('dev-msg', e.message, 'err');
+  }
+}
+
 async function populateOwnerPlayerSel() {
   try {
     const users = await GET('admin/users');
@@ -1026,10 +1115,22 @@ async function adminDeleteStock() {
 
 async function changeRole(uid, role) {
   try {
-    await PUT(`admin/users/${uid}/role`, { role });
+    const body = { role };
+    if (role === 'dev') {
+      const devPassword = prompt('Senha para conceder papel Dev:');
+      if (!devPassword) {
+        renderAdmin();
+        return;
+      }
+      body.devPassword = devPassword;
+    }
+    await PUT(`admin/users/${uid}/role`, body);
     showMsg('adm-mkt-msg', `✓ Papel alterado para ${role}!`, 'ok');
     renderAdmin();
-  } catch(e) { showMsg('adm-mkt-msg', e.message, 'err'); }
+  } catch(e) {
+    showMsg('adm-mkt-msg', e.message, 'err');
+    renderAdmin();
+  }
 }
 
 function openBalanceModal(uid, name, currentBalance) {
@@ -1080,8 +1181,6 @@ async function openProfileModal(uid) {
     const photoHtml = p.photo
       ? `<img src="${p.photo}" style="width:70px;height:70px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)">`
       : `<span style="font-size:40px">${p.avatar||'🦁'}</span>`;
-    const roleLabel = p.role === 'admin' ? '👑 Admin' : p.role === 'moderator' ? '🎩 Moderador' : '🦁 Investidor';
-
     const holdingsHtml = p.holdings.length
       ? p.holdings.map(h => `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px">
@@ -1100,7 +1199,7 @@ async function openProfileModal(uid) {
         <div>
           <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;font-style:italic">${p.nick}</div>
           <div style="font-size:11px;color:var(--text3)">${p.name} · ${p.country||''}</div>
-          <span class="role-badge ${p.role}" style="margin-top:4px;display:inline-block">${roleLabel}</span>
+          <span class="role-badge ${p.role}" style="margin-top:4px;display:inline-block">${roleLabel(p.role)}</span>
           ${p.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${p.bio}"</div>` : ''}
         </div>
       </div>
