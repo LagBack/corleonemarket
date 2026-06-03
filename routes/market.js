@@ -142,7 +142,7 @@ router.post('/order', requireAuth, (req, res) => {
 // GET /api/market/ranking
 router.get('/ranking', (req, res) => {
   const stocks = db.get('stocks').value();
-  const users  = db.get('users').filter(u => u.role !== 'admin').value();
+  const users  = db.get('users').value();
   const pfs    = db.get('portfolios').value();
 
   const investors = users.map(u => {
@@ -155,6 +155,7 @@ router.get('/ranking', (req, res) => {
     return {
       id: u.id, name: u.nick || u.name,
       avatar: u.avatar, photo: u.photo,
+      role: u.role,
       country: u.country,
       total: Math.round((u.balance + mv) * 100) / 100,
       cash:  u.balance, stocks: mv

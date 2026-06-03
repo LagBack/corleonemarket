@@ -100,13 +100,13 @@ router.get('/:id/public', (req, res) => {
     bio:      user.bio,
     role:     user.role,
     joined:   user.joined,
-    balance:  user.role === 'admin' ? null : user.balance,  // hide admin balance
+    balance:  ['admin','dev'].includes(user.role) ? null : user.balance,  // hide admin balance
     totalTx:  txs.length,
     buys:     txs.filter(t => t.type === 'buy').length,
     sells:    txs.filter(t => t.type === 'sell').length,
     holdings,
     marketValue: mv,
-    totalWealth: user.role === 'admin' ? null : user.balance + mv,
+    totalWealth: ['admin','dev'].includes(user.role) ? null : user.balance + mv,
   });
 });
 
