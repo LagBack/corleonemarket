@@ -90,6 +90,7 @@ async function doLogout() {
   CU = null; stocks = []; priceHistory = {};
   clearInterval(pollInterval);
   if (mainChart) { mainChart.destroy(); mainChart = null; }
+  document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
   document.getElementById('s-app').classList.remove('active');
   document.getElementById('s-auth').classList.add('active');
 }
@@ -99,12 +100,17 @@ async function startApp() {
   document.getElementById('s-auth').classList.remove('active');
   document.getElementById('s-app').classList.add('active');
   updateHeaderUser();
-  if (['admin','moderator'].includes(CU.role))
+  document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
+  if (canAccessAdmin())
     document.querySelectorAll('.admin-only').forEach(e => e.style.display = '');
   await loadMarketState();
   buildChart();
   showPage('market');
   startPolling();
+}
+
+function canAccessAdmin() {
+  return !!CU && ['admin', 'moderator'].includes(CU.role);
 }
 
 function updateHeaderUser() {
@@ -261,16 +267,21 @@ function updateMainChart() {
 
 // ── NAV ──
 function showPage(pg) {
+  if (pg === 'p2p') pg = 'admin';
+  if (pg === 'admin' && !canAccessAdmin()) {
+    showPage('market');
+    return;
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.hn-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('p-' + pg).classList.add('active');
-  const map = { market: 0, trade: 1, portfolio: 2, ranking: 3, profile: 4, p2p: 5, admin: 6 };
-  document.querySelectorAll('.hn-btn')[map[pg]]?.classList.add('active');
+  const page = document.getElementById('p-' + pg);
+  if (!page) return;
+  page.classList.add('active');
+  document.querySelector(`.hn-btn[data-page="${pg}"]`)?.classList.add('active');
   if (pg === 'trade')     renderTradePage();
   if (pg === 'portfolio') renderPortfolio();
   if (pg === 'ranking')   renderRanking();
   if (pg === 'profile')   renderProfile();
-  if (pg === 'p2p')       renderP2PPage();
   if (pg === 'admin')     renderAdmin();
 }
 
@@ -673,6 +684,14 @@ async function uploadPhoto(input) {
 }
 
 // ── P2P OWNERSHIP MARKETPLACE ──
+function mountOwnershipPanelInAdmin() {
+  const source = document.getElementById('p-p2p');
+  const target = document.getElementById('admin-ownership-content');
+  if (!source || !target || target.dataset.mounted === '1') return;
+  while (source.firstChild) target.appendChild(source.firstChild);
+  target.dataset.mounted = '1';
+}
+
 async function renderP2PPage() {
   try {
     const [pfData, offersData] = await Promise.all([
@@ -817,7 +836,10 @@ async function cancelOwnershipOffer(offerId) {
 
 // ── ADMIN ──
 async function renderAdmin() {
+  if (!canAccessAdmin()) return showPage('market');
   try {
+    mountOwnershipPanelInAdmin();
+    await renderP2PPage();
     populateOwnerPlayerSel();
     const [usersData, logData] = await Promise.all([GET('admin/users'), GET('admin/log')]);
     document.getElementById('adm-log').innerHTML = (logData || []).map(l =>
