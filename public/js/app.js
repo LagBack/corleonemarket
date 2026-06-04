@@ -965,6 +965,49 @@ async function downloadDbBackup() {
   }
 }
 
+function pickDbBackup() {
+  if (!canAccessDev()) return showPage('market');
+  const input = document.getElementById('dev-db-import-file');
+  input.value = '';
+  input.click();
+}
+
+async function importDbBackup(input) {
+  if (!canAccessDev()) return showPage('market');
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!confirm('Isso substitui TODA a database atual pelos dados do backup. Continuar?')) {
+    input.value = '';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('dbfile', file);
+  try {
+    const r = await fetch('/api/admin/dev/import-db', { method: 'POST', credentials: 'include', body: formData });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Nao foi possivel importar a database.');
+
+    const t = data.totals || {};
+    showMsg(
+      'dev-msg',
+      `Database restaurada: ${t.users ?? 0} usuarios, ${t.stocks ?? 0} ativos, ${t.transactions ?? 0} transacoes. Mercado ${data.marketOpen ? 'aberto' : 'fechado'}.`,
+      'ok'
+    );
+    await renderDev();
+    if (CU) {
+      try {
+        CU = await GET('auth/me');
+        updateHeaderUser();
+      } catch (_) {}
+    }
+  } catch(e) {
+    showMsg('dev-msg', e.message, 'err');
+  } finally {
+    input.value = '';
+  }
+}
+
 async function renderDev() {
   if (!canAccessDev()) return showPage('market');
   try {

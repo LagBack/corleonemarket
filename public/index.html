@@ -617,6 +617,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div class="btns-row">
           <button class="btn btn-gold" onclick="renderDev()">Atualizar Relatório</button>
           <button class="btn btn-g" onclick="downloadDbBackup()">Download db.json</button>
+          <button class="btn btn-g" onclick="pickDbBackup()">Importar db.json</button>
+          <input type="file" id="dev-db-import-file" accept=".json,application/json" style="display:none" onchange="importDbBackup(this)">
         </div>
         <div id="dev-msg"></div>
       </div>
