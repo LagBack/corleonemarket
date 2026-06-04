@@ -8,6 +8,29 @@ router.get('/', (req, res) => {
   res.json(db.get('stocks').value());
 });
 
+async function validateOwners(owners) {
+  if (!Array.isArray(owners) || owners.length === 0) return [];
+  const allUsers = await usersStore.getAllUsers();
+  let totalPct = 0;
+  const seen = new Set();
+  const validatedOwners = [];
+  for (const o of owners) {
+    if (!o.userId || !o.pct) continue;
+    if (seen.has(o.userId)) throw new Error(`Usuário duplicado: ${o.userId}`);
+    const u = allUsers.find(x => x.id === o.userId);
+    if (!u) throw new Error(`Usuário não encontrado: ${o.userId}`);
+    const pct = parseFloat(o.pct);
+    if (isNaN(pct) || pct <= 0 || pct > 0.5)
+      throw new Error(`Porcentagem inválida para ${u.nick || u.name}. Máx 0.5%.`);
+    totalPct += pct;
+    seen.add(o.userId);
+    validatedOwners.push({ userId: o.userId, name: u.nick || u.name, pct });
+  }
+  if (totalPct > 0.5)
+    throw new Error(`Total de porcentagens (${totalPct.toFixed(3)}%) excede o limite de 0.5%.`);
+  return validatedOwners;
+}
+
 // POST /api/stocks  — create with optional multi-owner config
 // Body: { sym, name, sector, desc, price, shares, vol, status,
 //         owners: [{ userId, pct }]  }   ← pct = revenue share %
@@ -22,27 +45,8 @@ router.post('/', requireMod, async (req, res) => {
   if (db.get('stocks').find({ sym: clean }).value())
     return res.status(409).json({ error: 'Código já existe.' });
 
-  let validatedOwners = [];
   try {
-  if (Array.isArray(owners) && owners.length > 0) {
-    const allUsers = await usersStore.getAllUsers();
-    let totalPct   = 0;
-    const seen     = new Set();
-    for (const o of owners) {
-      if (!o.userId || !o.pct) continue;
-      if (seen.has(o.userId)) return res.status(400).json({ error: `Usuário duplicado: ${o.userId}` });
-      const u = allUsers.find(x => x.id === o.userId);
-      if (!u) return res.status(400).json({ error: `Usuário não encontrado: ${o.userId}` });
-      const pct = parseFloat(o.pct);
-      if (isNaN(pct) || pct <= 0 || pct > 0.5)
-        return res.status(400).json({ error: `Porcentagem inválida para ${u.nick || u.name}. Máx 0.5%.` });
-      totalPct += pct;
-      seen.add(o.userId);
-      validatedOwners.push({ userId: o.userId, name: u.nick || u.name, pct });
-    }
-    if (totalPct > 0.5)
-      return res.status(400).json({ error: `Total de porcentagens (${totalPct.toFixed(3)}%) excede o limite de 0.5%.` });
-  }
+  const validatedOwners = await validateOwners(owners);
 
   const p  = parseFloat(price);
   const ns = {
@@ -73,17 +77,18 @@ router.post('/', requireMod, async (req, res) => {
 
   res.json({ ok: true, stock: ns });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    const code = e.message && !e.message.includes('SQL') ? 400 : 500;
+    res.status(code).json({ error: e.message });
   }
 });
 
 // PUT /api/stocks/:sym  — edit
-router.put('/:sym', requireMod, (req, res) => {
+router.put('/:sym', requireMod, async (req, res) => {
   const sym = req.params.sym.toUpperCase();
   const s   = db.get('stocks').find({ sym }).value();
   if (!s) return res.status(404).json({ error: 'Ativo não encontrado.' });
 
-  const { name, sector, desc, vol, status, pricePct } = req.body;
+  const { name, sector, desc, vol, status, pricePct, owners } = req.body;
   const updates = {};
   if (name)             updates.name   = name;
   if (sector)           updates.sector = sector;
@@ -93,12 +98,22 @@ router.put('/:sym', requireMod, (req, res) => {
   if (pricePct && !isNaN(parseFloat(pricePct)))
     updates.price = Math.max(0.01, Math.round(s.price * (1 + parseFloat(pricePct) / 100) * 100) / 100);
 
-  db.get('stocks').find({ sym }).assign(updates).write();
-  db.get('adminLog').push({
-    t:   new Date().toLocaleTimeString('pt-BR'),
-    msg: `Ativo ${sym} editado por ${req.session.userId}`
-  }).write();
-  res.json({ ok: true, stock: db.get('stocks').find({ sym }).value() });
+  try {
+    if (owners !== undefined) {
+      updates.owners = await validateOwners(owners);
+    }
+    db.get('stocks').find({ sym }).assign(updates).write();
+    const ownerNote = updates.owners?.length
+      ? ` | Donos: ${updates.owners.map(o => `${o.name}(${o.pct}%)`).join(', ')}`
+      : '';
+    db.get('adminLog').push({
+      t:   new Date().toLocaleTimeString('pt-BR'),
+      msg: `Ativo ${sym} editado por ${req.session.userId}${ownerNote}`
+    }).write();
+    res.json({ ok: true, stock: db.get('stocks').find({ sym }).value() });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // DELETE /api/stocks/:sym  — admin only
