@@ -1,20 +1,14 @@
-const low = require('lowdb');
-const FileSync = require('lowdb/adapters/FileSync');
-const path = require('path');
+// data/db.js
+const mysql = require('mysql2/promise');
 
-const adapter = new FileSync(path.join(__dirname, 'db.json'));
-const db = low(adapter);
+const pool = mysql.createPool({
+  host:     process.env.DB_HOST,
+  user:     process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port:     parseInt(process.env.DB_PORT) || 3306,
+  waitForConnections: true,
+  connectionLimit: 5,
+});
 
-// Default structure
-db.defaults({
-  users: [],
-  stocks: [],
-  portfolios: {},
-  transactions: [],
-  dividends: [],
-  ownershipListings: [],
-  market: { open: true },
-  adminLog: []
-}).write();
-
-module.exports = db;
+module.exports = pool;
