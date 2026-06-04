@@ -11,6 +11,7 @@ let mainChart = null;
 let pieChart  = null;
 let ownerRows = [];  // [{userId, name, nick, pct}]
 let selectedSym = null;
+let marketHistory = [];
 let orderType = 'buy';
 let editAvatar = null;
 let regAvatar = '🦁';
@@ -149,6 +150,8 @@ async function loadMarketState() {
   try {
     const data = await GET('market/state');
     stocks = data.stocks;
+    marketHistory.push(data.ibcx || 1000);
+    if (marketHistory.length > 80) marketHistory = marketHistory.slice(-80);
     updateMktBadge(data.open);
     renderAll(data);
     updateTicker();
@@ -186,7 +189,6 @@ function renderMktStats(data) {
 
 function renderStocksTable() {
   document.getElementById('stocks-ct').textContent = stocks.length;
-  if (!selectedSym && stocks.length) selectedSym = stocks[0].sym;
   const maxVol = Math.max(...stocks.map(s => s.volume + 1));
   document.getElementById('stocks-body').innerHTML = stocks.map(s => {
     const pct = ((s.price - s.open) / s.open * 100);
@@ -213,14 +215,28 @@ function renderStocksTable() {
 
 function selectStock(sym) {
   selectedSym = sym;
+  document.getElementById('chart-reset-btn').style.display = '';
   document.getElementById('chart-label').textContent = sym + ' — Tempo Real';
   updateOrderBook();
   refreshChartHistory(sym);
 }
 
+function showMarketChart() {
+  selectedSym = null;
+  document.getElementById('chart-label').textContent = 'Mercado Geral';
+  document.getElementById('chart-reset-btn').style.display = 'none';
+  updateOrderBook();
+  updateMainChart();
+}
+
 function updateOrderBook() {
   const s = stocks.find(x => x.sym === selectedSym);
-  if (!s) return;
+  if (!s) {
+    document.getElementById('ob-asks').innerHTML = '';
+    document.getElementById('ob-spread').textContent = 'SELECIONE UM ATIVO';
+    document.getElementById('ob-bids').innerHTML = '';
+    return;
+  }
   const asks = [], bids = [];
   for (let i = 0; i < 5; i++) {
     asks.push({ p: s.price * (1 + .001 * (i + 1)), q: Math.floor(Math.random() * 400 + 50) });
@@ -920,6 +936,33 @@ function fmtBytes(bytes) {
   const units = ['B', 'KB', 'MB', 'GB'];
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return `${(bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0)} ${units[i]}`;
+}
+
+async function downloadDbBackup() {
+  if (!canAccessDev()) return showPage('market');
+  try {
+    const r = await fetch('/api/admin/dev/download-db', { credentials: 'include' });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      throw new Error(data.error || 'Nao foi possivel baixar a database.');
+    }
+
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const cd = r.headers.get('content-disposition') || '';
+    const match = cd.match(/filename="?([^"]+)"?/i);
+    const name = match ? match[1] : `corleone-db-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showMsg('dev-msg', 'Backup do db.json baixado.', 'ok');
+  } catch(e) {
+    showMsg('dev-msg', e.message, 'err');
+  }
 }
 
 async function renderDev() {

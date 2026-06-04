@@ -80,6 +80,15 @@ router.get('/dev/database-report', requireDev, (req, res) => {
   });
 });
 
+// GET /api/admin/dev/download-db
+router.get('/dev/download-db', requireDev, (req, res) => {
+  const file = path.join(__dirname, '..', 'data', 'db.json');
+  if (!fs.existsSync(file)) return res.status(404).json({ error: 'Database nao encontrada.' });
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  res.download(file, `corleone-db-${stamp}.json`);
+});
+
 // POST /api/admin/market/open
 router.post('/market/open', (req, res) => {
   db.set('market.open', true).write();
