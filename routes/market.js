@@ -190,7 +190,6 @@ router.get('/ranking', async (req, res) => {
     });
 
     const investors = users
-      .filter(u => !['admin', 'dev'].includes(u.role))
       .map(u => {
         const pf = pfMap[u.id] || {};
         let mv = 0;
