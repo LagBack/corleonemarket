@@ -2,6 +2,7 @@ const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const { v4: uuid } = require('uuid');
 const pool = require('../data/mysql');
+const { normalizeCountry } = require('../data/countries');
 const db   = require('../data/db');       // lowdb — still used for portfolios
 const { requireAuth } = require('../middleware/auth');
 
@@ -58,7 +59,7 @@ router.post('/register', async (req, res) => {
       nick:    nick || name,
       avatar:  avatar || '🦁',
       photo:   null,
-      country: country || '🇧🇷 Brasil',
+      country: normalizeCountry(country),
       bio:     '',
       role:    'user',
       balance: 50000,

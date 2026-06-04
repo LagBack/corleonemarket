@@ -3,6 +3,7 @@ const multer = require('multer');
 const path   = require('path');
 const fs     = require('fs');
 const pool   = require('../data/mysql');
+const { normalizeCountry } = require('../data/countries');
 const db     = require('../data/db');     // lowdb for stocks/portfolios/transactions
 const { requireAuth } = require('../middleware/auth');
 
@@ -40,7 +41,7 @@ router.put('/me', requireAuth, async (req, res) => {
   try {
     await pool.query(
       'UPDATE users SET nick=?, bio=?, country=?, avatar=? WHERE id=?',
-      [nick, bio, country, avatar, req.session.userId]
+      [nick, bio, normalizeCountry(country), avatar, req.session.userId]
     );
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
     res.json({ ok: true, user: safe(rows[0]) });
