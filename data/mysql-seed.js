@@ -1,6 +1,5 @@
 const bcrypt = require('bcryptjs');
 const pool   = require('./mysql');
-const migrateUsersTable = require('./mysql-migrate');
 
 async function seedMySQL() {
   try {
@@ -24,7 +23,33 @@ async function seedMySQL() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
-    await migrateUsersTable();
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS portfolios (
+        user_id  VARCHAR(36)  NOT NULL,
+        sym      VARCHAR(10)  NOT NULL,
+        qty      INT          NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, sym)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id     BIGINT        NOT NULL AUTO_INCREMENT,
+        uid    VARCHAR(36)   NOT NULL,
+        uname  VARCHAR(255)  DEFAULT '',
+        type   VARCHAR(10)   NOT NULL,
+        sym    VARCHAR(10)   NOT NULL,
+        qty    INT           NOT NULL,
+        price  DOUBLE        NOT NULL,
+        total  DOUBLE        NOT NULL,
+        time   VARCHAR(20)   DEFAULT '',
+        ts     BIGINT        DEFAULT 0,
+        PRIMARY KEY (id),
+        KEY idx_uid (uid)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    console.log('✅ MySQL tables ready (users, portfolios, transactions)');
 
     const [rows] = await pool.query('SELECT COUNT(*) as cnt FROM users');
     if (rows[0].cnt > 0) {
