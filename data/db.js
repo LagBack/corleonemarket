@@ -1,14 +1,24 @@
-// data/db.js
-const mysql = require('mysql2/promise');
+const low      = require('lowdb');
+const FileSync = require('lowdb/adapters/FileSync');
+const path     = require('path');
+const fs       = require('fs');
 
-const pool = mysql.createPool({
-  host:     process.env.DB_HOST,
-  user:     process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port:     parseInt(process.env.DB_PORT) || 3306,
-  waitForConnections: true,
-  connectionLimit: 5,
-});
+// Ensure the data directory exists (Render ephemeral filesystem)
+const dataDir = path.join(__dirname);
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-module.exports = pool;
+const adapter = new FileSync(path.join(dataDir, 'db.json'));
+const db = low(adapter);
+
+// Default structure — users removed (now in MySQL)
+db.defaults({
+  stocks:           [],
+  portfolios:       {},
+  transactions:     [],
+  dividends:        [],
+  ownershipOffers:  [],
+  market:           { open: true },
+  adminLog:         []
+}).write();
+
+module.exports = db;
