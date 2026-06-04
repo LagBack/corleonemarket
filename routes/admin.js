@@ -1,9 +1,54 @@
 const router = require('express').Router();
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
 const db = require('../data/db');
 const { requireAdmin, requireMod, requireDev } = require('../middleware/auth');
 const simulator = require('../data/simulator');
+
+const DB_COLLECTION_KEYS = [
+  'users', 'stocks', 'portfolios', 'transactions',
+  'dividends', 'ownershipListings', 'market', 'adminLog'
+];
+
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = file.mimetype === 'application/json' || /\.json$/i.test(file.originalname);
+    cb(ok ? null : new Error('Envie um arquivo .json valido.'), ok);
+  }
+});
+
+function validateDbState(state) {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) {
+    return 'JSON invalido.';
+  }
+  for (const key of DB_COLLECTION_KEYS) {
+    if (!(key in state)) return `Campo obrigatorio ausente: ${key}`;
+  }
+  if (!Array.isArray(state.users)) return 'users deve ser um array.';
+  if (!Array.isArray(state.stocks)) return 'stocks deve ser um array.';
+  if (!state.portfolios || typeof state.portfolios !== 'object' || Array.isArray(state.portfolios)) {
+    return 'portfolios invalido.';
+  }
+  if (!Array.isArray(state.transactions)) return 'transactions deve ser um array.';
+  if (!Array.isArray(state.dividends)) return 'dividends deve ser um array.';
+  if (!Array.isArray(state.ownershipListings)) return 'ownershipListings deve ser um array.';
+  if (!Array.isArray(state.adminLog)) return 'adminLog deve ser um array.';
+  if (!state.market || typeof state.market.open !== 'boolean') return 'market.open invalido.';
+  return null;
+}
+
+function dbTotals(state) {
+  return {
+    users: (state.users || []).length,
+    stocks: (state.stocks || []).length,
+    transactions: (state.transactions || []).length,
+    dividends: (state.dividends || []).length,
+    adminLog: (state.adminLog || []).length
+  };
+}
 
 router.use(requireMod);
 
@@ -87,6 +132,39 @@ router.get('/dev/download-db', requireDev, (req, res) => {
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   res.download(file, `corleone-db-${stamp}.json`);
+});
+
+// POST /api/admin/dev/import-db
+router.post('/dev/import-db', requireDev, (req, res) => {
+  importUpload.single('dbfile')(req, res, (uploadErr) => {
+    if (uploadErr) {
+      return res.status(400).json({ error: uploadErr.message || 'Upload invalido.' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+
+    let state;
+    try {
+      state = JSON.parse(req.file.buffer.toString('utf8'));
+    } catch {
+      return res.status(400).json({ error: 'Arquivo JSON invalido.' });
+    }
+
+    const validationError = validateDbState(state);
+    if (validationError) return res.status(400).json({ error: validationError });
+
+    const wasOpen = db.get('market.open').value();
+    db.setState(state).write();
+
+    if (state.market.open && !wasOpen) simulator.start();
+    else if (!state.market.open && wasOpen) simulator.stop();
+
+    db.get('adminLog').push({
+      t: new Date().toLocaleTimeString('pt-BR'),
+      msg: `Database RESTAURADA de backup por ${req.session.userId} (${state.users.length} usuarios)`
+    }).write();
+
+    res.json({ ok: true, totals: dbTotals(state), marketOpen: state.market.open });
+  });
 });
 
 // POST /api/admin/market/open
