@@ -235,6 +235,7 @@ router.put('/users/:id/role', requireAdmin, (req, res) => {
   const target = db.get('users').find({ id: req.params.id }).value();
   if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
   db.get('users').find({ id: req.params.id }).assign({ role }).write();
+  if (req.params.id === req.session.userId) req.session.role = role;
   db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Papel de ${target.nick || target.name} alterado para ${role} por ${req.session.userId}` }).write();
   res.json({ ok: true });
 });
