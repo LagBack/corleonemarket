@@ -12,13 +12,14 @@ const db = low(adapter);
 
 // Default structure — users removed (now in MySQL)
 db.defaults({
-  stocks:           [],
-  portfolios:       {},
-  transactions:     [],
-  dividends:        [],
-  ownershipOffers:  [],
-  market:           { open: true },
-  adminLog:         []
+  stocks:              [],
+  portfolios:          {},
+  transactions:        [],
+  dividends:           [],
+  ownershipListings:   [],
+  ownershipOffers:     [],
+  market:              { open: true },
+  adminLog:            []
 }).write();
 
 module.exports = db;

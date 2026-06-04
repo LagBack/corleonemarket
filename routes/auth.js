@@ -17,6 +17,7 @@ router.get('/me', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+    req.session.role = rows[0].role;
     res.json(safe(rows[0]));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -32,6 +33,11 @@ router.post('/login', async (req, res) => {
     if (!bcrypt.compareSync(pass, user.pass)) return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
     req.session.userId = user.id;
     req.session.role   = user.role;
+    const pfs = db.get('portfolios').value();
+    if (!pfs[user.id]) {
+      pfs[user.id] = {};
+      db.set('portfolios', pfs).write();
+    }
     res.json({ ok: true, user: safe(user) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

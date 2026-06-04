@@ -971,7 +971,8 @@ async function downloadDbBackup() {
 
 function pickDbBackup() {
   if (!canAccessDev()) return showPage('market');
-  const input = document.getElementById('dev-db-import-file');
+  const input = document.getElementById('import-db-input');
+  if (!input) return;
   input.value = '';
   input.click();
 }

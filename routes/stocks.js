@@ -1,5 +1,6 @@
-const router  = require('express').Router();
-const db      = require('../data/db');
+const router     = require('express').Router();
+const db         = require('../data/db');
+const usersStore = require('../data/users-store');
 const { requireMod, requireAdmin } = require('../middleware/auth');
 
 // GET /api/stocks
@@ -10,7 +11,7 @@ router.get('/', (req, res) => {
 // POST /api/stocks  — create with optional multi-owner config
 // Body: { sym, name, sector, desc, price, shares, vol, status,
 //         owners: [{ userId, pct }]  }   ← pct = revenue share %
-router.post('/', requireMod, (req, res) => {
+router.post('/', requireMod, async (req, res) => {
   const { sym, name, sector, desc, price, shares, vol, status, owners } = req.body;
   if (!sym || !name || !price || !shares)
     return res.status(400).json({ error: 'Campos obrigatórios: sym, name, price, shares.' });
@@ -21,12 +22,10 @@ router.post('/', requireMod, (req, res) => {
   if (db.get('stocks').find({ sym: clean }).value())
     return res.status(409).json({ error: 'Código já existe.' });
 
-  // Validate & normalise owners
-  // owners = [{ userId, pct }]  where pct is revenue-share percentage (e.g. 0.15 = 0.15%)
-  // Rules: total pct must be <= 0.5%, each owner must be a real user, no duplicates
   let validatedOwners = [];
+  try {
   if (Array.isArray(owners) && owners.length > 0) {
-    const allUsers = db.get('users').value();
+    const allUsers = await usersStore.getAllUsers();
     let totalPct   = 0;
     const seen     = new Set();
     for (const o of owners) {
@@ -73,6 +72,9 @@ router.post('/', requireMod, (req, res) => {
   }).write();
 
   res.json({ ok: true, stock: ns });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // PUT /api/stocks/:sym  — edit
@@ -182,11 +184,13 @@ router.post('/:sym/ownership-listings', requireMod, (req, res) => {
 });
 
 // POST /api/stocks/:sym/ownership-listings/:listingId/buy — buy a listed stake (any player)
-router.post('/:sym/ownership-listings/:listingId/buy', (req, res) => {
+router.post('/:sym/ownership-listings/:listingId/buy', async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ error: 'Não autenticado.' });
 
+  try {
   const buyerId  = req.session.userId;
-  const buyer    = db.get('users').find({ id: buyerId }).value();
+  const buyer    = await usersStore.getUserById(buyerId);
+  if (!buyer) return res.status(404).json({ error: 'Usuário não encontrado.' });
   const listingId = req.params.listingId;
 
   const all      = db.get('ownershipListings').value() || [];
@@ -198,10 +202,10 @@ router.post('/:sym/ownership-listings/:listingId/buy', (req, res) => {
   if (buyer.balance < listing.askPrice)
     return res.status(400).json({ error: 'Saldo insuficiente.' });
 
-  // Transfer money buyer → seller
-  const seller = db.get('users').find({ id: listing.sellerId }).value();
-  db.get('users').find({ id: buyerId   }).assign({ balance: Math.round((buyer.balance  - listing.askPrice) * 100) / 100 }).write();
-  db.get('users').find({ id: listing.sellerId }).assign({ balance: Math.round((seller.balance + listing.askPrice) * 100) / 100 }).write();
+  const seller = await usersStore.getUserById(listing.sellerId);
+  if (!seller) return res.status(404).json({ error: 'Vendedor não encontrado.' });
+  await usersStore.setUserBalance(buyerId, buyer.balance - listing.askPrice);
+  await usersStore.setUserBalance(listing.sellerId, seller.balance + listing.askPrice);
 
   // Transfer ownership in the stock
   const sym   = listing.sym.toUpperCase();
@@ -240,8 +244,11 @@ router.post('/:sym/ownership-listings/:listingId/buy', (req, res) => {
     msg: `${buyer.nick||buyer.name} comprou ${listing.pctToSell}% de ${sym} de ${listing.sellerName} por R$${listing.askPrice}`
   }).write();
 
-  const { pass, ...safeB } = db.get('users').find({ id: buyerId }).value();
-  res.json({ ok: true, user: safeB });
+  const updated = await usersStore.getUserById(buyerId);
+  res.json({ ok: true, user: usersStore.safeUser(updated) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // DELETE /api/stocks/:sym/ownership-listings/:listingId — cancel a listing

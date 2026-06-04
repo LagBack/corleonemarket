@@ -1,8 +1,45 @@
 const router = require('express').Router();
-const db   = require('../data/db');
-const pool = require('../data/mysql');
-const { requireAdmin, requireMod } = require('../middleware/auth');
+const fs     = require('fs');
+const path   = require('path');
+const multer = require('multer');
+const db     = require('../data/db');
+const pool   = require('../data/mysql');
+const { requireAdmin, requireMod, requireDev } = require('../middleware/auth');
 const simulator = require('../data/simulator');
+
+const uploadMem = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+const LOWDB_KEYS = [
+  'stocks', 'portfolios', 'transactions', 'dividends',
+  'ownershipListings', 'ownershipOffers', 'market', 'adminLog'
+];
+
+function validateLowdbBackup(parsed) {
+  if (!parsed || typeof parsed !== 'object') return 'JSON inválido.';
+  if (!Array.isArray(parsed.stocks)) return 'Backup inválido: falta "stocks".';
+  if (!parsed.portfolios || typeof parsed.portfolios !== 'object') return 'Backup inválido: falta "portfolios".';
+  return null;
+}
+
+function applyLowdbBackup(parsed) {
+  const current = db.getState();
+  const next = { ...current };
+  for (const key of LOWDB_KEYS) {
+    if (key in parsed) next[key] = parsed[key];
+  }
+  if (!next.market || typeof next.market.open !== 'boolean') {
+    next.market = { open: true };
+  }
+  db.setState(next).write();
+}
+
+function restoreLowdbFromFile(buffer) {
+  const parsed = JSON.parse(buffer.toString('utf8'));
+  const err = validateLowdbBackup(parsed);
+  if (err) throw new Error(err);
+  applyLowdbBackup(parsed);
+  return parsed;
+}
 
 // GET /api/admin/log
 router.get('/log', requireMod, (req, res) => {
@@ -87,6 +124,7 @@ router.put('/users/:id/role', requireAdmin, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
     const target = rows[0];
     await pool.query('UPDATE users SET role = ? WHERE id = ?', [role, req.params.id]);
+    if (req.params.id === req.session.userId) req.session.role = role;
     db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Papel de ${target.nick || target.name} alterado para ${role} por ${req.session.userId}` }).write();
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -124,91 +162,91 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-module.exports = router;
-
-// ── DEV TOOLS ──
-const multer = require('multer');
-const uploadMem = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-
 // GET /api/admin/dev/download-db
-router.get('/dev/download-db', requireAdmin, (req, res) => {
-  const dbPath = require('path').join(__dirname, '../data/db.json');
-  if (!require('fs').existsSync(dbPath))
-    return res.status(404).json({ error: 'db.json não encontrado.' });
+router.get('/dev/download-db', requireDev, (req, res) => {
+  const dbPath = path.join(__dirname, '../data/db.json');
+  if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'db.json não encontrado.' });
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   res.setHeader('Content-Disposition', `attachment; filename="corleone-db-${ts}.json"`);
   res.setHeader('Content-Type', 'application/json');
   res.sendFile(dbPath);
 });
 
-// POST /api/admin/dev/upload-db  — restore a backup
-router.post('/dev/upload-db', requireAdmin, uploadMem.single('db'), (req, res) => {
+function handleImportDb(req, res) {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   try {
-    const text = req.file.buffer.toString('utf8');
-    const parsed = JSON.parse(text);
-    // Basic validation — must have users and stocks arrays
-    if (!parsed.users || !parsed.stocks)
-      return res.status(400).json({ error: 'JSON inválido: precisa ter campos "users" e "stocks".' });
-    const dbPath = require('path').join(__dirname, '../data/db.json');
-    require('fs').writeFileSync(dbPath, text, 'utf8');
-    // Reload lowdb from disk
-    const db   = require('../data/db');
-const pool = require('../data/mysql');
-    db.read();
+    const parsed = restoreLowdbFromFile(req.file.buffer);
+    const wasOpen = db.get('market.open').value();
+    if (parsed.market && parsed.market.open && !wasOpen) simulator.start();
+    else if (parsed.market && !parsed.market.open && wasOpen) simulator.stop();
+
     db.get('adminLog').push({
       t:   new Date().toLocaleTimeString('pt-BR'),
-      msg: `Database restaurada via upload por ${req.session.userId}`
+      msg: `db.json restaurado via import por ${req.session.userId}`
     }).write();
-    res.json({ ok: true, users: parsed.users.length, stocks: parsed.stocks.length });
-  } catch(e) {
-    res.status(400).json({ error: 'JSON inválido: ' + e.message });
+
+    res.json({
+      ok: true,
+      totals: {
+        stocks: (parsed.stocks || []).length,
+        transactions: (parsed.transactions || []).length,
+        portfolios: Object.keys(parsed.portfolios || {}).length
+      },
+      marketOpen: db.get('market.open').value()
+    });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+}
+
+router.post('/dev/import-db', requireDev, uploadMem.single('dbfile'), handleImportDb);
+router.post('/dev/upload-db', requireDev, uploadMem.single('db'), handleImportDb);
+
+// GET /api/admin/dev/database-report
+router.get('/dev/database-report', requireDev, async (req, res) => {
+  try {
+    const dataDir = path.join(__dirname, '../data');
+    const dbData  = db.getState();
+    const [userRows] = await pool.query('SELECT COUNT(*) as cnt FROM users');
+
+    const collections = Object.entries(dbData).map(([name, val]) => {
+      const isArray = Array.isArray(val);
+      const isObj   = val && typeof val === 'object' && !isArray;
+      const count   = isArray ? val.length : isObj ? Object.keys(val).length : 1;
+      const sample  = isArray && val.length > 0 ? Object.keys(val[0]).slice(0, 5) : isObj ? Object.keys(val).slice(0, 5) : [];
+      const sizeBytes = Buffer.byteLength(JSON.stringify(val), 'utf8');
+      return { name, type: isArray ? 'array' : isObj ? 'object' : 'value', count, sizeBytes, sampleKeys: sample };
+    });
+
+    const files = fs.readdirSync(dataDir).map(f => {
+      const fp = path.join(dataDir, f);
+      const st = fs.statSync(fp);
+      return { name: f, sizeBytes: st.size, modifiedAt: st.mtime };
+    });
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      totals: {
+        users:        userRows[0].cnt,
+        stocks:       (dbData.stocks || []).length,
+        transactions: (dbData.transactions || []).length,
+        adminLog:     (dbData.adminLog || []).length,
+      },
+      market: dbData.market || { open: false },
+      collections,
+      files
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
-// GET /api/admin/dev/database-report
-router.get('/dev/database-report', requireAdmin, (req, res) => {
-  const fs   = require('fs');
-  const path = require('path');
-  const db   = require('../data/db');
-  const dataDir = path.join(__dirname, '../data');
-
-  const dbData = db.value();
-  const collections = Object.entries(dbData).map(([name, val]) => {
-    const isArray = Array.isArray(val);
-    const isObj   = val && typeof val === 'object' && !isArray;
-    const count   = isArray ? val.length : isObj ? Object.keys(val).length : 1;
-    const sample  = isArray && val.length > 0 ? Object.keys(val[0]).slice(0, 5) : isObj ? Object.keys(val).slice(0, 5) : [];
-    const sizeBytes = Buffer.byteLength(JSON.stringify(val), 'utf8');
-    return { name, type: isArray ? 'array' : isObj ? 'object' : 'value', count, sizeBytes, sampleKeys: sample };
-  });
-
-  const files = fs.readdirSync(dataDir).map(f => {
-    const fp = path.join(dataDir, f);
-    const st = fs.statSync(fp);
-    return { name: f, sizeBytes: st.size, modifiedAt: st.mtime };
-  });
-
-  res.json({
-    generatedAt: Date.now(),
-    totals: {
-      users:        (dbData.users || []).length,
-      stocks:       (dbData.stocks || []).length,
-      transactions: (dbData.transactions || []).length,
-      adminLog:     (dbData.adminLog || []).length,
-    },
-    market: dbData.market || { open: false },
-    collections,
-    files
-  });
-});
-
 // GET /api/admin/dev/history
-router.get('/dev/history', requireAdmin, (req, res) => {
-  const db   = require('../data/db');
-const pool = require('../data/mysql');
+router.get('/dev/history', requireDev, (req, res) => {
   res.json({
     adminLog:     (db.get('adminLog').value() || []).slice(-50).reverse(),
     transactions: (db.get('transactions').value() || []).slice(-50).reverse(),
   });
 });
+
+module.exports = router;

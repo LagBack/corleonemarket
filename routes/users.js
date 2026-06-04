@@ -96,13 +96,13 @@ router.get('/:id/public', async (req, res) => {
       id: user.id, nick: user.nick || user.name, name: user.name,
       avatar: user.avatar, photo: user.photo, country: user.country,
       bio: user.bio, role: user.role, joined: user.joined,
-      balance:     user.role === 'admin' ? null : user.balance,
+      balance:     ['admin', 'dev'].includes(user.role) ? null : user.balance,
       totalTx:     txs.length,
       buys:        txs.filter(t => t.type === 'buy').length,
       sells:       txs.filter(t => t.type === 'sell').length,
       holdings,
       marketValue: mv,
-      totalWealth: user.role === 'admin' ? null : user.balance + mv,
+      totalWealth: ['admin', 'dev'].includes(user.role) ? null : user.balance + mv,
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
