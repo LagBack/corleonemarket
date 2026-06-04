@@ -1,2 +1,4 @@
-echo "data/db.json"
-echo "public/uploads/"
+node_modules/
+.env
+data/db.json
+public/uploads/

@@ -1,7 +1,7 @@
 {
   "name": "corleone-market",
   "version": "1.0.0",
-  "description": "Corleone Market - Simulador de Mercado de Capitais",
+  "description": "Simulador de bolsa fictícia em tempo real — Node.js, Express, MySQL. Negocie ações, ranking, donos de empresas e painel admin mobile-first.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
