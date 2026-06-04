@@ -18,11 +18,21 @@ function photoUrlForUser(row) {
   return row.photo || null;
 }
 
-function toPublicUser(row) {
+function photoDataUrl(row) {
+  if (!hasPhotoData(row)) return null;
+  const mime = row.photo_mime || 'image/jpeg';
+  const buf = Buffer.isBuffer(row.photo_data) ? row.photo_data : Buffer.from(row.photo_data);
+  return `data:${mime};base64,${buf.toString('base64')}`;
+}
+
+function toPublicUser(row, opts = {}) {
   if (!row) return null;
   const { pass, photo_data, photo_mime, ...rest } = row;
   rest.photo = photoUrlForUser(row);
+  if (opts.includePhotoData) {
+    rest.photoDisplay = photoDataUrl(row);
+  }
   return rest;
 }
 
-module.exports = { photoUrlForUser, toPublicUser };
+module.exports = { photoUrlForUser, photoDataUrl, toPublicUser, hasPhotoData };

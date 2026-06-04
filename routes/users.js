@@ -1,10 +1,10 @@
 const router = require('express').Router();
 const multer = require('multer');
-const path   = require('path');
-const fs     = require('fs');
 const pool   = require('../data/mysql');
 const { normalizeCountry } = require('../data/countries');
 const { toPublicUser, photoUrlForUser } = require('../data/user-serialize');
+const { legacyDiskPath } = require('./user-photo');
+const fs     = require('fs');
 const db     = require('../data/db');
 const { requireAuth } = require('../middleware/auth');
 
@@ -12,15 +12,10 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 3 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (/image\/(jpeg|png|gif|webp)/i.test(file.mimetype)) cb(null, true);
+    if (/image\/(jpeg|png|gif|webp|jpg)/i.test(file.mimetype)) cb(null, true);
     else cb(new Error('Apenas imagens são permitidas (JPEG, PNG, GIF, WebP).'));
   }
 });
-
-function legacyDiskPath(photo) {
-  if (!photo || !String(photo).startsWith('/uploads/')) return null;
-  return path.join(__dirname, '..', 'public', photo.replace(/^\//, ''));
-}
 
 function unlinkLegacyPhoto(photo) {
   const diskPath = legacyDiskPath(photo);
@@ -34,8 +29,32 @@ router.get('/me', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
     if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
-    res.json(toPublicUser(rows[0]));
+    res.json(toPublicUser(rows[0], { includePhotoData: true }));
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/users/me/dividends — before /:id/* routes
+router.get('/me/dividends', requireAuth, async (req, res) => {
+  const uid  = req.session.userId;
+  const divs = (db.get('dividends').value() || [])
+    .filter(d => d.founderId === uid).sort((a, b) => b.ts - a.ts).slice(0, 100);
+  const total = divs.reduce((a, d) => a + d.fee, 0);
+  const allStocks = db.get('stocks').value();
+  const ownedStocks = allStocks
+    .filter(s => Array.isArray(s.owners) && s.owners.some(o => o.userId === uid))
+    .map(s => {
+      const o = s.owners.find(o => o.userId === uid);
+      return { sym: s.sym, name: s.name, pct: o.pct, totalRevenue: s.totalRevenue || 0, price: s.price };
+    });
+  const myListings = (db.get('ownershipListings').value() || [])
+    .filter(l => l.sellerId === uid && l.status === 'open');
+  res.json({
+    dividends: divs,
+    total: Math.round(total * 100) / 100,
+    ownedStocks,
+    founded: ownedStocks,
+    myListings
+  });
 });
 
 // PUT /api/users/me
@@ -47,29 +66,38 @@ router.put('/me', requireAuth, async (req, res) => {
       [nick, bio, normalizeCountry(country), avatar, req.session.userId]
     );
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
-    res.json({ ok: true, user: toPublicUser(rows[0]) });
+    res.json({ ok: true, user: toPublicUser(rows[0], { includePhotoData: true }) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/users/me/photo — persist binary in MySQL (survives redeploys)
-router.post('/me/photo', requireAuth, upload.single('photo'), async (req, res) => {
+// POST /api/users/me/photo
+router.post('/me/photo', requireAuth, (req, res, next) => {
+  upload.single('photo')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload inválido.' });
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   const uid = req.session.userId;
   const photoUrl = `/api/users/${uid}/photo`;
   try {
-    const [rows] = await pool.query(
-      'SELECT photo, photo_data FROM users WHERE id = ?',
-      [uid]
-    );
+    const [rows] = await pool.query('SELECT photo FROM users WHERE id = ?', [uid]);
     if (rows.length && rows[0].photo) unlinkLegacyPhoto(rows[0].photo);
 
     await pool.query(
       `UPDATE users SET photo=?, photo_data=?, photo_mime=? WHERE id=?`,
       [photoUrl, req.file.buffer, req.file.mimetype, uid]
     );
-    res.json({ ok: true, photo: photoUrl });
+
+    const display = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    res.json({ ok: true, photo: photoUrl, photoDisplay: display });
   } catch (e) {
     console.error('Photo upload error:', e.message);
+    if (/Unknown column/i.test(e.message)) {
+      return res.status(500).json({
+        error: 'Banco desatualizado. Reinicie o servidor para aplicar migrações ou rode mysql-migrate.'
+      });
+    }
     res.status(500).json({ error: e.message || 'Não foi possível salvar a foto.' });
   }
 });
@@ -87,32 +115,6 @@ router.delete('/me/photo', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/users/:id/photo — serve image from database (public)
-router.get('/:id/photo', async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      'SELECT photo_data, photo_mime, photo FROM users WHERE id = ?',
-      [req.params.id]
-    );
-    if (!rows.length) return res.status(404).end();
-
-    const row = rows[0];
-    if (row.photo_data && row.photo_data.length) {
-      res.set('Content-Type', row.photo_mime || 'image/jpeg');
-      res.set('Cache-Control', 'public, max-age=86400');
-      return res.send(row.photo_data);
-    }
-
-    const diskPath = legacyDiskPath(row.photo);
-    if (diskPath && fs.existsSync(diskPath)) {
-      return res.sendFile(diskPath);
-    }
-    res.status(404).end();
-  } catch (e) {
-    res.status(500).end();
-  }
-});
-
 // GET /api/users/:id/public
 router.get('/:id/public', async (req, res) => {
   if (req.params.id === 'me') {
@@ -120,7 +122,7 @@ router.get('/:id/public', async (req, res) => {
   }
   try {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado.' });
     const user   = rows[0];
     const stocks = db.get('stocks').value();
     const pf     = db.get('portfolios').get(req.params.id).value() || {};
@@ -146,24 +148,6 @@ router.get('/:id/public', async (req, res) => {
       totalWealth: ['admin', 'dev'].includes(user.role) ? null : user.balance + mv,
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// GET /api/users/me/dividends
-router.get('/me/dividends', requireAuth, async (req, res) => {
-  const uid  = req.session.userId;
-  const divs = (db.get('dividends').value() || [])
-    .filter(d => d.founderId === uid).sort((a, b) => b.ts - a.ts).slice(0, 100);
-  const total = divs.reduce((a, d) => a + d.fee, 0);
-  const allStocks = db.get('stocks').value();
-  const ownedStocks = allStocks
-    .filter(s => Array.isArray(s.owners) && s.owners.some(o => o.userId === uid))
-    .map(s => {
-      const o = s.owners.find(o => o.userId === uid);
-      return { sym: s.sym, name: s.name, pct: o.pct, totalRevenue: s.totalRevenue || 0, price: s.price };
-    });
-  const myListings = (db.get('ownershipListings').value() || [])
-    .filter(l => l.sellerId === uid && l.status === 'open');
-  res.json({ dividends: divs, total: Math.round(total * 100) / 100, ownedStocks, myListings });
 });
 
 module.exports = router;

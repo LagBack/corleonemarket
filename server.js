@@ -6,6 +6,9 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProd = process.env.NODE_ENV === 'production';
+
+app.set('trust proxy', 1);
 
 // ── Ensure data & uploads dirs exist ──
 const dataDir = path.join(__dirname, 'data');
@@ -18,11 +21,21 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
-  secret: 'corleone-secret-key-2024',
+  secret: process.env.SESSION_SECRET || 'corleone-secret-key-2024',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
+  proxy: true,
+  cookie: {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'lax' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000
+  }
 }));
+
+// Public profile photos (no auth — must be before SPA catch-all)
+const { serveUserPhoto } = require('./routes/user-photo');
+app.get('/api/users/:id/photo', serveUserPhoto);
 
 // ── Routes ──
 app.use('/api/auth', require('./routes/auth'));
@@ -44,6 +57,8 @@ app.listen(PORT, () => {
   console.log(`╚══════════════════════════════════════╝\n`);
   // Seed lowdb (stocks/market state), MySQL (users), then start simulator
   require('./data/seed');
-  require('./data/mysql-seed')();
+  require('./data/mysql-migrate')()
+    .then(() => require('./data/mysql-seed')())
+    .catch(err => console.error('MySQL init:', err.message));
   require('./data/simulator').start();
 });

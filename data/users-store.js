@@ -2,7 +2,7 @@ const pool = require('./mysql');
 const { toPublicUser } = require('./user-serialize');
 
 function safeUser(row) {
-  return toPublicUser(row);
+  return toPublicUser(row, { includePhotoData: false });
 }
 
 async function getUserById(id) {

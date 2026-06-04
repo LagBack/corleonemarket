@@ -175,12 +175,19 @@ function canAccessDev() {
   return !!CU && CU.role === 'dev';
 }
 
+function userPhotoSrc(user) {
+  if (!user) return null;
+  return user.photoDisplay || user.photo || null;
+}
+
 function updateHeaderUser() {
   if (!CU) return;
   document.getElementById('hdr-name').textContent = CU.nick || CU.name;
   const avEl = document.getElementById('hdr-av');
-  if (CU.photo) {
-    avEl.innerHTML = `<img src="${CU.photo}?t=${Date.now()}" alt="">`;
+  const src = userPhotoSrc(CU);
+  if (src) {
+    const bust = src.startsWith('data:') ? '' : `?t=${Date.now()}`;
+    avEl.innerHTML = `<img src="${src}${bust}" alt="">`;
   } else {
     avEl.textContent = CU.avatar || '🦁';
   }
@@ -558,8 +565,9 @@ async function renderRanking() {
 // ── PROFILE ──
 function renderProfile() {
   editAvatar = CU.avatar || '🦁';
-  const photoHtml = CU.photo
-    ? `<img src="${CU.photo}?t=${Date.now()}" alt="">`
+  const photoSrc = userPhotoSrc(CU);
+  const photoHtml = photoSrc
+    ? `<img src="${photoSrc}${photoSrc.startsWith('data:') ? '' : `?t=${Date.now()}`}" alt="">`
     : CU.avatar || '🦁';
   document.getElementById('prof-hero').innerHTML = `
     <div class="profile-photo" onclick="document.getElementById('photo-input').click()" title="Clique para trocar foto">
@@ -584,27 +592,25 @@ function renderProfile() {
   for (let o of csel.options) o.selected = (o.value === countryVal);
   buildAvatarGrid('edit-av-grid', a => editAvatar = a, CU.avatar || '🦁');
 
-  // Stats + pie chart + dividends — load in parallel
+  // Stats + pie chart + dividends — load in parallel (portfolio failure must not break profile)
   Promise.all([
-    GET('market/portfolio'),
-    GET('users/me/dividends')
+    GET('market/portfolio').catch(() => ({ transactions: [], portfolio: {} })),
+    GET('users/me/dividends').catch(() => ({ dividends: [], total: 0, ownedStocks: [], founded: [], myListings: [] }))
   ]).then(([pfData, divData]) => {
     const txs = pfData.transactions || [];
     const pf  = pfData.portfolio   || {};
+    const founded = divData.founded || divData.ownedStocks || [];
 
     document.getElementById('prof-stats').innerHTML = `
       <div style="display:grid;gap:8px">
         <div style="background:var(--s2);padding:12px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Total Operações</div><div class="stat-val serif">${txs.length}</div></div>
         <div style="background:var(--s2);padding:12px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Compras / Vendas</div><div class="stat-val serif"><span class="green">${txs.filter(t=>t.type==='buy').length}</span> / <span class="red">${txs.filter(t=>t.type==='sell').length}</span></div></div>
         <div style="background:var(--s2);padding:12px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Membro desde</div><div class="mono" style="font-size:12px;color:var(--text2)">${new Date(CU.joined||Date.now()).toLocaleDateString('pt-BR')}</div></div>
-        ${divData.founded.length ? `<div style="background:var(--gold-dim);padding:12px;border:1px solid rgba(201,168,76,.3);border-radius:4px"><div class="stat-label">Empresas Fundadas</div><div class="stat-val gold serif">${divData.founded.length}</div><div style="font-size:10px;color:var(--gold);margin-top:2px">${divData.founded.map(f=>f.sym).join(', ')}</div></div>` : ''}
+        ${founded.length ? `<div style="background:var(--gold-dim);padding:12px;border:1px solid rgba(201,168,76,.3);border-radius:4px"><div class="stat-label">Participações em empresas</div><div class="stat-val gold serif">${founded.length}</div><div style="font-size:10px;color:var(--gold);margin-top:2px">${founded.map(f=>f.sym).join(', ')}</div></div>` : ''}
       </div>
     `;
 
-    // ── Pie chart ──
     renderPieChart(pf);
-
-    // ── Dividends section ──
     renderDividends(divData);
 
   }).catch(e => console.error(e));
@@ -701,13 +707,14 @@ function renderPieChart(pf) {
 }
 
 function renderDividends(divData) {
+  if (!divData) return;
   const badge = document.getElementById('div-total-badge');
-  if (badge) badge.textContent = 'R$' + fmtN(divData.total);
+  if (badge) badge.textContent = 'R$' + fmtN(divData.total || 0);
 
   const divHist = document.getElementById('div-history');
   if (divHist) {
-    divHist.innerHTML = divData.dividends.length
-      ? divData.dividends.map(d => `
+    divHist.innerHTML = (divData.dividends || []).length
+      ? (divData.dividends || []).map(d => `
         <div class="hist-item">
           <span class="hist-badge buy" style="background:rgba(201,168,76,.15);color:var(--gold);border-color:rgba(201,168,76,.3)">TAXA</span>
           <span class="sym-tag" style="font-size:10px">${d.sym}</span>
@@ -721,10 +728,11 @@ function renderDividends(divData) {
   }
 
   const divCreated = document.getElementById('div-created');
-  if (divCreated && divData.founded.length) {
+  const founded = divData.founded || divData.ownedStocks || [];
+  if (divCreated && founded.length) {
     divCreated.innerHTML = `
-      <div class="card-title" style="border:none;padding:0;margin-bottom:8px">🏭 Empresas que você fundou</div>
-      ${divData.founded.map(f => `
+      <div class="card-title" style="border:none;padding:0;margin-bottom:8px">🏭 Participações em empresas</div>
+      ${founded.map(f => `
         <div class="pf-item" style="margin-bottom:6px">
           <span class="sym-tag">${f.sym}</span>
           <div style="flex:1;margin-left:10px">
@@ -763,13 +771,22 @@ async function uploadPhoto(input) {
   formData.append('photo', file);
   try {
     const r = await fetch('/api/users/me/photo', { method: 'POST', credentials: 'include', body: formData });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error);
-    CU.photo = data.photo;
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      if (r.status === 401) throw new Error('Sessão expirada. Faça login novamente.');
+      throw new Error(data.error || `Erro ao enviar foto (${r.status})`);
+    }
+    CU.photo = data.photo || CU.photo;
+    CU.photoDisplay = data.photoDisplay || CU.photoDisplay;
+    try {
+      const me = await GET('auth/me');
+      CU = { ...CU, ...me };
+    } catch (_) {}
     updateHeaderUser();
     showMsg('prof-msg', '✓ Foto atualizada!', 'ok');
     renderProfile();
   } catch(e) { showMsg('prof-msg', e.message, 'err'); }
+  finally { input.value = ''; }
 }
 
 // ── P2P OWNERSHIP MARKETPLACE ──

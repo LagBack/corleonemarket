@@ -13,7 +13,7 @@ router.get('/me', requireAuth, async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
     req.session.role = rows[0].role;
-    res.json(toPublicUser(rows[0]));
+    res.json(toPublicUser(rows[0], { includePhotoData: true }));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -33,7 +33,7 @@ router.post('/login', async (req, res) => {
       pfs[user.id] = {};
       db.set('portfolios', pfs).write();
     }
-    res.json({ ok: true, user: toPublicUser(user) });
+    res.json({ ok: true, user: toPublicUser(user, { includePhotoData: true }) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
