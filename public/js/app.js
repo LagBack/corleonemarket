@@ -41,7 +41,8 @@ let stocks = [];         // cached stock list
 let priceHistory = {};   // sym -> [{p}]
 let mainChart = null;
 let pieChart  = null;
-let ownerRows = [];  // [{userId, name, nick, pct}]
+let ownerRows = [];      // create stock — [{userId, name, pct}]
+let editOwnerRows = [];  // edit stock
 let selectedSym = null;
 let marketHistory = [];
 let orderType = 'buy';
@@ -132,6 +133,9 @@ async function doLogout() {
   if (mainChart) { mainChart.destroy(); mainChart = null; }
   document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
   document.querySelectorAll('.dev-only').forEach(e => e.style.display = 'none');
+  document.querySelectorAll('.bottom-nav-btn.admin-only,.bottom-nav-btn.dev-only').forEach(e => {
+    e.style.display = 'none';
+  });
   document.getElementById('s-app').classList.remove('active');
   document.getElementById('s-auth').classList.add('active');
 }
@@ -147,6 +151,12 @@ async function startApp() {
     document.querySelectorAll('.admin-only').forEach(e => e.style.display = '');
   if (canAccessDev())
     document.querySelectorAll('.dev-only').forEach(e => e.style.display = '');
+  document.querySelectorAll('.bottom-nav-btn.admin-only').forEach(e => {
+    e.style.display = canAccessAdmin() ? '' : 'none';
+  });
+  document.querySelectorAll('.bottom-nav-btn.dev-only').forEach(e => {
+    e.style.display = canAccessDev() ? '' : 'none';
+  });
   await loadMarketState();
   buildChart();
   showPage('market');
@@ -232,19 +242,19 @@ function renderStocksTable() {
     const sign = pct > 0 ? '+' : '';
     const dr = s.demand / (s.demand + s.supply + .001);
     return `<tr onclick="selectStock('${s.sym}')" style="cursor:pointer" id="row-${s.sym}">
-      <td><span class="sym-tag">${s.sym}</span></td>
-      <td style="font-weight:600;font-size:12px">${s.name}</td>
-      <td><span class="sector-tag">${s.sector}</span></td>
-      <td><span class="status-badge ${s.status}">${s.status==='active'?'Ativa':'Suspensa'}</span></td>
-      <td class="price-${cls} mono">R$${s.price.toFixed(2)}</td>
-      <td><span class="chg-pill ${cls}">${sign}${pct.toFixed(2)}%</span></td>
-      <td class="mono" style="font-size:10px;color:var(--text3)">${fmtN(s.volume)}</td>
-      <td><div class="dbar"><div class="dbar-fill" style="width:${dr*100}%;background:${dr>.5?'var(--green2)':'var(--red2)'}"></div></div></td>
-      <td>
+      <td data-label="Código"><span class="sym-tag">${s.sym}</span></td>
+      <td data-label="Empresa" style="font-weight:600;font-size:12px">${s.name}</td>
+      <td data-label="Setor"><span class="sector-tag">${s.sector}</span></td>
+      <td data-label="Status"><span class="status-badge ${s.status}">${s.status==='active'?'Ativa':'Suspensa'}</span></td>
+      <td data-label="Preço" class="price-${cls} mono">R$${s.price.toFixed(2)}</td>
+      <td data-label="Var."><span class="chg-pill ${cls}">${sign}${pct.toFixed(2)}%</span></td>
+      <td data-label="Volume" class="mono" style="font-size:10px;color:var(--text3)">${fmtN(s.volume)}</td>
+      <td data-label="D/O"><div class="dbar"><div class="dbar-fill" style="width:${dr*100}%;background:${dr>.5?'var(--green2)':'var(--red2)'}"></div></div></td>
+      <td data-label="Cotas">
         <div style="font-size:10px;color:var(--text3);margin-bottom:2px">${((s.buys - s.sells > 0 ? s.buys - s.sells : 0) / s.shares * 100).toFixed(3)}% negociado</div>
-        <div class="dbar" style="width:90px"><div class="dbar-fill" style="width:${Math.min(100,(s.buys+s.sells)/s.shares*100*20)}%;background:var(--gold)"></div></div>
+        <div class="dbar" style="width:90px;max-width:100%"><div class="dbar-fill" style="width:${Math.min(100,(s.buys+s.sells)/s.shares*100*20)}%;background:var(--gold)"></div></div>
       </td>
-      <td><button class="btn btn-dark btn-sm" onclick="event.stopPropagation();goTrade('${s.sym}')">Negociar</button></td>
+      <td class="td-actions" data-label=""><button class="btn btn-dark btn-sm" onclick="event.stopPropagation();goTrade('${s.sym}')">Negociar</button></td>
     </tr>`;
   }).join('');
 }
@@ -344,11 +354,13 @@ function showPage(pg) {
     return;
   }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.hn-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.hn-btn,.bottom-nav-btn').forEach(b => b.classList.remove('active'));
   const page = document.getElementById('p-' + pg);
   if (!page) return;
   page.classList.add('active');
   document.querySelector(`.hn-btn[data-page="${pg}"]`)?.classList.add('active');
+  document.querySelector(`.bottom-nav-btn[data-page="${pg}"]`)?.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   if (pg === 'trade')     renderTradePage();
   if (pg === 'portfolio') renderPortfolio();
   if (pg === 'ranking')   renderRanking();
@@ -933,11 +945,11 @@ async function renderAdmin() {
       const canChange = u.id !== CU.id;
       const roleLocked = u.role === 'dev';
       return `<tr>
-        <td>${avHtml}</td>
-        <td style="font-size:12px;font-weight:600">${u.nick||u.name}</td>
-        <td style="font-size:11px;color:var(--text3)">${u.email}</td>
-        <td style="font-size:11px">${formatCountry(u.country) || '—'}</td>
-        <td>
+        <td data-label="Foto">${avHtml}</td>
+        <td data-label="Nome" style="font-size:12px;font-weight:600">${u.nick||u.name}</td>
+        <td data-label="E-mail" style="font-size:11px;color:var(--text3)">${u.email}</td>
+        <td data-label="País" style="font-size:11px">${formatCountry(u.country) || '—'}</td>
+        <td data-label="Papel">
           ${canAccessFullAdmin() && canChange && !roleLocked
             ? `<select class="role-select" onchange="changeRole('${u.id}',this.value)">
                 <option ${u.role==='user'?'selected':''} value="user">user</option>
@@ -947,8 +959,8 @@ async function renderAdmin() {
               </select>`
             : `<span class="role-badge ${u.role}">${roleLabel(u.role)}</span>${roleLocked ? ' <span style="font-size:9px;color:var(--text3)">🔒</span>' : ''}`}
         </td>
-        <td class="mono" style="font-size:11px">R$${fmtN(u.balance)}</td>
-        <td>
+        <td data-label="Saldo" class="mono" style="font-size:11px">R$${fmtN(u.balance)}</td>
+        <td class="td-actions" data-label="Ações">
           <div class="btns-row">
             ${canChange ? `<button class="btn btn-dark btn-sm" onclick="openBalanceModal('${u.id}','${u.nick||u.name}',${u.balance})">💰 Saldo</button>` : ''}
             ${canAccessFullAdmin() && canChange && !roleLocked ? `<button class="btn btn-r btn-sm" onclick="deleteUser('${u.id}','${u.nick||u.name}')">✕</button>` : ''}
@@ -1104,16 +1116,55 @@ async function renderDev() {
   }
 }
 
+function ownerSelectOptions(users, includeSelf = true) {
+  const opts = ['<option value="">— Escolher player —</option>'];
+  if (includeSelf && CU) {
+    opts.push(`<option value="${CU.id}" data-nick="${CU.nick||CU.name}">👤 Eu — ${CU.nick||CU.name}</option>`);
+  }
+  const others = users.filter(u => !CU || u.id !== CU.id);
+  opts.push(...others.map(u =>
+    `<option value="${u.id}" data-nick="${u.nick||u.name}">${u.nick||u.name} (${u.email})</option>`
+  ));
+  return opts.join('');
+}
+
 async function populateOwnerPlayerSel() {
   try {
     const users = await GET('admin/users');
     const sel = document.getElementById('owner-player-sel');
-    if (!sel) return;
-    sel.innerHTML = '<option value="">— Escolher player —</option>' +
-      users.filter(u => u.role !== 'admin').map(u =>
-        `<option value="${u.id}" data-nick="${u.nick||u.name}">${u.nick||u.name} (${u.email})</option>`
-      ).join('');
+    const editSel = document.getElementById('edit-owner-player-sel');
+    if (sel) sel.innerHTML = ownerSelectOptions(users);
+    if (editSel) editSel.innerHTML = ownerSelectOptions(users);
   } catch(e) {}
+}
+
+function pushOwnerRow(rows, uid, nick, pct, renderFn) {
+  if (!uid) { alert('Selecione um player.'); return false; }
+  if (!pct || pct <= 0) { alert('Insira uma porcentagem válida (ex: 0.05).'); return false; }
+  if (rows.find(r => r.userId === uid)) { alert('Este player já foi adicionado.'); return false; }
+  rows.push({ userId: uid, name: nick, pct });
+  renderFn();
+  return true;
+}
+
+function addSelfAsOwner() {
+  if (!CU) return;
+  const pct = parseFloat(document.getElementById('owner-pct-inp')?.value);
+  if (pushOwnerRow(ownerRows, CU.id, CU.nick || CU.name, pct, renderOwnerRows)) {
+    const pctInp = document.getElementById('owner-pct-inp');
+    const sel = document.getElementById('owner-player-sel');
+    if (pctInp) pctInp.value = '';
+    if (sel) sel.value = '';
+  }
+}
+
+function addSelfAsEditOwner() {
+  if (!CU) return;
+  const pct = parseFloat(document.getElementById('edit-owner-pct-inp')?.value);
+  if (pushOwnerRow(editOwnerRows, CU.id, CU.nick || CU.name, pct, renderEditOwnerRows)) {
+    document.getElementById('edit-owner-pct-inp').value = '';
+    document.getElementById('edit-owner-player-sel').value = '';
+  }
 }
 
 function addOwnerRow() {
@@ -1122,15 +1173,22 @@ function addOwnerRow() {
   const uid  = sel.value;
   const nick = sel.options[sel.selectedIndex]?.dataset.nick || sel.options[sel.selectedIndex]?.text || '';
   const pct  = parseFloat(pctInp.value);
+  if (pushOwnerRow(ownerRows, uid, nick, pct, renderOwnerRows)) {
+    pctInp.value = '';
+    sel.value = '';
+  }
+}
 
-  if (!uid) { alert('Selecione um player.'); return; }
-  if (!pct || pct <= 0) { alert('Insira uma porcentagem válida (ex: 0.05).'); return; }
-  if (ownerRows.find(r => r.userId === uid)) { alert('Este player já foi adicionado.'); return; }
-
-  ownerRows.push({ userId: uid, name: nick, pct });
-  pctInp.value = '';
-  sel.value = '';
-  renderOwnerRows();
+function addEditOwnerRow() {
+  const sel = document.getElementById('edit-owner-player-sel');
+  const pctInp = document.getElementById('edit-owner-pct-inp');
+  const uid  = sel.value;
+  const nick = sel.options[sel.selectedIndex]?.dataset.nick || '';
+  const pct  = parseFloat(pctInp.value);
+  if (pushOwnerRow(editOwnerRows, uid, nick, pct, renderEditOwnerRows)) {
+    pctInp.value = '';
+    sel.value = '';
+  }
 }
 
 function removeOwnerRow(uid) {
@@ -1138,39 +1196,57 @@ function removeOwnerRow(uid) {
   renderOwnerRows();
 }
 
-function renderOwnerRows() {
-  const container = document.getElementById('owners-list');
-  const totalPctEl = document.getElementById('owners-total-pct');
-  const warning = document.getElementById('owners-warning');
-  const summary = document.getElementById('owners-summary-line');
+function removeEditOwnerRow(uid) {
+  editOwnerRows = editOwnerRows.filter(r => r.userId !== uid);
+  renderEditOwnerRows();
+}
+
+function renderOwnerRowsList(rows, containerId, totalId, warningId, summaryId, updateFn, removeFn) {
+  const container = document.getElementById(containerId);
+  const totalPctEl = document.getElementById(totalId);
+  const warning = warningId ? document.getElementById(warningId) : null;
+  const summary = summaryId ? document.getElementById(summaryId) : null;
   if (!container) return;
 
-  const total = ownerRows.reduce((a, r) => a + r.pct, 0);
+  const total = rows.reduce((a, r) => a + r.pct, 0);
   if (totalPctEl) totalPctEl.textContent = total.toFixed(3) + '%';
-  if (warning)    warning.style.display  = total > 1 ? 'block' : 'none';
-  if (summary)    summary.textContent    = ownerRows.length ? `${ownerRows.length} dono(s) · ${total.toFixed(3)}% total por trade` : '';
+  if (warning) warning.style.display = total > 1 ? 'block' : 'none';
+  if (summary) summary.textContent = rows.length ? `${rows.length} dono(s) · ${total.toFixed(3)}% total por trade` : '';
 
-  container.innerHTML = ownerRows.length
-    ? ownerRows.map(r => `
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:4px;margin-bottom:6px">
-        <div style="font-size:16px">👤</div>
-        <div style="flex:1">
-          <div style="font-weight:600;font-size:12px">${r.name}</div>
-          <div style="font-size:10px;color:var(--text3)">Recebe <span class="mono gold">${r.pct.toFixed(3)}%</span> de cada trade nessa ação</div>
+  container.innerHTML = rows.length
+    ? rows.map(r => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:4px;margin-bottom:6px;flex-wrap:wrap">
+        <div style="font-size:16px">${r.userId === CU?.id ? '👑' : '👤'}</div>
+        <div style="flex:1;min-width:120px">
+          <div style="font-weight:600;font-size:12px">${r.name}${r.userId === CU?.id ? ' <span style="color:var(--gold);font-size:10px">(você)</span>' : ''}</div>
+          <div style="font-size:10px;color:var(--text3)">Recebe <span class="mono gold">${r.pct.toFixed(3)}%</span> de cada trade</div>
         </div>
         <input type="number" value="${r.pct}" min="0.001" max="0.5" step="0.001"
-          style="width:80px;text-align:right;font-size:12px"
-          onchange="updateOwnerPct('${r.userId}', this.value)">
+          style="width:80px;text-align:right;font-size:12px;padding:6px"
+          onchange="${updateFn}('${r.userId}', this.value)">
         <span style="font-size:11px;color:var(--text3)">%</span>
-        <button class="btn btn-r btn-sm" onclick="removeOwnerRow('${r.userId}')">✕</button>
+        <button type="button" class="btn btn-r btn-sm" onclick="${removeFn}('${r.userId}')">✕</button>
       </div>
     `).join('')
-    : '<p style="color:var(--text3);font-size:12px;padding:4px 0">Nenhum dono adicionado. A ação pertencerá ao mercado.</p>';
+    : '<p style="color:var(--text3);font-size:12px;padding:4px 0">Nenhum dono adicionado.</p>';
+}
+
+function renderOwnerRows() {
+  renderOwnerRowsList(ownerRows, 'owners-list', 'owners-total-pct', 'owners-warning', 'owners-summary-line', 'updateOwnerPct', 'removeOwnerRow');
+}
+
+function renderEditOwnerRows() {
+  renderOwnerRowsList(editOwnerRows, 'edit-owners-list', 'edit-owners-total-pct', 'edit-owners-warning', null, 'updateEditOwnerPct', 'removeEditOwnerRow');
 }
 
 function updateOwnerPct(uid, val) {
   const r = ownerRows.find(r => r.userId === uid);
   if (r) { r.pct = parseFloat(val) || 0; renderOwnerRows(); }
+}
+
+function updateEditOwnerPct(uid, val) {
+  const r = editOwnerRows.find(r => r.userId === uid);
+  if (r) { r.pct = parseFloat(val) || 0; renderEditOwnerRows(); }
 }
 
 async function adminCreateStock() {
@@ -1206,6 +1282,8 @@ function loadEditStock() {
   document.getElementById('es-name').value = s.name;
   document.getElementById('es-desc').value = s.desc || '';
   document.getElementById('es-pct').value  = '';
+  editOwnerRows = (s.owners || []).map(o => ({ userId: o.userId, name: o.name, pct: o.pct }));
+  renderEditOwnerRows();
   for (let o of document.getElementById('es-sector').options) if (o.value === s.sector || o.textContent === s.sector) o.selected = true;
   for (let o of document.getElementById('es-vol').options)    if (parseFloat(o.value) === s.vol) o.selected = true;
   for (let o of document.getElementById('es-status').options) if (o.value === s.status) o.selected = true;
@@ -1219,8 +1297,10 @@ async function adminSaveStock() {
   const vol    = document.getElementById('es-vol').value;
   const status = document.getElementById('es-status').value;
   const pricePct = document.getElementById('es-pct').value;
+  const totalOwners = editOwnerRows.reduce((a, r) => a + r.pct, 0);
+  if (totalOwners > 1) { showMsg('adm-edit-msg', 'Total de % dos donos não pode ultrapassar 1%.', 'err'); return; }
   try {
-    await PUT(`stocks/${sym}`, { name, sector, desc, vol, status, pricePct });
+    await PUT(`stocks/${sym}`, { name, sector, desc, vol, status, pricePct, owners: editOwnerRows });
     showMsg('adm-edit-msg', `✓ ${sym} atualizado!`, 'ok');
     await loadMarketState();
   } catch(e) { showMsg('adm-edit-msg', e.message, 'err'); }

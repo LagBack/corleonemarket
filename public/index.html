@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Corleone Market</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -234,6 +234,76 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 /* HIDDEN FILE INPUT */
 #photo-input{display:none}
+
+/* ── MOBILE BOTTOM NAV ── */
+.bottom-nav{
+  display:none;position:fixed;bottom:0;left:0;right:0;z-index:60;
+  background:var(--s1);border-top:1px solid var(--border);
+  padding:6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  justify-content:space-around;gap:2px;
+}
+.bottom-nav-btn{
+  flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:6px 2px;border:none;background:transparent;color:var(--text3);
+  cursor:pointer;font-family:'DM Sans',sans-serif;font-size:9px;font-weight:600;
+  letter-spacing:.3px;text-transform:uppercase;border-radius:6px;transition:all .15s;
+}
+.bottom-nav-btn .bn-icon{font-size:18px;line-height:1}
+.bottom-nav-btn.active{color:var(--gold2);background:var(--gold-dim)}
+.bottom-nav-btn.admin-only,.bottom-nav-btn.dev-only{display:none}
+
+@media(max-width:768px){
+  .auth-wrap{width:100%;max-width:420px;padding:0 16px}
+  .auth-card{padding:22px 18px}
+  .form-row{grid-template-columns:1fr}
+  .app-header{height:auto;min-height:48px;padding:8px 10px;flex-wrap:wrap;gap:6px}
+  .app-logo{margin-right:8px;font-size:15px}
+  .hn{display:none}
+  .hdr-right{margin-left:0;width:100%;justify-content:space-between}
+  .uname{max-width:72px}
+  .btn-logout{padding:6px 12px;font-size:12px}
+  .mkt-pill{font-size:9px;padding:4px 8px}
+  .ticker-bar{display:none}
+  .app-body{padding:12px 12px 80px}
+  .bottom-nav{display:flex}
+  .grid4,.grid3{grid-template-columns:1fr 1fr}
+  .grid2{grid-template-columns:1fr}
+  .stat-val{font-size:20px}
+  .chart-wrap{height:200px}
+  .profile-hero{flex-direction:column;text-align:center;padding:16px}
+  .profile-hero>div:last-child{margin-left:0!important;text-align:center!important;width:100%}
+  .btns-row .btn{flex:1 1 calc(50% - 4px);justify-content:center;min-height:40px}
+  .btn,.btn-primary,.hn-btn{min-height:44px}
+  .fg input,.fg select,.fg textarea{font-size:16px;padding:11px 12px}
+  .admin-zone{padding:12px}
+  .modal{width:100%;max-width:100%;margin:12px;max-height:calc(100vh - 24px);border-radius:8px}
+  .mkt-table--cards thead{display:none}
+  .mkt-table--cards tbody tr{
+    display:block;margin-bottom:10px;padding:12px;
+    background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);
+  }
+  .mkt-table--cards tbody tr:hover td{background:transparent}
+  .mkt-table--cards td{
+    display:flex;justify-content:space-between;align-items:center;
+    gap:10px;padding:6px 0;border:none;font-size:12px;
+  }
+  .mkt-table--cards td::before{
+    content:attr(data-label);font-size:9px;font-weight:700;
+    letter-spacing:1px;text-transform:uppercase;color:var(--text3);flex-shrink:0;
+  }
+  .mkt-table--cards td.td-actions{justify-content:flex-end;padding-top:10px}
+  .mkt-table--cards td.td-actions::before{display:none}
+  .mkt-table--cards td.td-actions .btn{width:100%;justify-content:center}
+  .owner-add-row{flex-direction:column!important;align-items:stretch!important}
+  .owner-add-row>div{width:100%!important}
+  .owner-add-btns{display:flex;flex-direction:column;gap:6px}
+  .owner-add-btns button{width:100%;min-height:44px}
+}
+@media(max-width:400px){
+  .grid4,.grid3{grid-template-columns:1fr}
+  .bottom-nav-btn{font-size:8px}
+  .bottom-nav-btn .bn-icon{font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -337,7 +407,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div class="card">
         <div class="card-title">Ativos Listados <span class="ct-badge" id="stocks-ct">—</span></div>
         <div style="overflow-x:auto">
-          <table class="mkt-table">
+          <table class="mkt-table mkt-table--cards">
             <thead><tr><th>Código</th><th>Empresa</th><th>Setor</th><th>Status</th><th>Preço</th><th>Var.</th><th>Volume</th><th>D/O</th><th>Cotas</th><th></th></tr></thead>
             <tbody id="stocks-body"></tbody>
           </table>
@@ -541,7 +611,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
               Donos recebem uma <strong style="color:#c9a84c">% de cada trade</strong> como renda passiva. Total máximo: <strong style="color:#c9a84c">1%</strong>.
             </div>
 
-            <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:8px">
+            <div class="owner-add-row" style="display:flex;gap:6px;align-items:flex-end;margin-bottom:8px">
               <div style="flex:1">
                 <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#5a5570;margin-bottom:4px">Player</div>
                 <select id="owner-player-sel" style="width:100%;padding:7px 9px;background:#18181f;border:1px solid #2a2a3a;color:#e8e6f0;border-radius:4px;font-size:12px;font-family:'DM Mono',monospace">
@@ -553,10 +623,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
                 <input type="number" id="owner-pct-inp" placeholder="0.05" step="0.001" min="0.001" max="1"
                   style="width:100%;padding:7px 9px;background:#18181f;border:1px solid #2a2a3a;color:#e8e6f0;border-radius:4px;font-size:12px;font-family:'DM Mono',monospace">
               </div>
-              <button onclick="addOwnerRow()"
-                style="padding:7px 12px;background:#c9a84c;color:#0d0d0f;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
-                + Add
-              </button>
+              <div class="owner-add-btns">
+                <button type="button" onclick="addSelfAsOwner()"
+                  style="padding:7px 12px;background:var(--s3);color:var(--gold2);border:1px solid var(--border2);border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+                  👤 Eu como dono
+                </button>
+                <button type="button" onclick="addOwnerRow()"
+                  style="padding:7px 12px;background:#c9a84c;color:#0d0d0f;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+                  + Adicionar
+                </button>
+              </div>
             </div>
 
             <div id="owners-list" style="min-height:36px;margin-bottom:8px">
@@ -595,7 +671,31 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
               <div class="fg"><label>Ajustar Preço (%)</label><input type="number" id="es-pct" placeholder="+10 ou -20" step="0.1"></div>
             </div>
           </div>
-          <div class="btns-row">
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-bottom:8px">👑 Donos deste ativo</div>
+            <div class="owner-add-row" style="display:flex;gap:6px;align-items:flex-end;margin-bottom:8px">
+              <div style="flex:1">
+                <select id="edit-owner-player-sel" style="width:100%;padding:7px 9px;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px;font-family:'DM Mono',monospace">
+                  <option value="">— Escolher player —</option>
+                </select>
+              </div>
+              <div style="width:90px">
+                <input type="number" id="edit-owner-pct-inp" placeholder="0.05" step="0.001" min="0.001" max="1"
+                  style="width:100%;padding:7px 9px;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px;font-family:'DM Mono',monospace">
+              </div>
+              <div class="owner-add-btns">
+                <button type="button" class="btn btn-dark btn-sm" onclick="addSelfAsEditOwner()">👤 Eu como dono</button>
+                <button type="button" class="btn btn-gold btn-sm" onclick="addEditOwnerRow()">+ Adicionar</button>
+              </div>
+            </div>
+            <div id="edit-owners-list" style="min-height:28px;margin-bottom:8px"></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding:6px 10px;background:var(--s2);border:1px solid var(--border);border-radius:4px">
+              <span style="color:var(--text3)">Total alocado:</span>
+              <span id="edit-owners-total-pct" class="mono gold" style="font-weight:700">0.000%</span>
+            </div>
+            <div id="edit-owners-warning" style="margin-top:5px;font-size:11px;color:var(--red2);display:none">⚠ Ultrapassa o limite permitido.</div>
+          </div>
+          <div class="btns-row" style="margin-top:14px">
             <button class="btn btn-gold" onclick="adminSaveStock()">Salvar Alterações</button>
             <button class="btn btn-r btn-sm" onclick="adminDeleteStock()">Deletar Ativo</button>
           </div>
@@ -606,7 +706,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div class="admin-zone">
         <h3>👥 Usuários</h3>
         <div style="overflow-x:auto">
-          <table class="mkt-table" id="users-tbl">
+          <table class="mkt-table mkt-table--cards" id="users-tbl">
             <thead><tr><th>Foto</th><th>Nome</th><th>E-mail</th><th>País</th><th>Papel</th><th>Saldo</th><th>Ações</th></tr></thead>
             <tbody id="users-body"></tbody>
           </table>
@@ -670,6 +770,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     </div>
 
   </div><!-- /app-body -->
+
+  <nav class="bottom-nav" id="bottom-nav" aria-label="Navegação principal">
+    <button type="button" class="bottom-nav-btn active" data-page="market" onclick="showPage('market')"><span class="bn-icon">📊</span><span>Mercado</span></button>
+    <button type="button" class="bottom-nav-btn" data-page="trade" onclick="showPage('trade')"><span class="bn-icon">💱</span><span>Negociar</span></button>
+    <button type="button" class="bottom-nav-btn" data-page="portfolio" onclick="showPage('portfolio')"><span class="bn-icon">💼</span><span>Carteira</span></button>
+    <button type="button" class="bottom-nav-btn" data-page="ranking" onclick="showPage('ranking')"><span class="bn-icon">🏆</span><span>Ranking</span></button>
+    <button type="button" class="bottom-nav-btn" data-page="profile" onclick="showPage('profile')"><span class="bn-icon">👤</span><span>Perfil</span></button>
+    <button type="button" class="bottom-nav-btn admin-only" data-page="admin" style="display:none" onclick="showPage('admin')"><span class="bn-icon">⚙️</span><span>Admin</span></button>
+    <button type="button" class="bottom-nav-btn dev-only" data-page="dev" style="display:none" onclick="showPage('dev')"><span class="bn-icon">🛠</span><span>Dev</span></button>
+  </nav>
 </div><!-- /s-app -->
 
 <!-- MODAL (balance edit) -->
