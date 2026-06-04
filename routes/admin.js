@@ -1,174 +1,25 @@
 const router = require('express').Router();
-const fs = require('fs');
-const path = require('path');
-const multer = require('multer');
-const db = require('../data/db');
-const { requireAdmin, requireMod, requireDev } = require('../middleware/auth');
+const db   = require('../data/db');
+const pool = require('../data/mysql');
+const { requireAdmin, requireMod } = require('../middleware/auth');
 const simulator = require('../data/simulator');
 
-const DB_COLLECTION_KEYS = [
-  'users', 'stocks', 'portfolios', 'transactions',
-  'dividends', 'ownershipListings', 'market', 'adminLog'
-];
-
-const importUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const ok = file.mimetype === 'application/json' || /\.json$/i.test(file.originalname);
-    cb(ok ? null : new Error('Envie um arquivo .json valido.'), ok);
-  }
-});
-
-function validateDbState(state) {
-  if (!state || typeof state !== 'object' || Array.isArray(state)) {
-    return 'JSON invalido.';
-  }
-  for (const key of DB_COLLECTION_KEYS) {
-    if (!(key in state)) return `Campo obrigatorio ausente: ${key}`;
-  }
-  if (!Array.isArray(state.users)) return 'users deve ser um array.';
-  if (!Array.isArray(state.stocks)) return 'stocks deve ser um array.';
-  if (!state.portfolios || typeof state.portfolios !== 'object' || Array.isArray(state.portfolios)) {
-    return 'portfolios invalido.';
-  }
-  if (!Array.isArray(state.transactions)) return 'transactions deve ser um array.';
-  if (!Array.isArray(state.dividends)) return 'dividends deve ser um array.';
-  if (!Array.isArray(state.ownershipListings)) return 'ownershipListings deve ser um array.';
-  if (!Array.isArray(state.adminLog)) return 'adminLog deve ser um array.';
-  if (!state.market || typeof state.market.open !== 'boolean') return 'market.open invalido.';
-  return null;
-}
-
-function dbTotals(state) {
-  return {
-    users: (state.users || []).length,
-    stocks: (state.stocks || []).length,
-    transactions: (state.transactions || []).length,
-    dividends: (state.dividends || []).length,
-    adminLog: (state.adminLog || []).length
-  };
-}
-
-router.use(requireMod);
-
 // GET /api/admin/log
-router.get('/log', (req, res) => {
+router.get('/log', requireMod, (req, res) => {
   const log = db.get('adminLog').value();
   res.json(log.slice().reverse().slice(0, 100));
 });
 
 // GET /api/admin/users
-router.get('/users', (req, res) => {
-  const users = db.get('users').value().map(u => {
-    const { pass, ...safe } = u;
-    return safe;
-  });
-  res.json(users);
-});
-
-// GET /api/admin/dev/history
-router.get('/dev/history', requireDev, (req, res) => {
-  const log = db.get('adminLog').value() || [];
-  const transactions = db.get('transactions').value() || [];
-  const dividends = db.get('dividends').value() || [];
-
-  res.json({
-    adminLog: log.slice().reverse().slice(0, 200),
-    transactions: transactions.slice().reverse().slice(0, 100),
-    dividends: dividends.slice().reverse().slice(0, 100)
-  });
-});
-
-// GET /api/admin/dev/database-report
-router.get('/dev/database-report', requireDev, (req, res) => {
-  const dataDir = path.join(__dirname, '..', 'data');
-  const state = db.getState();
-  const files = fs.readdirSync(dataDir)
-    .filter(name => name.endsWith('.json'))
-    .map(name => {
-      const full = path.join(dataDir, name);
-      const stat = fs.statSync(full);
-      return {
-        name,
-        sizeBytes: stat.size,
-        modifiedAt: stat.mtime.toISOString()
-      };
-    });
-
-  const collections = Object.entries(state).map(([name, value]) => {
-    const isArray = Array.isArray(value);
-    const isObject = value && typeof value === 'object' && !isArray;
-    return {
-      name,
-      type: isArray ? 'array' : isObject ? 'object' : typeof value,
-      count: isArray ? value.length : isObject ? Object.keys(value).length : 1,
-      sizeBytes: Buffer.byteLength(JSON.stringify(value || null)),
-      sampleKeys: isArray && value[0] && typeof value[0] === 'object'
-        ? Object.keys(value[0]).slice(0, 8)
-        : isObject ? Object.keys(value).slice(0, 8) : []
-    };
-  });
-
-  res.json({
-    generatedAt: new Date().toISOString(),
-    files,
-    collections,
-    totals: {
-      users: (state.users || []).length,
-      stocks: (state.stocks || []).length,
-      transactions: (state.transactions || []).length,
-      dividends: (state.dividends || []).length,
-      adminLog: (state.adminLog || []).length
-    },
-    market: state.market || {}
-  });
-});
-
-// GET /api/admin/dev/download-db
-router.get('/dev/download-db', requireDev, (req, res) => {
-  const file = path.join(__dirname, '..', 'data', 'db.json');
-  if (!fs.existsSync(file)) return res.status(404).json({ error: 'Database nao encontrada.' });
-
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  res.download(file, `corleone-db-${stamp}.json`);
-});
-
-// POST /api/admin/dev/import-db
-router.post('/dev/import-db', requireDev, (req, res) => {
-  importUpload.single('dbfile')(req, res, (uploadErr) => {
-    if (uploadErr) {
-      return res.status(400).json({ error: uploadErr.message || 'Upload invalido.' });
-    }
-    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
-
-    let state;
-    try {
-      state = JSON.parse(req.file.buffer.toString('utf8'));
-    } catch {
-      return res.status(400).json({ error: 'Arquivo JSON invalido.' });
-    }
-
-    const validationError = validateDbState(state);
-    if (validationError) return res.status(400).json({ error: validationError });
-
-    const wasOpen = db.get('market.open').value();
-    db.setState(state).write();
-
-    if (state.market.open && !wasOpen) simulator.start();
-    else if (!state.market.open && wasOpen) simulator.stop();
-
-    db.get('adminLog').push({
-      t: new Date().toLocaleTimeString('pt-BR'),
-      msg: `Database RESTAURADA de backup por ${req.session.userId} (${state.users.length} usuarios)`
-    }).write();
-
-    res.json({ ok: true, totals: dbTotals(state), marketOpen: state.market.open });
-  });
+router.get('/users', requireMod, async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT id, email, name, nick, avatar, photo, country, bio, role, balance, joined FROM users');
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // POST /api/admin/market/open
-router.post('/market/open', (req, res) => {
+router.post('/market/open', requireMod, (req, res) => {
   db.set('market.open', true).write();
   simulator.start();
   db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Mercado ABERTO por ${req.session.userId}` }).write();
@@ -176,14 +27,14 @@ router.post('/market/open', (req, res) => {
 });
 
 // POST /api/admin/market/close
-router.post('/market/close', (req, res) => {
+router.post('/market/close', requireMod, (req, res) => {
   db.set('market.open', false).write();
   db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Mercado FECHADO por ${req.session.userId}` }).write();
   res.json({ ok: true, open: false });
 });
 
 // POST /api/admin/market/crash
-router.post('/market/crash', (req, res) => {
+router.post('/market/crash', requireMod, (req, res) => {
   const arr = db.get('stocks').value();
   arr.forEach(s => {
     if (s.status !== 'active') return;
@@ -197,7 +48,7 @@ router.post('/market/crash', (req, res) => {
 });
 
 // POST /api/admin/market/bull
-router.post('/market/bull', (req, res) => {
+router.post('/market/bull', requireMod, (req, res) => {
   const arr = db.get('stocks').value();
   arr.forEach(s => {
     if (s.status !== 'active') return;
@@ -228,42 +79,136 @@ router.post('/market/reset', requireAdmin, (req, res) => {
 });
 
 // PUT /api/admin/users/:id/role  — admin only
-router.put('/users/:id/role', requireAdmin, (req, res) => {
-  const { role, devPassword } = req.body;
+router.put('/users/:id/role', requireAdmin, async (req, res) => {
+  const { role } = req.body;
   if (!['user','moderator','admin','dev'].includes(role)) return res.status(400).json({ error: 'Papel inválido.' });
-  if (role === 'dev' && devPassword !== 'corleonedev') return res.status(403).json({ error: 'Senha dev incorreta.' });
-  const target = db.get('users').find({ id: req.params.id }).value();
-  if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
-  db.get('users').find({ id: req.params.id }).assign({ role }).write();
-  if (req.params.id === req.session.userId) req.session.role = role;
-  db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Papel de ${target.nick || target.name} alterado para ${role} por ${req.session.userId}` }).write();
-  res.json({ ok: true });
+  try {
+    const [rows] = await pool.query('SELECT id, nick, name FROM users WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    const target = rows[0];
+    await pool.query('UPDATE users SET role = ? WHERE id = ?', [role, req.params.id]);
+    db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Papel de ${target.nick || target.name} alterado para ${role} por ${req.session.userId}` }).write();
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // PUT /api/admin/users/:id/balance  — admin/mod
-router.put('/users/:id/balance', (req, res) => {
-  const { balance, mode } = req.body; // mode: 'set' | 'add' | 'subtract'
-  const target = db.get('users').find({ id: req.params.id }).value();
-  if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+router.put('/users/:id/balance', requireMod, async (req, res) => {
+  const { balance, mode } = req.body;
   const amt = parseFloat(balance);
   if (isNaN(amt)) return res.status(400).json({ error: 'Valor inválido.' });
-  let newBalance;
-  if (mode === 'add')      newBalance = Math.round((target.balance + amt) * 100) / 100;
-  else if (mode === 'subtract') newBalance = Math.max(0, Math.round((target.balance - amt) * 100) / 100);
-  else                     newBalance = Math.max(0, Math.round(amt * 100) / 100);
-  db.get('users').find({ id: req.params.id }).assign({ balance: newBalance }).write();
-  db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Saldo de ${target.nick || target.name} alterado para R$${newBalance.toFixed(2)} por ${req.session.userId}` }).write();
-  res.json({ ok: true, balance: newBalance });
+  try {
+    const [rows] = await pool.query('SELECT id, nick, name, balance FROM users WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    const target = rows[0];
+    let newBalance;
+    if (mode === 'add')           newBalance = Math.round((target.balance + amt) * 100) / 100;
+    else if (mode === 'subtract') newBalance = Math.max(0, Math.round((target.balance - amt) * 100) / 100);
+    else                          newBalance = Math.max(0, Math.round(amt * 100) / 100);
+    await pool.query('UPDATE users SET balance = ? WHERE id = ?', [newBalance, req.params.id]);
+    db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Saldo de ${target.nick || target.name} alterado para R$${newBalance.toFixed(2)} por ${req.session.userId}` }).write();
+    res.json({ ok: true, balance: newBalance });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // DELETE /api/admin/users/:id  — admin only
-router.delete('/users/:id', requireAdmin, (req, res) => {
+router.delete('/users/:id', requireAdmin, async (req, res) => {
   if (req.params.id === req.session.userId) return res.status(400).json({ error: 'Não pode deletar a si mesmo.' });
-  const target = db.get('users').find({ id: req.params.id }).value();
-  if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
-  db.get('users').remove({ id: req.params.id }).write();
-  db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Usuário ${target.email} DELETADO por ${req.session.userId}` }).write();
-  res.json({ ok: true });
+  try {
+    const [rows] = await pool.query('SELECT id, email FROM users WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    const target = rows[0];
+    await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
+    db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Usuário ${target.email} DELETADO por ${req.session.userId}` }).write();
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;
+
+// ── DEV TOOLS ──
+const multer = require('multer');
+const uploadMem = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+// GET /api/admin/dev/download-db
+router.get('/dev/download-db', requireAdmin, (req, res) => {
+  const dbPath = require('path').join(__dirname, '../data/db.json');
+  if (!require('fs').existsSync(dbPath))
+    return res.status(404).json({ error: 'db.json não encontrado.' });
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  res.setHeader('Content-Disposition', `attachment; filename="corleone-db-${ts}.json"`);
+  res.setHeader('Content-Type', 'application/json');
+  res.sendFile(dbPath);
+});
+
+// POST /api/admin/dev/upload-db  — restore a backup
+router.post('/dev/upload-db', requireAdmin, uploadMem.single('db'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+  try {
+    const text = req.file.buffer.toString('utf8');
+    const parsed = JSON.parse(text);
+    // Basic validation — must have users and stocks arrays
+    if (!parsed.users || !parsed.stocks)
+      return res.status(400).json({ error: 'JSON inválido: precisa ter campos "users" e "stocks".' });
+    const dbPath = require('path').join(__dirname, '../data/db.json');
+    require('fs').writeFileSync(dbPath, text, 'utf8');
+    // Reload lowdb from disk
+    const db   = require('../data/db');
+const pool = require('../data/mysql');
+    db.read();
+    db.get('adminLog').push({
+      t:   new Date().toLocaleTimeString('pt-BR'),
+      msg: `Database restaurada via upload por ${req.session.userId}`
+    }).write();
+    res.json({ ok: true, users: parsed.users.length, stocks: parsed.stocks.length });
+  } catch(e) {
+    res.status(400).json({ error: 'JSON inválido: ' + e.message });
+  }
+});
+
+// GET /api/admin/dev/database-report
+router.get('/dev/database-report', requireAdmin, (req, res) => {
+  const fs   = require('fs');
+  const path = require('path');
+  const db   = require('../data/db');
+  const dataDir = path.join(__dirname, '../data');
+
+  const dbData = db.value();
+  const collections = Object.entries(dbData).map(([name, val]) => {
+    const isArray = Array.isArray(val);
+    const isObj   = val && typeof val === 'object' && !isArray;
+    const count   = isArray ? val.length : isObj ? Object.keys(val).length : 1;
+    const sample  = isArray && val.length > 0 ? Object.keys(val[0]).slice(0, 5) : isObj ? Object.keys(val).slice(0, 5) : [];
+    const sizeBytes = Buffer.byteLength(JSON.stringify(val), 'utf8');
+    return { name, type: isArray ? 'array' : isObj ? 'object' : 'value', count, sizeBytes, sampleKeys: sample };
+  });
+
+  const files = fs.readdirSync(dataDir).map(f => {
+    const fp = path.join(dataDir, f);
+    const st = fs.statSync(fp);
+    return { name: f, sizeBytes: st.size, modifiedAt: st.mtime };
+  });
+
+  res.json({
+    generatedAt: Date.now(),
+    totals: {
+      users:        (dbData.users || []).length,
+      stocks:       (dbData.stocks || []).length,
+      transactions: (dbData.transactions || []).length,
+      adminLog:     (dbData.adminLog || []).length,
+    },
+    market: dbData.market || { open: false },
+    collections,
+    files
+  });
+});
+
+// GET /api/admin/dev/history
+router.get('/dev/history', requireAdmin, (req, res) => {
+  const db   = require('../data/db');
+const pool = require('../data/mysql');
+  res.json({
+    adminLog:     (db.get('adminLog').value() || []).slice(-50).reverse(),
+    transactions: (db.get('transactions').value() || []).slice(-50).reverse(),
+  });
+});

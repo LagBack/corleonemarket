@@ -42,7 +42,8 @@ app.listen(PORT, () => {
   console.log(`║   CORLEONE MARKET — Servidor Ativo   ║`);
   console.log(`║   http://localhost:${PORT}              ║`);
   console.log(`╚══════════════════════════════════════╝\n`);
-  // Seed database, then start market simulator
+  // Seed lowdb (stocks/market state), MySQL (users), then start simulator
   require('./data/seed');
+  require('./data/mysql-seed')();
   require('./data/simulator').start();
 });

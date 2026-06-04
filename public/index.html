@@ -255,9 +255,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div class="fg"><label>E-mail</label><input type="email" id="l-email" placeholder='email@email.com'></div>
         <div class="fg"><label>Senha</label><input type="password" id="l-pass" placeholder='Insira sua senha aqui' onkeydown="if(event.key==='Enter')doLogin()"></div>
         <button class="btn-primary" onclick="doLogin()">Entrar no Pregão →</button>
-        <div class="auth-demo">
-          <b>GITHUB</b> https://github.com/LagBack/corleonemarket<br>
-        </div>
       </div>
 
       <div id="auth-register" style="display:none">
@@ -612,13 +609,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
     <!-- DEV -->
     <div class="page" id="p-dev">
+      <input type="file" id="import-db-input" accept=".json" style="display:none" onchange="importDbBackup(this)">
       <div class="admin-zone">
         <h3 class="gold">Dev Tools</h3>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.7">
+          Use <strong style="color:var(--gold)">Download</strong> para salvar o estado atual do banco antes de um novo deploy no Render.
+          Use <strong style="color:var(--gold)">Importar</strong> para restaurar um backup após o Render resetar a database.
+        </p>
         <div class="btns-row">
           <button class="btn btn-gold" onclick="renderDev()">Atualizar Relatório</button>
-          <button class="btn btn-g" onclick="downloadDbBackup()">Download db.json</button>
-          <button class="btn btn-g" onclick="pickDbBackup()">Importar db.json</button>
-          <input type="file" id="dev-db-import-file" accept=".json,application/json" style="display:none" onchange="importDbBackup(this)">
+          <button class="btn btn-g" onclick="downloadDbBackup()">⬇ Download db.json</button>
+          <button class="btn btn-dark" onclick="document.getElementById('import-db-input').click()">⬆ Importar db.json</button>
         </div>
         <div id="dev-msg"></div>
       </div>
