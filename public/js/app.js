@@ -125,6 +125,10 @@ function canAccessAdmin() {
   return !!CU && ['admin', 'moderator', 'dev'].includes(CU.role);
 }
 
+function canAccessFullAdmin() {
+  return !!CU && ['admin', 'dev'].includes(CU.role);
+}
+
 function canAccessDev() {
   return !!CU && CU.role === 'dev';
 }
@@ -900,7 +904,7 @@ async function renderAdmin() {
         <td style="font-size:11px;color:var(--text3)">${u.email}</td>
         <td style="font-size:11px">${u.country||'—'}</td>
         <td>
-          ${CU.role === 'admin' && canChange
+          ${canAccessFullAdmin() && canChange
             ? `<select class="role-select" onchange="changeRole('${u.id}',this.value)">
                 <option ${u.role==='user'?'selected':''} value="user">user</option>
                 <option ${u.role==='moderator'?'selected':''} value="moderator">moderator</option>
@@ -913,7 +917,7 @@ async function renderAdmin() {
         <td>
           <div class="btns-row">
             ${canChange ? `<button class="btn btn-dark btn-sm" onclick="openBalanceModal('${u.id}','${u.nick||u.name}',${u.balance})">💰 Saldo</button>` : ''}
-            ${CU.role==='admin' && canChange ? `<button class="btn btn-r btn-sm" onclick="deleteUser('${u.id}','${u.nick||u.name}')">✕</button>` : ''}
+            ${canAccessFullAdmin() && canChange ? `<button class="btn btn-r btn-sm" onclick="deleteUser('${u.id}','${u.nick||u.name}')">✕</button>` : ''}
           </div>
         </td>
       </tr>`;
@@ -1211,6 +1215,14 @@ async function changeRole(uid, role) {
       body.devPassword = devPassword;
     }
     await PUT(`admin/users/${uid}/role`, body);
+    if (uid === CU.id) {
+      CU.role = role;
+      document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
+      document.querySelectorAll('.dev-only').forEach(e => e.style.display = 'none');
+      if (canAccessAdmin()) document.querySelectorAll('.admin-only').forEach(e => e.style.display = '');
+      if (canAccessDev()) document.querySelectorAll('.dev-only').forEach(e => e.style.display = '');
+      updateHeaderUser();
+    }
     showMsg('adm-mkt-msg', `✓ Papel alterado para ${role}!`, 'ok');
     renderAdmin();
   } catch(e) {

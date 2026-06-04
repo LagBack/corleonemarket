@@ -8,6 +8,7 @@ const { requireAuth } = require('../middleware/auth');
 router.get('/me', requireAuth, (req, res) => {
   const user = db.get('users').find({ id: req.session.userId }).value();
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+  req.session.role = user.role;
   const { pass, ...safe } = user;
   res.json(safe);
 });
