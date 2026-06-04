@@ -1,9 +1,8 @@
 const pool = require('./mysql');
+const { toPublicUser } = require('./user-serialize');
 
 function safeUser(row) {
-  if (!row) return null;
-  const { pass, ...rest } = row;
-  return rest;
+  return toPublicUser(row);
 }
 
 async function getUserById(id) {

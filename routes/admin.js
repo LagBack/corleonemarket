@@ -5,6 +5,7 @@ const multer = require('multer');
 const db     = require('../data/db');
 const pool   = require('../data/mysql');
 const { requireAdmin, requireMod, requireDev } = require('../middleware/auth');
+const { toPublicUser } = require('../data/user-serialize');
 const simulator = require('../data/simulator');
 
 const uploadMem = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -50,8 +51,8 @@ router.get('/log', requireMod, (req, res) => {
 // GET /api/admin/users
 router.get('/users', requireMod, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, email, name, nick, avatar, photo, country, bio, role, balance, joined FROM users');
-    res.json(rows);
+    const [rows] = await pool.query('SELECT * FROM users');
+    res.json(rows.map(toPublicUser));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

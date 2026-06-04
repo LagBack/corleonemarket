@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const pool   = require('./mysql');
+const migrateUsersTable = require('./mysql-migrate');
 
 async function seedMySQL() {
   try {
@@ -22,6 +23,8 @@ async function seedMySQL() {
         UNIQUE KEY unique_email (email)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+
+    await migrateUsersTable();
 
     const [rows] = await pool.query('SELECT COUNT(*) as cnt FROM users');
     if (rows[0].cnt > 0) {

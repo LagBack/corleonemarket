@@ -3,15 +3,9 @@ const bcrypt = require('bcryptjs');
 const { v4: uuid } = require('uuid');
 const pool = require('../data/mysql');
 const { normalizeCountry } = require('../data/countries');
+const { toPublicUser } = require('../data/user-serialize');
 const db   = require('../data/db');       // lowdb — still used for portfolios
 const { requireAuth } = require('../middleware/auth');
-
-// Helper: row → safe user object
-function safe(row) {
-  if (!row) return null;
-  const { pass, ...rest } = row;
-  return rest;
-}
 
 // GET /api/auth/me
 router.get('/me', requireAuth, async (req, res) => {
@@ -19,7 +13,7 @@ router.get('/me', requireAuth, async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
     req.session.role = rows[0].role;
-    res.json(safe(rows[0]));
+    res.json(toPublicUser(rows[0]));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -39,7 +33,7 @@ router.post('/login', async (req, res) => {
       pfs[user.id] = {};
       db.set('portfolios', pfs).write();
     }
-    res.json({ ok: true, user: safe(user) });
+    res.json({ ok: true, user: toPublicUser(user) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -78,7 +72,7 @@ router.post('/register', async (req, res) => {
     db.set('portfolios', pfs).write();
     req.session.userId = newUser.id;
     req.session.role   = newUser.role;
-    res.json({ ok: true, user: safe(newUser) });
+    res.json({ ok: true, user: toPublicUser(newUser) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

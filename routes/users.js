@@ -4,35 +4,38 @@ const path   = require('path');
 const fs     = require('fs');
 const pool   = require('../data/mysql');
 const { normalizeCountry } = require('../data/countries');
-const db     = require('../data/db');     // lowdb for stocks/portfolios/transactions
+const { toPublicUser, photoUrlForUser } = require('../data/user-serialize');
+const db     = require('../data/db');
 const { requireAuth } = require('../middleware/auth');
 
-// Photo upload config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../public/uploads')),
-  filename:    (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `${req.session.userId}_${Date.now()}${ext}`);
-  }
-});
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 3 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (/image\/(jpeg|png|gif|webp)/.test(file.mimetype)) cb(null, true);
-    else cb(new Error('Apenas imagens são permitidas.'));
+    if (/image\/(jpeg|png|gif|webp)/i.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Apenas imagens são permitidas (JPEG, PNG, GIF, WebP).'));
   }
 });
 
-function safe(row) { if (!row) return null; const { pass, ...r } = row; return r; }
+function legacyDiskPath(photo) {
+  if (!photo || !String(photo).startsWith('/uploads/')) return null;
+  return path.join(__dirname, '..', 'public', photo.replace(/^\//, ''));
+}
+
+function unlinkLegacyPhoto(photo) {
+  const diskPath = legacyDiskPath(photo);
+  if (diskPath && fs.existsSync(diskPath)) {
+    try { fs.unlinkSync(diskPath); } catch (_) {}
+  }
+}
 
 // GET /api/users/me
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
     if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
-    res.json(safe(rows[0]));
-  } catch(e) { res.status(500).json({ error: e.message }); }
+    res.json(toPublicUser(rows[0]));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // PUT /api/users/me
@@ -44,40 +47,77 @@ router.put('/me', requireAuth, async (req, res) => {
       [nick, bio, normalizeCountry(country), avatar, req.session.userId]
     );
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
-    res.json({ ok: true, user: safe(rows[0]) });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+    res.json({ ok: true, user: toPublicUser(rows[0]) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/users/me/photo
+// POST /api/users/me/photo — persist binary in MySQL (survives redeploys)
 router.post('/me/photo', requireAuth, upload.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
-  const photoUrl = `/uploads/${req.file.filename}`;
+  const uid = req.session.userId;
+  const photoUrl = `/api/users/${uid}/photo`;
   try {
-    const [rows] = await pool.query('SELECT photo FROM users WHERE id = ?', [req.session.userId]);
-    if (rows.length && rows[0].photo) {
-      const oldPath = path.join(__dirname, '../public', rows[0].photo);
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-    }
-    await pool.query('UPDATE users SET photo=? WHERE id=?', [photoUrl, req.session.userId]);
+    const [rows] = await pool.query(
+      'SELECT photo, photo_data FROM users WHERE id = ?',
+      [uid]
+    );
+    if (rows.length && rows[0].photo) unlinkLegacyPhoto(rows[0].photo);
+
+    await pool.query(
+      `UPDATE users SET photo=?, photo_data=?, photo_mime=? WHERE id=?`,
+      [photoUrl, req.file.buffer, req.file.mimetype, uid]
+    );
     res.json({ ok: true, photo: photoUrl });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    console.error('Photo upload error:', e.message);
+    res.status(500).json({ error: e.message || 'Não foi possível salvar a foto.' });
+  }
 });
 
 // DELETE /api/users/me/photo
 router.delete('/me/photo', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT photo FROM users WHERE id = ?', [req.session.userId]);
-    if (rows.length && rows[0].photo) {
-      const oldPath = path.join(__dirname, '../public', rows[0].photo);
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-    }
-    await pool.query('UPDATE users SET photo=NULL WHERE id=?', [req.session.userId]);
+    if (rows.length && rows[0].photo) unlinkLegacyPhoto(rows[0].photo);
+    await pool.query(
+      'UPDATE users SET photo=NULL, photo_data=NULL, photo_mime=NULL WHERE id=?',
+      [req.session.userId]
+    );
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/users/:id/photo — serve image from database (public)
+router.get('/:id/photo', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT photo_data, photo_mime, photo FROM users WHERE id = ?',
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).end();
+
+    const row = rows[0];
+    if (row.photo_data && row.photo_data.length) {
+      res.set('Content-Type', row.photo_mime || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.send(row.photo_data);
+    }
+
+    const diskPath = legacyDiskPath(row.photo);
+    if (diskPath && fs.existsSync(diskPath)) {
+      return res.sendFile(diskPath);
+    }
+    res.status(404).end();
+  } catch (e) {
+    res.status(500).end();
+  }
 });
 
 // GET /api/users/:id/public
 router.get('/:id/public', async (req, res) => {
+  if (req.params.id === 'me') {
+    return res.status(400).json({ error: 'Use GET /api/users/me' });
+  }
   try {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
@@ -95,7 +135,7 @@ router.get('/:id/public', async (req, res) => {
     }).filter(Boolean);
     res.json({
       id: user.id, nick: user.nick || user.name, name: user.name,
-      avatar: user.avatar, photo: user.photo, country: user.country,
+      avatar: user.avatar, photo: photoUrlForUser(user), country: user.country,
       bio: user.bio, role: user.role, joined: user.joined,
       balance:     ['admin', 'dev'].includes(user.role) ? null : user.balance,
       totalTx:     txs.length,
@@ -105,14 +145,14 @@ router.get('/:id/public', async (req, res) => {
       marketValue: mv,
       totalWealth: ['admin', 'dev'].includes(user.role) ? null : user.balance + mv,
     });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // GET /api/users/me/dividends
 router.get('/me/dividends', requireAuth, async (req, res) => {
   const uid  = req.session.userId;
   const divs = (db.get('dividends').value() || [])
-    .filter(d => d.founderId === uid).sort((a,b) => b.ts - a.ts).slice(0, 100);
+    .filter(d => d.founderId === uid).sort((a, b) => b.ts - a.ts).slice(0, 100);
   const total = divs.reduce((a, d) => a + d.fee, 0);
   const allStocks = db.get('stocks').value();
   const ownedStocks = allStocks
