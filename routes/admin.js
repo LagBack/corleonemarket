@@ -120,9 +120,12 @@ router.put('/users/:id/role', requireAdmin, async (req, res) => {
   const { role } = req.body;
   if (!['user','moderator','admin','dev'].includes(role)) return res.status(400).json({ error: 'Papel inválido.' });
   try {
-    const [rows] = await pool.query('SELECT id, nick, name FROM users WHERE id = ?', [req.params.id]);
+    const [rows] = await pool.query('SELECT id, nick, name, role FROM users WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
     const target = rows[0];
+    if (target.role === 'dev' && role !== 'dev') {
+      return res.status(403).json({ error: 'O papel Dev não pode ser removido.' });
+    }
     await pool.query('UPDATE users SET role = ? WHERE id = ?', [role, req.params.id]);
     if (req.params.id === req.session.userId) req.session.role = role;
     db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Papel de ${target.nick || target.name} alterado para ${role} por ${req.session.userId}` }).write();
@@ -153,9 +156,10 @@ router.put('/users/:id/balance', requireMod, async (req, res) => {
 router.delete('/users/:id', requireAdmin, async (req, res) => {
   if (req.params.id === req.session.userId) return res.status(400).json({ error: 'Não pode deletar a si mesmo.' });
   try {
-    const [rows] = await pool.query('SELECT id, email FROM users WHERE id = ?', [req.params.id]);
+    const [rows] = await pool.query('SELECT id, email, role FROM users WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
     const target = rows[0];
+    if (target.role === 'dev') return res.status(403).json({ error: 'Usuários Dev não podem ser deletados.' });
     await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
     db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Usuário ${target.email} DELETADO por ${req.session.userId}` }).write();
     res.json({ ok: true });

@@ -4,6 +4,38 @@
 
 const AVATARS = ['🦁','🐺','🦊','🐉','🦅','🎩','🃏','🌹','🐯','🦝','🤵','👑','🎯','⚡','🔱'];
 
+const COUNTRY_OPTIONS = [
+  { value: 'Brasil', flag: '🇧🇷' },
+  { value: 'Estados Unidos', flag: '🇺🇸' },
+  { value: 'Itália', flag: '🇮🇹' },
+  { value: 'Japão', flag: '🇯🇵' },
+  { value: 'Alemanha', flag: '🇩🇪' },
+  { value: 'França', flag: '🇫🇷' },
+  { value: 'Argentina', flag: '🇦🇷' },
+  { value: 'Portugal', flag: '🇵🇹' },
+  { value: 'Outro', flag: '🌍' },
+];
+
+function countryNameOnly(raw) {
+  if (!raw) return '';
+  let s = String(raw).trim();
+  s = s.replace(/^(\?{1,2}|\uFFFD)+\s*/g, '').trim();
+  s = s.replace(/^[\u{1F1E6}-\u{1F1FF}]{2}\s*/u, '').trim();
+  s = s.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]+\s*/u, '').trim();
+  if (!s) s = String(raw).trim();
+  const hit = COUNTRY_OPTIONS.find(c => c.value.toLowerCase() === s.toLowerCase());
+  if (hit) return hit.value;
+  const partial = COUNTRY_OPTIONS.find(c => s.toLowerCase().includes(c.value.toLowerCase()));
+  return partial ? partial.value : s;
+}
+
+function formatCountry(raw) {
+  const name = countryNameOnly(raw);
+  if (!name) return '';
+  const hit = COUNTRY_OPTIONS.find(c => c.value.toLowerCase() === name.toLowerCase());
+  return hit ? `${hit.flag} ${hit.value}` : name;
+}
+
 let CU = null;           // current user
 let stocks = [];         // cached stock list
 let priceHistory = {};   // sym -> [{p}]
@@ -486,7 +518,7 @@ async function renderRanking() {
         <div class="rank-n ${medals[i]||''} serif">${i+1}</div>
         ${avHtml}
         <div style="flex:1">
-          <div style="font-weight:600;font-size:13px">${r.name} <span style="font-size:10px;color:var(--text3)">${r.country||''}</span></div>
+          <div style="font-weight:600;font-size:13px">${r.name} <span style="font-size:10px;color:var(--text3)">${formatCountry(r.country)}</span></div>
           <span class="role-badge ${r.role}">${roleLabel(r.role)}</span>
           <div style="font-size:10px;color:var(--text3)">Cash R$${fmtN(r.cash)}</div>
         </div>
@@ -524,7 +556,7 @@ function renderProfile() {
     </div>
     <div>
       <div class="profile-name-big">${CU.nick || CU.name}</div>
-      <div style="font-size:12px;color:var(--text3)">${CU.name} · ${CU.country||''}</div>
+      <div style="font-size:12px;color:var(--text3)">${CU.name} · ${formatCountry(CU.country)}</div>
       <span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span>
       ${CU.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${CU.bio}"</div>` : ''}
     </div>
@@ -536,7 +568,8 @@ function renderProfile() {
   document.getElementById('edit-nick').value = CU.nick || '';
   document.getElementById('edit-bio').value  = CU.bio  || '';
   const csel = document.getElementById('edit-country');
-  for (let o of csel.options) if (o.value === CU.country || o.textContent === CU.country) o.selected = true;
+  const countryVal = countryNameOnly(CU.country);
+  for (let o of csel.options) o.selected = (o.value === countryVal);
   buildAvatarGrid('edit-av-grid', a => editAvatar = a, CU.avatar || '🦁');
 
   // Stats + pie chart + dividends — load in parallel
@@ -898,26 +931,27 @@ async function renderAdmin() {
         ? `<img src="${u.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle">`
         : `<span style="font-size:18px">${u.avatar||'👤'}</span>`;
       const canChange = u.id !== CU.id;
+      const roleLocked = u.role === 'dev';
       return `<tr>
         <td>${avHtml}</td>
         <td style="font-size:12px;font-weight:600">${u.nick||u.name}</td>
         <td style="font-size:11px;color:var(--text3)">${u.email}</td>
-        <td style="font-size:11px">${u.country||'—'}</td>
+        <td style="font-size:11px">${formatCountry(u.country) || '—'}</td>
         <td>
-          ${canAccessFullAdmin() && canChange
+          ${canAccessFullAdmin() && canChange && !roleLocked
             ? `<select class="role-select" onchange="changeRole('${u.id}',this.value)">
                 <option ${u.role==='user'?'selected':''} value="user">user</option>
                 <option ${u.role==='moderator'?'selected':''} value="moderator">moderator</option>
                 <option ${u.role==='admin'?'selected':''} value="admin">admin</option>
                 <option ${u.role==='dev'?'selected':''} value="dev">dev</option>
               </select>`
-            : `<span class="role-badge ${u.role}">${roleLabel(u.role)}</span>`}
+            : `<span class="role-badge ${u.role}">${roleLabel(u.role)}</span>${roleLocked ? ' <span style="font-size:9px;color:var(--text3)">🔒</span>' : ''}`}
         </td>
         <td class="mono" style="font-size:11px">R$${fmtN(u.balance)}</td>
         <td>
           <div class="btns-row">
             ${canChange ? `<button class="btn btn-dark btn-sm" onclick="openBalanceModal('${u.id}','${u.nick||u.name}',${u.balance})">💰 Saldo</button>` : ''}
-            ${canAccessFullAdmin() && canChange ? `<button class="btn btn-r btn-sm" onclick="deleteUser('${u.id}','${u.nick||u.name}')">✕</button>` : ''}
+            ${canAccessFullAdmin() && canChange && !roleLocked ? `<button class="btn btn-r btn-sm" onclick="deleteUser('${u.id}','${u.nick||u.name}')">✕</button>` : ''}
           </div>
         </td>
       </tr>`;
@@ -1206,6 +1240,13 @@ async function adminDeleteStock() {
 
 async function changeRole(uid, role) {
   try {
+    const usersData = await GET('admin/users');
+    const target = usersData.find(u => u.id === uid);
+    if (target?.role === 'dev' && role !== 'dev') {
+      showMsg('adm-mkt-msg', 'O papel Dev não pode ser removido.', 'err');
+      renderAdmin();
+      return;
+    }
     const body = { role };
     if (role === 'dev') {
       const devPassword = prompt('Senha para conceder papel Dev:');
@@ -1297,7 +1338,7 @@ async function openProfileModal(uid) {
         <div style="width:70px;height:70px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--s3);overflow:hidden;flex-shrink:0">${photoHtml}</div>
         <div>
           <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;font-style:italic">${p.nick}</div>
-          <div style="font-size:11px;color:var(--text3)">${p.name} · ${p.country||''}</div>
+          <div style="font-size:11px;color:var(--text3)">${p.name} · ${formatCountry(p.country)}</div>
           <span class="role-badge ${p.role}" style="margin-top:4px;display:inline-block">${roleLabel(p.role)}</span>
           ${p.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${p.bio}"</div>` : ''}
         </div>
