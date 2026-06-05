@@ -1,3 +1,5 @@
+const { normalizeRole } = require('./roles');
+
 /** Strip secrets/binary fields; expose a stable photo URL for the client. */
 function hasPhotoData(row) {
   if (!row?.photo_data) return false;
@@ -28,6 +30,7 @@ function photoDataUrl(row) {
 function toPublicUser(row, opts = {}) {
   if (!row) return null;
   const { pass, photo_data, photo_mime, ...rest } = row;
+  if (rest.role != null) rest.role = normalizeRole(rest.role);
   rest.photo = photoUrlForUser(row);
   if (opts.includePhotoData) {
     rest.photoDisplay = photoDataUrl(row);

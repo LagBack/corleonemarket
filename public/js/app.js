@@ -49,6 +49,11 @@ let orderType = 'buy';
 let editAvatar = null;
 let regAvatar = '🦁';
 let pollInterval = null;
+let keepAliveInterval = null;
+let adminOwnershipReady = false;
+let roleChangeBusy = false;
+const _actionBusy = new Set();
+let _pageLoadGen = 0;
 
 // ── API HELPER ──
 async function api(method, path, body) {
@@ -63,6 +68,34 @@ const GET  = p       => api('GET', p);
 const POST = (p, b)  => api('POST', p, b);
 const PUT  = (p, b)  => api('PUT', p, b);
 const DEL  = p       => api('DELETE', p);
+
+function sameUserId(a, b) {
+  return String(a) === String(b);
+}
+
+function withActionLock(key, fn) {
+  if (_actionBusy.has(key)) return Promise.resolve();
+  _actionBusy.add(key);
+  return Promise.resolve(fn()).finally(() => _actionBusy.delete(key));
+}
+
+function setBtnBusy(btn, busy, label) {
+  if (!btn) return;
+  if (busy) {
+    if (!btn.dataset.origText) btn.dataset.origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = label || 'Aguarde…';
+  } else {
+    btn.disabled = false;
+    if (btn.dataset.origText) btn.textContent = btn.dataset.origText;
+  }
+}
+
+function setPageLoading(pageId, loading) {
+  const page = document.getElementById('p-' + pageId);
+  if (!page) return;
+  page.classList.toggle('page-loading', loading);
+}
 
 function roleLabel(role) {
   if (role === 'admin') return '👑 Admin';
@@ -130,6 +163,8 @@ async function doLogout() {
   await POST('auth/logout').catch(() => {});
   CU = null; stocks = []; priceHistory = {};
   clearInterval(pollInterval);
+  clearInterval(keepAliveInterval);
+  adminOwnershipReady = false;
   if (mainChart) { mainChart.destroy(); mainChart = null; }
   document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
   document.querySelectorAll('.dev-only').forEach(e => e.style.display = 'none');
@@ -161,6 +196,7 @@ async function startApp() {
   buildChart();
   showPage('market');
   startPolling();
+  startKeepAlive();
 }
 
 function canAccessAdmin() {
@@ -196,7 +232,22 @@ function updateHeaderUser() {
 // ── POLLING ──
 function startPolling() {
   clearInterval(pollInterval);
-  pollInterval = setInterval(loadMarketState, 3000);
+  const tick = () => {
+    if (document.hidden) return;
+    loadMarketState();
+  };
+  pollInterval = setInterval(tick, 5000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadMarketState();
+  });
+}
+
+function startKeepAlive() {
+  clearInterval(keepAliveInterval);
+  keepAliveInterval = setInterval(() => {
+    if (document.hidden) return;
+    fetch('/api/market/state', { credentials: 'include' }).catch(() => {});
+  }, 10 * 60 * 1000);
 }
 
 async function loadMarketState() {
@@ -208,8 +259,8 @@ async function loadMarketState() {
     updateMktBadge(data.open);
     renderAll(data);
     updateTicker();
-    // fetch history for selected stock and refresh chart
-    if (selectedSym) await refreshChartHistory(selectedSym);
+    const mktActive = document.getElementById('p-market')?.classList.contains('active');
+    if (selectedSym && mktActive) await refreshChartHistory(selectedSym);
   } catch(e) { console.error('Poll error:', e); }
 }
 
@@ -376,6 +427,15 @@ function showPage(pg) {
   if (pg === 'dev')       renderDev();
 }
 
+function roleSelectOptions(currentRole) {
+  const roles = canAccessDev()
+    ? ['user', 'moderator', 'admin', 'dev']
+    : ['user', 'moderator', 'admin'];
+  return roles.map(r =>
+    `<option value="${r}" ${currentRole === r ? 'selected' : ''}>${r}</option>`
+  ).join('');
+}
+
 // ── TRADE ──
 function goTrade(sym) { selectedSym = sym; showPage('trade'); }
 
@@ -447,16 +507,21 @@ function updateTradeTotal() {
 }
 
 async function executeOrder() {
-  const sym = document.getElementById('trade-sym').value;
-  const qty = parseInt(document.getElementById('trade-qty').value) || 0;
-  try {
-    const data = await POST('market/order', { sym, type: orderType, qty });
-    CU.balance = data.user.balance;
-    document.getElementById('td-bal').textContent = 'R$' + CU.balance.toFixed(2);
-    showMsg('trade-msg', `✓ ${orderType==='buy'?'Compra':'Venda'}: ${qty}× ${sym} — R$${data.tx.total.toFixed(2)}`, 'ok');
-    renderTradeHist();
-    updateTradeInfo();
-  } catch(e) { showMsg('trade-msg', e.message, 'err'); }
+  const btn = document.getElementById('exec-btn');
+  return withActionLock('executeOrder', async () => {
+    const sym = document.getElementById('trade-sym').value;
+    const qty = parseInt(document.getElementById('trade-qty').value) || 0;
+    setBtnBusy(btn, true, 'Executando…');
+    try {
+      const data = await POST('market/order', { sym, type: orderType, qty });
+      CU.balance = data.user.balance;
+      document.getElementById('td-bal').textContent = 'R$' + CU.balance.toFixed(2);
+      showMsg('trade-msg', `✓ ${orderType==='buy'?'Compra':'Venda'}: ${qty}× ${sym} — R$${data.tx.total.toFixed(2)}`, 'ok');
+      renderTradeHist();
+      updateTradeInfo();
+    } catch(e) { showMsg('trade-msg', e.message, 'err'); }
+    finally { setBtnBusy(btn, false); }
+  });
 }
 
 async function renderTradeHist() {
@@ -479,8 +544,12 @@ async function renderTradeHist() {
 
 // ── PORTFOLIO ──
 async function renderPortfolio() {
+  const gen = ++_pageLoadGen;
+  setPageLoading('portfolio', true);
+  document.getElementById('pf-stats').innerHTML = '<p class="page-hint">Carregando carteira…</p>';
   try {
     const { user, portfolio, transactions } = await GET('market/portfolio');
+    if (gen !== _pageLoadGen) return;
     CU.balance = user.balance;
     const pf = portfolio || {};
     let mv = 0;
@@ -522,12 +591,20 @@ async function renderPortfolio() {
         </div>`).join('')
       : '<p style="color:var(--text3);font-size:12px;padding:10px 0">Sem histórico.</p>';
   } catch(e) { console.error(e); }
+  finally { if (gen === _pageLoadGen) setPageLoading('portfolio', false); }
 }
 
 // ── RANKING ──
 async function renderRanking() {
+  const gen = ++_pageLoadGen;
+  setPageLoading('ranking', true);
+  const loading = '<p class="page-hint">Carregando ranking…</p>';
+  document.getElementById('rank-inv').innerHTML = loading;
+  document.getElementById('rank-sd').innerHTML = loading;
+  document.getElementById('rank-top').innerHTML = loading;
   try {
     const { investors, supplyDemand, topTraded } = await GET('market/ranking');
+    if (gen !== _pageLoadGen) return;
     const medals = ['r1', 'r2', 'r3'];
     document.getElementById('rank-inv').innerHTML = investors.map((r, i) => {
       const avHtml = r.photo
@@ -560,6 +637,7 @@ async function renderRanking() {
       </div>`
     ).join('');
   } catch(e) { console.error(e); }
+  finally { if (gen === _pageLoadGen) setPageLoading('ranking', false); }
 }
 
 // ── PROFILE ──
@@ -912,24 +990,32 @@ function updateSellOwnershipInfo() {
 }
 
 async function createOwnershipOffer() {
-  const sym      = document.getElementById('sell-own-sym').value;
-  const pctToSell = document.getElementById('sell-own-pct').value;
-  const askPrice = document.getElementById('sell-own-price').value;
-  try {
-    await POST('market/ownership-offers', { sym, pctToSell, askPrice });
-    showMsg('sell-own-msg', '✓ Oferta publicada!', 'ok');
-    renderP2PPage();
-  } catch(e) { showMsg('sell-own-msg', e.message, 'err'); }
+  return withActionLock('createOwnershipOffer', async () => {
+    const sym      = document.getElementById('sell-own-sym').value;
+    const pctToSell = document.getElementById('sell-own-pct').value;
+    const askPrice = document.getElementById('sell-own-price').value;
+    try {
+      await POST('market/ownership-offers', { sym, pctToSell, askPrice });
+      showMsg('sell-own-msg', '✓ Oferta publicada!', 'ok');
+      adminOwnershipReady = false;
+      await renderP2PPage();
+      adminOwnershipReady = true;
+    } catch(e) { showMsg('sell-own-msg', e.message, 'err'); }
+  });
 }
 
 async function buyOwnershipOffer(offerId, sym, price, pct) {
   if (!confirm(`Comprar ${pct.toFixed(4)}% de participação em ${sym} por R$${price.toFixed(2)}?\n\nVocê passará a receber ${pct.toFixed(4)}% do volume de cada trade nessa ação.`)) return;
-  try {
-    const { user } = await POST(`market/ownership-offers/${offerId}/buy`);
-    CU.balance = user.balance;
-    showMsg('sell-own-msg', `✓ Participação adquirida! Agora você recebe ${pct.toFixed(4)}% dos trades em ${sym}.`, 'ok');
-    renderP2PPage();
-  } catch(e) { alert(e.message); }
+  return withActionLock('buyOwnership:' + offerId, async () => {
+    try {
+      const { user } = await POST(`market/ownership-offers/${offerId}/buy`);
+      CU.balance = user.balance;
+      showMsg('sell-own-msg', `✓ Participação adquirida! Agora você recebe ${pct.toFixed(4)}% dos trades em ${sym}.`, 'ok');
+      adminOwnershipReady = false;
+      await renderP2PPage();
+      adminOwnershipReady = true;
+    } catch(e) { alert(e.message); }
+  });
 }
 
 async function cancelOwnershipOffer(offerId) {
@@ -941,60 +1027,72 @@ async function cancelOwnershipOffer(offerId) {
 }
 
 // ── ADMIN ──
+function renderUsersTable(usersData) {
+  document.getElementById('users-body').innerHTML = usersData.map(u => {
+    const avHtml = u.photo
+      ? `<img src="${u.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle">`
+      : `<span style="font-size:18px">${u.avatar||'👤'}</span>`;
+    const isSelf = sameUserId(u.id, CU.id);
+    const roleLocked = u.role === 'dev';
+    const canEditRole = canAccessFullAdmin() && !roleLocked && (!isSelf || canAccessDev());
+    const safeName = (u.nick || u.name || '').replace(/'/g, "\\'");
+    return `<tr>
+      <td data-label="Foto">${avHtml}</td>
+      <td data-label="Nome" style="font-size:12px;font-weight:600">${u.nick||u.name}${isSelf ? ' <span style="font-size:9px;color:var(--gold)">(você)</span>' : ''}</td>
+      <td data-label="E-mail" style="font-size:11px;color:var(--text3)">${u.email}</td>
+      <td data-label="País" style="font-size:11px">${formatCountry(u.country) || '—'}</td>
+      <td data-label="Papel">
+        ${canEditRole
+          ? `<select class="role-select" data-uid="${u.id}" data-prev="${u.role}" onchange="changeRole(this)">
+              ${roleSelectOptions(u.role)}
+            </select>`
+          : `<span class="role-badge ${u.role}">${roleLabel(u.role)}</span>${roleLocked ? ' <span style="font-size:9px;color:var(--text3)">🔒</span>' : ''}`}
+      </td>
+      <td data-label="Saldo" class="mono" style="font-size:11px">R$${fmtN(u.balance)}</td>
+      <td class="td-actions" data-label="Ações">
+        <div class="btns-row">
+          ${canAccessAdmin() ? `<button class="btn btn-dark btn-sm" onclick="openBalanceModal('${u.id}','${safeName}',${parseFloat(u.balance)||0})">💰 Saldo</button>` : ''}
+          ${canAccessFullAdmin() && !isSelf && !roleLocked ? `<button class="btn btn-r btn-sm" onclick="deleteUser('${u.id}','${safeName}')">✕</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function renderAdminUsers() {
+  const usersData = await GET('admin/users');
+  renderUsersTable(usersData);
+  return usersData;
+}
+
 async function renderAdmin() {
   if (!canAccessAdmin()) return showPage('market');
   try {
     mountOwnershipPanelInAdmin();
-    await renderP2PPage();
+    if (!adminOwnershipReady) {
+      await renderP2PPage();
+      adminOwnershipReady = true;
+    }
     populateOwnerPlayerSel();
     const [usersData, logData] = await Promise.all([GET('admin/users'), GET('admin/log')]);
     document.getElementById('adm-log').innerHTML = (logData || []).map(l =>
       `<div class="log-line"><span class="log-time">[${l.t}]</span>${l.msg}</div>`).join('');
-    // populate edit sym
     const sel = document.getElementById('edit-sym-sel');
     sel.innerHTML = '<option value="">— Selecionar —</option>' +
       stocks.map(s => `<option value="${s.sym}">${s.sym} — ${s.name}</option>`).join('');
-    // users table
-    document.getElementById('users-body').innerHTML = usersData.map(u => {
-      const avHtml = u.photo
-        ? `<img src="${u.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle">`
-        : `<span style="font-size:18px">${u.avatar||'👤'}</span>`;
-      const canChange = u.id !== CU.id;
-      const roleLocked = u.role === 'dev';
-      return `<tr>
-        <td data-label="Foto">${avHtml}</td>
-        <td data-label="Nome" style="font-size:12px;font-weight:600">${u.nick||u.name}</td>
-        <td data-label="E-mail" style="font-size:11px;color:var(--text3)">${u.email}</td>
-        <td data-label="País" style="font-size:11px">${formatCountry(u.country) || '—'}</td>
-        <td data-label="Papel">
-          ${canAccessFullAdmin() && canChange && !roleLocked
-            ? `<select class="role-select" onchange="changeRole('${u.id}',this.value)">
-                <option ${u.role==='user'?'selected':''} value="user">user</option>
-                <option ${u.role==='moderator'?'selected':''} value="moderator">moderator</option>
-                <option ${u.role==='admin'?'selected':''} value="admin">admin</option>
-                <option ${u.role==='dev'?'selected':''} value="dev">dev</option>
-              </select>`
-            : `<span class="role-badge ${u.role}">${roleLabel(u.role)}</span>${roleLocked ? ' <span style="font-size:9px;color:var(--text3)">🔒</span>' : ''}`}
-        </td>
-        <td data-label="Saldo" class="mono" style="font-size:11px">R$${fmtN(u.balance)}</td>
-        <td class="td-actions" data-label="Ações">
-          <div class="btns-row">
-            ${canChange ? `<button class="btn btn-dark btn-sm" onclick="openBalanceModal('${u.id}','${u.nick||u.name}',${u.balance})">💰 Saldo</button>` : ''}
-            ${canAccessFullAdmin() && canChange && !roleLocked ? `<button class="btn btn-r btn-sm" onclick="deleteUser('${u.id}','${u.nick||u.name}')">✕</button>` : ''}
-          </div>
-        </td>
-      </tr>`;
-    }).join('');
+    renderUsersTable(usersData);
   } catch(e) { console.error(e); }
 }
 
 async function adminAct(path, confirm_) {
   if (confirm_ && !confirm('Confirmar ação?')) return;
-  try {
-    await POST('admin/' + path);
-    showMsg('adm-mkt-msg', '✓ Feito!', 'ok');
-    await loadMarketState();
-  } catch(e) { showMsg('adm-mkt-msg', e.message, 'err'); }
+  return withActionLock('adminAct:' + path, async () => {
+    try {
+      await POST('admin/' + path);
+      showMsg('adm-mkt-msg', '✓ Feito!', 'ok');
+      await loadMarketState();
+    } catch(e) { showMsg('adm-mkt-msg', e.message, 'err'); }
+  });
 }
 
 // ── OWNER MANAGEMENT ──
@@ -1335,38 +1433,44 @@ async function adminDeleteStock() {
   } catch(e) { showMsg('adm-edit-msg', e.message, 'err'); }
 }
 
-async function changeRole(uid, role) {
+async function changeRole(selectEl) {
+  if (roleChangeBusy) return;
+  const uid = selectEl.dataset.uid;
+  const role = selectEl.value;
+  const prev = selectEl.dataset.prev || selectEl.value;
+  if (role === prev) return;
+
+  roleChangeBusy = true;
+  selectEl.disabled = true;
+  document.querySelectorAll('.role-select').forEach(s => { s.disabled = true; });
+
   try {
-    const usersData = await GET('admin/users');
-    const target = usersData.find(u => u.id === uid);
-    if (target?.role === 'dev' && role !== 'dev') {
-      showMsg('adm-mkt-msg', 'O papel Dev não pode ser removido.', 'err');
-      renderAdmin();
-      return;
-    }
-    const body = { role };
     if (role === 'dev') {
       const devPassword = prompt('Senha para conceder papel Dev:');
       if (!devPassword) {
-        renderAdmin();
+        selectEl.value = prev;
         return;
       }
-      body.devPassword = devPassword;
     }
-    await PUT(`admin/users/${uid}/role`, body);
-    if (uid === CU.id) {
-      CU.role = role;
+    const { role: savedRole } = await PUT(`admin/users/${uid}/role`, { role });
+    const finalRole = savedRole || role;
+    selectEl.dataset.prev = finalRole;
+    if (sameUserId(uid, CU.id)) {
+      CU.role = finalRole;
       document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
       document.querySelectorAll('.dev-only').forEach(e => e.style.display = 'none');
       if (canAccessAdmin()) document.querySelectorAll('.admin-only').forEach(e => e.style.display = '');
       if (canAccessDev()) document.querySelectorAll('.dev-only').forEach(e => e.style.display = '');
       updateHeaderUser();
     }
-    showMsg('adm-mkt-msg', `✓ Papel alterado para ${role}!`, 'ok');
-    renderAdmin();
+    showMsg('adm-users-msg', `✓ Papel alterado para ${finalRole}.`, 'ok');
+    await renderAdminUsers();
   } catch(e) {
-    showMsg('adm-mkt-msg', e.message, 'err');
-    renderAdmin();
+    selectEl.value = prev;
+    showMsg('adm-users-msg', e.message, 'err');
+  } finally {
+    roleChangeBusy = false;
+    document.querySelectorAll('.role-select').forEach(s => { s.disabled = false; });
   }
 }
 
@@ -1383,7 +1487,7 @@ function openBalanceModal(uid, name, currentBalance) {
       </select>
     </div>
     <div class="btns-row" style="margin-top:14px">
-      <button class="btn btn-gold" onclick="applyBalance('${uid}')">Aplicar</button>
+      <button class="btn btn-gold" id="bal-apply-btn" onclick="applyBalance('${uid}')">Aplicar</button>
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
     </div>
     <div id="bal-msg" style="margin-top:8px"></div>
@@ -1392,21 +1496,34 @@ function openBalanceModal(uid, name, currentBalance) {
 }
 
 async function applyBalance(uid) {
-  const balance = document.getElementById('bal-val').value;
-  const mode    = document.getElementById('bal-mode').value;
-  try {
-    const { balance: nb } = await PUT(`admin/users/${uid}/balance`, { balance, mode });
-    showMsg('bal-msg', `✓ Novo saldo: R$${fmtN(nb)}`, 'ok');
-    setTimeout(() => { closeModal(); renderAdmin(); }, 1200);
-  } catch(e) { showMsg('bal-msg', e.message, 'err'); }
+  const btn = document.getElementById('bal-apply-btn');
+  return withActionLock('applyBalance:' + uid, async () => {
+    const balance = document.getElementById('bal-val').value;
+    const mode    = document.getElementById('bal-mode').value;
+    setBtnBusy(btn, true, 'Salvando…');
+    try {
+      const { balance: nb } = await PUT(`admin/users/${uid}/balance`, { balance, mode });
+      if (sameUserId(uid, CU.id)) {
+        CU.balance = nb;
+        updateHeaderUser();
+      }
+      showMsg('bal-msg', `✓ Novo saldo: R$${fmtN(nb)}`, 'ok');
+      setTimeout(async () => {
+        closeModal();
+        await renderAdminUsers();
+      }, 800);
+    } catch(e) { showMsg('bal-msg', e.message, 'err'); }
+    finally { setBtnBusy(btn, false); }
+  });
 }
 
 async function deleteUser(uid, name) {
   if (!confirm(`Deletar ${name}?`)) return;
   try {
     await DEL(`admin/users/${uid}`);
-    renderAdmin();
-  } catch(e) { showMsg('adm-mkt-msg', e.message, 'err'); }
+    await renderAdminUsers();
+    showMsg('adm-users-msg', '✓ Usuário removido.', 'ok');
+  } catch(e) { showMsg('adm-users-msg', e.message, 'err'); }
 }
 
 function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }

@@ -6,6 +6,7 @@ const db     = require('../data/db');
 const pool   = require('../data/mysql');
 const { requireAdmin, requireMod, requireDev } = require('../middleware/auth');
 const { toPublicUser } = require('../data/user-serialize');
+const { normalizeRole } = require('../data/roles');
 const simulator = require('../data/simulator');
 
 const uploadMem = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -118,19 +119,25 @@ router.post('/market/reset', requireAdmin, (req, res) => {
 
 // PUT /api/admin/users/:id/role  — admin only
 router.put('/users/:id/role', requireAdmin, async (req, res) => {
-  const { role } = req.body;
-  if (!['user','moderator','admin','dev'].includes(role)) return res.status(400).json({ error: 'Papel inválido.' });
+  const role = normalizeRole(req.body.role);
+  if (!['user', 'moderator', 'admin', 'dev'].includes(role)) {
+    return res.status(400).json({ error: 'Papel inválido.' });
+  }
   try {
     const [rows] = await pool.query('SELECT id, nick, name, role FROM users WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
     const target = rows[0];
-    if (target.role === 'dev' && role !== 'dev') {
+    const currentRole = normalizeRole(target.role);
+    if (currentRole === 'dev' && role !== 'dev') {
       return res.status(403).json({ error: 'O papel Dev não pode ser removido.' });
     }
     await pool.query('UPDATE users SET role = ? WHERE id = ?', [role, req.params.id]);
-    if (req.params.id === req.session.userId) req.session.role = role;
+    if (String(req.params.id) === String(req.session.userId)) {
+      req.session.role = role;
+      req.session.roleSyncedAt = Date.now();
+    }
     db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Papel de ${target.nick || target.name} alterado para ${role} por ${req.session.userId}` }).write();
-    res.json({ ok: true });
+    res.json({ ok: true, role });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -143,9 +150,10 @@ router.put('/users/:id/balance', requireMod, async (req, res) => {
     const [rows] = await pool.query('SELECT id, nick, name, balance FROM users WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
     const target = rows[0];
+    const currentBal = parseFloat(target.balance) || 0;
     let newBalance;
-    if (mode === 'add')           newBalance = Math.round((target.balance + amt) * 100) / 100;
-    else if (mode === 'subtract') newBalance = Math.max(0, Math.round((target.balance - amt) * 100) / 100);
+    if (mode === 'add')           newBalance = Math.round((currentBal + amt) * 100) / 100;
+    else if (mode === 'subtract') newBalance = Math.max(0, Math.round((currentBal - amt) * 100) / 100);
     else                          newBalance = Math.max(0, Math.round(amt * 100) / 100);
     await pool.query('UPDATE users SET balance = ? WHERE id = ?', [newBalance, req.params.id]);
     db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Saldo de ${target.nick || target.name} alterado para R$${newBalance.toFixed(2)} por ${req.session.userId}` }).write();

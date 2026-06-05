@@ -4,6 +4,7 @@ const pool        = require('../data/mysql');
 const usersStore  = require('../data/users-store');
 const { photoUrlForUser } = require('../data/user-serialize');
 const { requireAuth }     = require('../middleware/auth');
+const { normalizeRole } = require('../data/roles');
 
 // ── Portfolio helpers (MySQL) ──────────────────────────────────────────────
 
@@ -200,7 +201,7 @@ router.get('/ranking', async (req, res) => {
         return {
           id: u.id, name: u.nick || u.name,
           avatar: u.avatar, photo: photoUrlForUser(u),
-          role: u.role, country: u.country,
+          role: normalizeRole(u.role), country: u.country,
           total: Math.round((u.balance + mv) * 100) / 100,
           cash: u.balance, stocks: mv
         };
@@ -219,17 +220,29 @@ router.get('/ranking', async (req, res) => {
 // GET /api/market/ownership-offers
 router.get('/ownership-offers', async (req, res) => {
   try {
-    const offers = db.get('ownershipOffers').value() || [];
-    const enriched = [];
-    for (const o of offers.filter(x => x.status === 'open')) {
-      const s      = db.get('stocks').find({ sym: o.sym }).value();
-      const seller = await usersStore.getUserById(o.sellerId);
-      enriched.push({
+    const offers = (db.get('ownershipOffers').value() || []).filter(x => x.status === 'open');
+    if (!offers.length) return res.json([]);
+
+    const sellerIds = [...new Set(offers.map(o => o.sellerId).filter(Boolean))];
+    const sellers = new Map();
+    if (sellerIds.length) {
+      const placeholders = sellerIds.map(() => '?').join(',');
+      const [rows] = await pool.query(
+        `SELECT id, nick, name FROM users WHERE id IN (${placeholders})`,
+        sellerIds
+      );
+      rows.forEach(u => sellers.set(u.id, u));
+    }
+
+    const enriched = offers.map(o => {
+      const s = db.get('stocks').find({ sym: o.sym }).value();
+      const seller = sellers.get(o.sellerId);
+      return {
         ...o,
         stockName:  s ? s.name : o.sym,
         sellerName: seller ? (seller.nick || seller.name) : '?',
-      });
-    }
+      };
+    });
     res.json(enriched);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

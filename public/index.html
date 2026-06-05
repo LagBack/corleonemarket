@@ -153,6 +153,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .btn-ghost:hover{border-color:var(--text2);color:var(--text)}
 .btn-sm{padding:4px 10px;font-size:11px}
 .btn:disabled{opacity:.4;cursor:not-allowed}
+.page-hint{color:var(--text3);font-size:12px;padding:12px 0}
+.page-loading{opacity:.65;pointer-events:none}
+.page-loading .page-hint{opacity:1;pointer-events:auto}
 .btns-row{display:flex;gap:8px;flex-wrap:wrap}
 
 /* ── ORDER BOOK ── */
@@ -705,6 +708,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
       <div class="admin-zone">
         <h3>👥 Usuários</h3>
+        <div id="adm-users-msg" style="margin-bottom:8px"></div>
         <div style="overflow-x:auto">
           <table class="mkt-table mkt-table--cards" id="users-tbl">
             <thead><tr><th>Foto</th><th>Nome</th><th>E-mail</th><th>País</th><th>Papel</th><th>Saldo</th><th>Ações</th></tr></thead>

@@ -4,6 +4,7 @@ const { v4: uuid } = require('uuid');
 const pool = require('../data/mysql');
 const { normalizeCountry } = require('../data/countries');
 const { toPublicUser } = require('../data/user-serialize');
+const { normalizeRole } = require('../data/roles');
 const db   = require('../data/db');       // lowdb — still used for portfolios
 const { requireAuth } = require('../middleware/auth');
 
@@ -12,7 +13,8 @@ router.get('/me', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
-    req.session.role = rows[0].role;
+    req.session.role = normalizeRole(rows[0].role);
+    req.session.roleSyncedAt = Date.now();
     res.json(toPublicUser(rows[0], { includePhotoData: true }));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -27,7 +29,8 @@ router.post('/login', async (req, res) => {
     const user = rows[0];
     if (!bcrypt.compareSync(pass, user.pass)) return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
     req.session.userId = user.id;
-    req.session.role   = user.role;
+    req.session.role   = normalizeRole(user.role);
+    req.session.roleSyncedAt = Date.now();
     const pfs = db.get('portfolios').value();
     if (!pfs[user.id]) {
       pfs[user.id] = {};
@@ -71,7 +74,8 @@ router.post('/register', async (req, res) => {
     pfs[newUser.id] = {};
     db.set('portfolios', pfs).write();
     req.session.userId = newUser.id;
-    req.session.role   = newUser.role;
+    req.session.role   = normalizeRole(newUser.role);
+    req.session.roleSyncedAt = Date.now();
     res.json({ ok: true, user: toPublicUser(newUser) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
