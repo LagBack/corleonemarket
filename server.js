@@ -1,5 +1,6 @@
 const express = require('express');
-const session = require('express-session');
+const session    = require('express-session');
+const MySQLStore = require('express-mysql-session')(session);
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
@@ -20,11 +21,32 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+const sessionStore = new MySQLStore({
+  host:               (process.env.DB_HOST || '').replace(/^https?:\/\//, '').replace(/\/$/, ''),
+  user:               process.env.DB_USER,
+  password:           process.env.DB_PASSWORD,
+  database:           process.env.DB_NAME,
+  port:               parseInt(process.env.DB_PORT) || 3306,
+  clearExpired:       true,
+  checkExpirationInterval: 900000,   // clear expired sessions every 15 min
+  expiration:         86400000,      // session expires after 24h
+  createDatabaseTable: true,         // auto-creates the sessions table
+  schema: {
+    tableName:        'sessions',
+    columnNames: {
+      session_id:     'session_id',
+      expires:        'expires',
+      data:           'data'
+    }
+  }
+});
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'corleone-secret-key-2024',
   resave: false,
   saveUninitialized: false,
   proxy: true,
+  store: sessionStore,
   cookie: {
     httpOnly: true,
     secure: isProd,
