@@ -60,6 +60,8 @@ router.post('/', requireMod, async (req, res) => {
     demand: 0.5, supply: 0.5,
     volume: 0, buys: 0, sells: 0,
     created: Date.now(),
+    // Intraday high/low — start at the opening price; reset on day rollover or market reopen
+    dayOpen: p, dayHigh: p, dayLow: p, dayResetAt: Date.now(),
     // Multi-owner revenue share
     owners:       validatedOwners,   // [{ userId, name, pct }]
     totalRevenue: 0,

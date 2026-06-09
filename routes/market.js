@@ -211,7 +211,25 @@ router.get('/ranking', async (req, res) => {
       (b.demand / (b.demand + b.supply)) - (a.demand / (a.demand + a.supply)));
     const topTraded = [...stocks].sort((a, b) => b.volume - a.volume);
 
-    res.json({ investors, supplyDemand: supplyDemand.slice(0, 8), topTraded: topTraded.slice(0, 8) });
+    // Intraday movers — use dayOpen (current-day opening) as the reference.
+    // Stocks without dayOpen fall back to s.open so legacy data still works.
+    const dayPct = (s) => {
+      const ref = s.dayOpen != null ? s.dayOpen : s.open;
+      return ref > 0 ? (s.price - ref) / ref * 100 : 0;
+    };
+    const enrichedDay = stocks
+      .filter(s => s.status === 'active')
+      .map(s => ({ ...s, dayPct: dayPct(s) }));
+    const topGainersDay = [...enrichedDay].sort((a, b) => b.dayPct - a.dayPct).slice(0, 5);
+    const topLosersDay  = [...enrichedDay].sort((a, b) => a.dayPct - b.dayPct).slice(0, 5);
+
+    res.json({
+      investors,
+      supplyDemand: supplyDemand.slice(0, 8),
+      topTraded:    topTraded.slice(0, 8),
+      topGainersDay,
+      topLosersDay
+    });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

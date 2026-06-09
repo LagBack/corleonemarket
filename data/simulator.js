@@ -2,8 +2,11 @@
 const db = require('./db');
 
 const TICK_MS = 2500;
+const DAY_RESET_CHECK_MS = 60000;   // check for new day once a minute
 let tickTimer  = null;
 let eventTimer = null;
+let dayCheckTimer = null;
+let lastDayReset = null;            // 'Mon Jun 09 2026' style — toDateString() of last reset
 
 // ── Random market events (fire occasionally, not every tick) ──
 const EVENTS = [
@@ -25,6 +28,14 @@ function tick() {
 
   arr.forEach(s => {
     if (s.status !== 'active') return;
+
+    // Make sure every active stock has day counters (backfill legacy data)
+    if (s.dayOpen == null || s.dayHigh == null || s.dayLow == null) {
+      s.dayOpen  = s.dayOpen  != null ? s.dayOpen  : s.price;
+      s.dayHigh  = s.dayHigh  != null ? s.dayHigh  : s.price;
+      s.dayLow   = s.dayLow   != null ? s.dayLow   : s.price;
+      s.dayResetAt = s.dayResetAt || Date.now();
+    }
 
     const dr = s.demand / (s.demand + s.supply + 0.001);
 
@@ -58,6 +69,9 @@ function tick() {
     s.priceHistory = hist;
     s.high         = Math.max(s.high || newPrice, newPrice);
     s.low          = Math.min(s.low  || newPrice, newPrice);
+    // Intraday high/low — reset on day change or market reopen
+    s.dayHigh      = Math.max(s.dayHigh != null ? s.dayHigh : newPrice, newPrice);
+    s.dayLow       = Math.min(s.dayLow  != null ? s.dayLow  : newPrice, newPrice);
 
     // Demand/supply drift back toward 0.5 gradually (reversion to neutral)
     s.demand = Math.max(0.05, Math.min(0.95,
@@ -69,6 +83,39 @@ function tick() {
   });
 
   db.set('stocks', arr).write();
+}
+
+// ── Intraday counters (high/low since "day" start) ──
+// Reset on:
+//   • local midnight (auto, checked every DAY_RESET_CHECK_MS)
+//   • market open  (manual, when mod/admin reopens the trading session)
+function resetDayCounters() {
+  const arr = db.get('stocks').value();
+  if (!arr.length) return false;
+  const now = Date.now();
+  arr.forEach(s => {
+    s.dayOpen    = s.price;
+    s.dayHigh    = s.price;
+    s.dayLow     = s.price;
+    s.dayResetAt = now;
+  });
+  db.set('stocks', arr).write();
+  return true;
+}
+
+function maybeResetDay() {
+  const today = new Date().toDateString();
+  if (lastDayReset === today) return false;
+  const ok = resetDayCounters();
+  lastDayReset = today;
+  if (ok) {
+    db.get('adminLog').push({
+      t:   new Date().toLocaleTimeString('pt-BR'),
+      msg: `🌅 Novo dia — contadores intraday (máx/mín/abertura do dia) resetados`
+    }).write();
+    console.log('🌅 Day counters reset (new local day: ' + today + ')');
+  }
+  return ok;
 }
 
 // Fire a random news event on one stock every ~90s
@@ -95,6 +142,10 @@ function fireRandomEvent() {
   if (hist.length > 80) hist.shift();
   s.priceHistory = hist;
 
+  // Reflect the event-driven price in the intraday high/low
+  s.dayHigh = Math.max(s.dayHigh != null ? s.dayHigh : s.price, s.price);
+  s.dayLow  = Math.min(s.dayLow  != null ? s.dayLow  : s.price, s.price);
+
   stocks[idx] = s;
   db.set('stocks', stocks).write();
 
@@ -109,7 +160,7 @@ function fireRandomEvent() {
 function start() {
   if (tickTimer) return;
 
-  // Seed priceHistory for any stock that lacks it
+  // Seed priceHistory AND day counters for any stock that lacks them
   const arr = db.get('stocks').value();
   arr.forEach(s => {
     if (!s.priceHistory || s.priceHistory.length < 2) {
@@ -124,19 +175,29 @@ function start() {
       s.high = s.high || s.price;
       s.low  = s.low  || s.price;
     }
+    if (s.dayOpen == null)  s.dayOpen  = s.price;
+    if (s.dayHigh == null)  s.dayHigh  = s.price;
+    if (s.dayLow  == null)  s.dayLow   = s.price;
+    if (s.dayResetAt == null) s.dayResetAt = Date.now();
   });
   db.set('stocks', arr).write();
 
-  tickTimer  = setInterval(tick, TICK_MS);
-  // Random event every 80–120s
-  eventTimer = setInterval(fireRandomEvent, 80000 + Math.random() * 40000);
+  // Initialize lastDayReset to "today" so the first midnight check is the one that fires
+  lastDayReset = new Date().toDateString();
 
-  console.log(`📈 Simulador iniciado (tick ${TICK_MS}ms | eventos ~90s)`);
+  tickTimer     = setInterval(tick, TICK_MS);
+  // Random event every 80–120s
+  eventTimer    = setInterval(fireRandomEvent, 80000 + Math.random() * 40000);
+  // Day-rollover check
+  dayCheckTimer = setInterval(maybeResetDay, DAY_RESET_CHECK_MS);
+
+  console.log(`📈 Simulador iniciado (tick ${TICK_MS}ms | eventos ~90s | reset diário ${DAY_RESET_CHECK_MS}ms)`);
 }
 
 function stop() {
-  if (tickTimer)  { clearInterval(tickTimer);  tickTimer  = null; }
-  if (eventTimer) { clearInterval(eventTimer); eventTimer = null; }
+  if (tickTimer)     { clearInterval(tickTimer);     tickTimer     = null; }
+  if (eventTimer)    { clearInterval(eventTimer);    eventTimer    = null; }
+  if (dayCheckTimer) { clearInterval(dayCheckTimer); dayCheckTimer = null; }
 }
 
-module.exports = { start, stop, tick };
+module.exports = { start, stop, tick, resetDayCounters, maybeResetDay };

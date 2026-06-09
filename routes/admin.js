@@ -59,8 +59,17 @@ router.get('/users', requireMod, async (req, res) => {
 
 // POST /api/admin/market/open
 router.post('/market/open', requireMod, (req, res) => {
+  // Reset intraday high/low (and dayOpen) so the new session starts fresh.
+  // Skips writing the admin log entry when the function decides nothing changed.
+  const reset = simulator.resetDayCounters();
   db.set('market.open', true).write();
   simulator.start();
+  if (reset) {
+    db.get('adminLog').push({
+      t:   new Date().toLocaleTimeString('pt-BR'),
+      msg: `🔄 Máx/Mín/Abertura do dia resetados ao abrir o pregão`
+    }).write();
+  }
   db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Mercado ABERTO por ${req.session.userId}` }).write();
   res.json({ ok: true, open: true });
 });

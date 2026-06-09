@@ -299,6 +299,9 @@ function renderStocksTable() {
     const cls = pct > 0 ? 'up' : pct < 0 ? 'dn' : 'neu';
     const sign = pct > 0 ? '+' : '';
     const dr = s.demand / (s.demand + s.supply + .001);
+    // Intraday high/low — fall back gracefully if the backend hasn't seeded them yet
+    const dayHigh = (s.dayHigh != null) ? s.dayHigh : s.price;
+    const dayLow  = (s.dayLow  != null) ? s.dayLow  : s.price;
     return `<tr onclick="selectStock('${s.sym}')" style="cursor:pointer" id="row-${s.sym}">
       <td data-label="Código"><span class="sym-tag">${s.sym}</span></td>
       <td data-label="Empresa" style="font-weight:600;font-size:12px">${s.name}</td>
@@ -306,6 +309,8 @@ function renderStocksTable() {
       <td data-label="Status"><span class="status-badge ${s.status}">${s.status==='active'?'Ativa':'Suspensa'}</span></td>
       <td data-label="Preço" class="price-${cls} mono">R$${s.price.toFixed(2)}</td>
       <td data-label="Var."><span class="chg-pill ${cls}">${sign}${pct.toFixed(2)}%</span></td>
+      <td data-label="Máx Dia" class="mono price-up" style="font-size:11px">R$${dayHigh.toFixed(2)}</td>
+      <td data-label="Mín Dia" class="mono price-dn"  style="font-size:11px">R$${dayLow.toFixed(2)}</td>
       <td data-label="Volume" class="mono" style="font-size:10px;color:var(--text3)">${fmtN(s.volume)}</td>
       <td data-label="D/O"><div class="dbar"><div class="dbar-fill" style="width:${dr*100}%;background:${dr>.5?'var(--green2)':'var(--red2)'}"></div></div></td>
       <td data-label="Cotas">
@@ -489,6 +494,12 @@ function updateTradeInfo() {
   const pct = ((s.price - s.open) / s.open * 100);
   document.getElementById('td-price').textContent = 'R$' + s.price.toFixed(2);
   document.getElementById('td-bal').textContent   = 'R$' + (CU.balance || 0).toFixed(2);
+  // Daily reference prices — fall back to current price if not yet set
+  const ref = (val, fallback) => (val != null) ? val : fallback;
+  const dOpen = ref(s.dayOpen, s.price);
+  const dHigh = ref(s.dayHigh, s.price);
+  const dLow  = ref(s.dayLow,  s.price);
+
   document.getElementById('trade-info').innerHTML = `
     <div style="margin-bottom:12px">
       <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;font-style:italic;margin-bottom:4px">${s.name}</div>
@@ -499,7 +510,9 @@ function updateTradeInfo() {
       </div>
     </div>
     <div class="grid2" style="gap:6px;margin-bottom:10px">
-      <div style="background:var(--s2);padding:8px;border:1px solid var(--border);border-radius:4px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Abertura</div><div class="mono" style="font-size:12px">R$${s.open.toFixed(2)}</div></div>
+      <div style="background:var(--s2);padding:8px;border:1px solid var(--border);border-radius:4px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Abertura</div><div class="mono" style="font-size:12px">R$${dOpen.toFixed(2)}</div></div>
+      <div style="background:var(--s2);padding:8px;border:1px solid var(--border);border-radius:4px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Máx Dia</div><div class="mono price-up" style="font-size:12px">R$${dHigh.toFixed(2)}</div></div>
+      <div style="background:var(--s2);padding:8px;border:1px solid var(--border);border-radius:4px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Mín Dia</div><div class="mono price-dn" style="font-size:12px">R$${dLow.toFixed(2)}</div></div>
       <div style="background:var(--s2);padding:8px;border:1px solid var(--border);border-radius:4px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Em Carteira</div><div class="mono" style="font-size:12px" id="owned-count">—</div></div>
       <div style="background:var(--s2);padding:8px;border:1px solid var(--border);border-radius:4px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Volume</div><div class="mono" style="font-size:12px">${fmtN(s.volume)}</div></div>
       <div style="background:var(--s2);padding:8px;border:1px solid var(--border);border-radius:4px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Status</div><span class="status-badge ${s.status}">${s.status==='active'?'Ativa':'Suspensa'}</span></div>
