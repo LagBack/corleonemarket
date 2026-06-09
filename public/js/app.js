@@ -910,6 +910,21 @@ async function uploadPhoto(input) {
   finally { input.value = ''; }
 }
 
+async function removePhoto() {
+  try {
+    await fetch('/api/users/me/photo', { method: 'DELETE', credentials: 'include' });
+    CU.photo = null;
+    CU.photoDisplay = null;
+    try {
+      const me = await GET('auth/me');
+      CU = { ...CU, ...me };
+    } catch (_) {}
+    updateHeaderUser();
+    showMsg('prof-msg', 'Foto removida — usando emoji.', 'ok');
+    renderProfile();
+  } catch(e) { showMsg('prof-msg', e.message, 'err'); }
+}
+
 // ── P2P OWNERSHIP MARKETPLACE ──
 function mountOwnershipPanelInAdmin() {
   const source = document.getElementById('p-p2p');
