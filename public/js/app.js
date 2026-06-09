@@ -370,20 +370,35 @@ function updateTicker() {
 }
 
 // ── CHART ──
+function _chartColors() {
+  const t = document.documentElement.getAttribute('data-theme') || 'default';
+  const isLight = t === 'light';
+  return {
+    line:      '#c9a84c',
+    up:        isLight ? '#249653' : '#27ae60',
+    down:      isLight ? '#b03025' : '#c0392b',
+    bgFill:    () => { const g = mainChart?.ctx?.createLinearGradient?.(0,0,0,255); g?.addColorStop(0,isLight?'rgba(166,138,62,.1)':'rgba(201,168,76,.12)'); g?.addColorStop(1,'rgba(201,168,76,0)'); return g; },
+    grid:      isLight ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.04)',
+    tick:      isLight ? '#7a7368' : '#5a5570',
+    tooltipBg: isLight ? '#ffffff' : '#131318',
+    tooltipBd: isLight ? '#d6d2ca'  : '#2a2a3a',
+    titleC:    isLight ? '#7a6228'  : '#c9a84c',
+    bodyC:     isLight ? '#1a1815'  : '#e8e6f0',
+  };
+}
+
 function buildChart() {
+  const c = _chartColors();
   const ctx = document.getElementById('mainChart').getContext('2d');
   mainChart = new Chart(ctx, {
     type: 'line',
-    data: { labels: [], datasets: [{ data: [], borderColor: '#c9a84c', borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: ctx2 => {
-      const g = ctx2.chart.ctx.createLinearGradient(0, 0, 0, 255);
-      g.addColorStop(0, 'rgba(201,168,76,.12)'); g.addColorStop(1, 'rgba(201,168,76,0)'); return g;
-    }, tension: .3 }] },
+    data: { labels: [], datasets: [{ data: [], borderColor: c.line, borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: () => c.bgFill(), tension: .3 }] },
     options: {
       responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => 'R$' + c.parsed.y.toFixed(2) }, backgroundColor: '#131318', borderColor: '#2a2a3a', borderWidth: 1, titleColor: '#9890b0', bodyColor: '#e8e6f0' } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => 'R$' + c.parsed.y.toFixed(2) }, backgroundColor: c.tooltipBg, borderColor: c.tooltipBd, borderWidth: 1, titleColor: c.titleC, bodyColor: c.bodyC } },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#5a5570', font: { size: 9 } } },
-        y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#5a5570', font: { size: 9 }, callback: v => 'R$' + v.toFixed(0) }, position: 'right' }
+        x: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 9 } } },
+        y: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 9 }, callback: v => 'R$' + v.toFixed(0) }, position: 'right' }
       }
     }
   });
@@ -391,12 +406,22 @@ function buildChart() {
 
 function updateMainChart() {
   if (!mainChart || !selectedSym) return;
+  const c = _chartColors();
   const hist = priceHistory[selectedSym] || [];
   const s    = stocks.find(x => x.sym === selectedSym);
   mainChart.data.labels = hist.map((_, i) => i === hist.length - 1 ? 'agora' : '');
   mainChart.data.datasets[0].data = hist; // plain number[]
   const up = !s || s.price >= s.open;
-  mainChart.data.datasets[0].borderColor = up ? '#27ae60' : '#c0392b';
+  mainChart.data.datasets[0].borderColor = up ? c.up : c.down;
+  // Update tooltip/theme colors if theme changed
+  mainChart.options.plugins.tooltip.backgroundColor = c.tooltipBg;
+  mainChart.options.plugins.tooltip.borderColor      = c.tooltipBd;
+  mainChart.options.plugins.tooltip.titleColor        = c.titleC;
+  mainChart.options.plugins.tooltip.bodyColor         = c.bodyC;
+  mainChart.options.scales.x.grid.color = c.grid;
+  mainChart.options.scales.y.grid.color = c.grid;
+  mainChart.options.scales.x.ticks.color = c.tick;
+  mainChart.options.scales.y.ticks.color = c.tick;
   mainChart.update('none');
 }
 
@@ -695,6 +720,7 @@ function renderProfile() {
 }
 
 function renderPieChart(pf) {
+  const c = _chartColors();
   const pfArr = Object.entries(pf).filter(([, q]) => q > 0);
   const canvas = document.getElementById('pieChart');
   const empty  = document.getElementById('pie-empty');
@@ -763,11 +789,11 @@ function renderPieChart(pf) {
               ];
             }
           },
-          backgroundColor: '#131318',
-          borderColor: '#2a2a3a',
+          backgroundColor: c.tooltipBg,
+          borderColor: c.tooltipBd,
           borderWidth: 1,
-          titleColor: '#c9a84c',
-          bodyColor: '#e8e6f0',
+          titleColor: c.titleC,
+          bodyColor: c.bodyC,
           padding: 10
         }
       }
@@ -1537,7 +1563,7 @@ async function openProfileModal(uid) {
       : `<span style="font-size:40px">${p.avatar||'🦁'}</span>`;
     const holdingsHtml = p.holdings.length
       ? p.holdings.map(h => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">
             <div><span class="sym-tag" style="font-size:10px">${h.sym}</span> <span style="color:var(--text2)">${h.name}</span></div>
             <div style="text-align:right">
               <div class="mono" style="font-size:11px">${h.qty} cotas</div>
@@ -1584,6 +1610,73 @@ function showMsg(id, msg, type) {
   el.innerHTML = `<div class="alert ${type}">${msg}</div>`;
   setTimeout(() => { if (el) el.innerHTML = ''; }, 4000);
 }
+
+// ── THEME SELECTOR ──
+function applyThemeColors(chart, theme) {
+  if (!chart) return;
+  const isLight = theme === 'light';
+  const gridCol = isLight ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.04)';
+  const tickCol = isLight ? '#7a7368' : '#5a5570';
+  const bgCol   = isLight ? '#ffffff' : '#131318';
+  const fgCol   = isLight ? '#1a1815' : '#e8e6f0';
+  try {
+    chart.options.scales?.x?.grid && (chart.options.scales.x.grid.color = gridCol);
+    chart.options.scales?.y?.grid && (chart.options.scales.y.grid.color = gridCol);
+    chart.options.scales?.x?.ticks && (chart.options.scales.x.ticks.color = tickCol);
+    chart.options.scales?.y?.ticks && (chart.options.scales.y.ticks.color = tickCol);
+    chart.options.plugins?.tooltip && (Object.assign(chart.options.plugins.tooltip, { backgroundColor: bgCol, titleColor: isLight ? '#7a6228' : '#c9a84c', bodyColor: fgCol }));
+  } catch (_) {}
+}
+
+function rebuildChartColors(theme) {
+  if (!mainChart) return;
+  const isLight = theme === 'light';
+  const bg      = isLight ? '#ffffff' : (theme === 'very-dark' ? '#0a0a0a' : '#131318');
+  const upColor = isLight ? '#249653' : '#27ae60';
+  const dnColor = isLight ? '#b03025' : '#c0392b';
+
+  // Rebuild with theme-aware colors
+  if (mainChart.data && mainChart.data.datasets) {
+    mainChart.data.datasets.forEach(ds => {
+      if (ds.borderColor === upColor || ds.borderColor === dnColor) {
+        ds.backgroundColor = isLight
+          ? (() => { const g = mainChart.ctx?.createLinearGradient?.(0,0,0,255); g?.addColorStop(0,'rgba(166,138,62,.1)'); g?.addColorStop(1,'rgba(166,138,62,0)'); return g; })()
+          : (() => { const g = mainChart.ctx?.createLinearGradient?.(0,0,0,255); g?.addColorStop(0,'rgba(201,168,76,.12)'); g?.addColorStop(1,'rgba(201,168,76,0)'); return g; })();
+      }
+    });
+  }
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('corleone-theme', theme);
+  // Close menu
+  const menu = document.getElementById('theme-menu');
+  if (menu) menu.classList.remove('open');
+  // Update active button state
+  document.querySelectorAll('.tm-item').forEach(b => b.setAttribute('aria-selected', b.dataset.theme === theme ? 'true' : 'false'));
+}
+
+function toggleThemeMenu() {
+  const menu = document.getElementById('theme-menu');
+  if (menu) menu.classList.toggle('open');
+}
+
+// Close theme menu on outside click
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('theme-wrap');
+  const menu = document.getElementById('theme-menu');
+  if (wrap && menu && !wrap.contains(e.target)) {
+    menu.classList.remove('open');
+  }
+});
+
+// Init theme from saved or default
+(function initTheme() {
+  const saved = localStorage.getItem('corleone-theme');
+  const theme = saved || 'default';
+  document.documentElement.setAttribute('data-theme', theme);
+})();
 
 // ── AUTO-CHECK SESSION ──
 (async () => {

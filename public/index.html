@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="default">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -20,6 +20,33 @@
   --text:#e8e6f0;--text2:#9890b0;--text3:#5a5570;
   --radius:6px;
 }
+
+/* ── VERY DARK THEME ── */
+[data-theme="very-dark"]{
+  --bg:#000000;--s1:#0a0a0a;--s2:#111111;--s3:#1a1a1a;--s4:#222222;
+  --border:#222222;--border2:#333333;
+  --gold:#c9a84c;--gold2:#e8c56a;--gold3:#f5d98a;--gold-dim:rgba(201,168,76,.1);
+  --red:#c0392b;--red2:#e74c3c;--red-dim:rgba(192,57,43,.12);
+  --green:#1a7a4a;--green2:#27ae60;--green-dim:rgba(39,174,96,.12);
+  --blue:#2471a3;--blue-dim:rgba(36,113,163,.12);
+  --gold-dim:rgba(201,168,76,.12);
+  --text:#e8e6f0;--text2:#9890b0;--text3:#5a5570;
+}
+
+/* ── LIGHT THEME ── */
+[data-theme="light"]{
+  --bg:#f4f2ec;--s1:#ffffff;--s2:#f0eee8;--s3:#e8e6e0;--s4:#ddd9d0;
+  --border:#d6d2ca;--border2:#c5c0b6;
+  --gold:#a68a3e;--gold2:#8c7232;--gold3:#7a6228;--gold-dim:rgba(166,138,62,.08);
+  --red:#b03025;--red2:#d44637;--red-dim:rgba(176,48,37,.1);
+  --green:#1a7a4a;--green2:#249653;--green-dim:rgba(36,150,83,.1);
+  --blue:#2471a3;--blue-dim:rgba(36,113,163,.1);
+  --gold-dim:rgba(166,138,62,.08);
+  --text:#1a1815;--text2:#4a4538;--text3:#7a7368;
+}
+
+/* ── CHART JS OVERRIDES FOR LIGHT THEME ── */
+[data-theme="light"] .chart-wrap{background:var(--s1);border-radius:var(--radius)}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 .serif{font-family:'Playfair Display',serif}
 .mono{font-family:'DM Mono',monospace}
@@ -235,6 +262,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .modal{background:var(--s1);border:1px solid var(--border2);border-radius:var(--radius);padding:24px;width:460px;max-width:95vw;max-height:85vh;overflow-y:auto}
 .modal h2{font-family:'Playfair Display',serif;font-size:18px;font-style:italic;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border);color:var(--gold2)}
 
+/* ── THEME MENU ── */
+.tm{position:absolute;top:calc(100% + 6px);right:0;background:var(--s1);border:1px solid var(--border2);border-radius:var(--radius);padding:4px;z-index:100;display:none;min-width:170px;box-shadow:0 12px 32px rgba(0,0,0,.35)}
+.tm.open{display:block}
+.tm-item{display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:none;background:transparent;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;text-align:left;border-radius:3px;transition:all .15s}
+.tm-item:hover{background:var(--s3);color:var(--text)}
+.tm-item[aria-selected="true"]{background:var(--gold-dim);color:var(--gold)}
+
+/* ── THEME-AWARE BACKDROPS ── */
+[data-theme="light"] .modal-bg{background:rgba(0,0,0,.25);backdrop-filter:none}
+[data-theme="light"] #s-auth::before{background:radial-gradient(ellipse 60% 50% at 30% 40%,rgba(166,138,62,.08),transparent),radial-gradient(ellipse 40% 40% at 80% 70%,rgba(39,174,96,.05),transparent)}
+[data-theme="very-dark"] #s-auth::before{background:radial-gradient(ellipse 60% 50% at 30% 40%,rgba(201,168,76,.04),transparent),radial-gradient(ellipse 40% 40% at 80% 70%,rgba(39,174,96,.03),transparent)}
+[data-theme="light"] .mkt-table td{border-bottom:1px solid rgba(0,0,0,.05)}
+[data-theme="light"] .hist-item{border-bottom:1px solid rgba(0,0,0,.07)}
+[data-theme="light"] .log-line{border-bottom:1px solid rgba(0,0,0,.06)}
+[data-theme="light"] #theme-btn{background:var(--s3);border:1px solid var(--border2)!important}
+
 /* HIDDEN FILE INPUT */
 #photo-input{display:none}
 
@@ -377,6 +420,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     </div>
     <div class="hdr-right">
       <div class="mkt-pill open" id="mkt-status">● ABERTO</div>
+      <!-- THEME SELECTOR -->
+      <div style="position:relative" id="theme-wrap">
+        <button class="btn btn-ghost" id="theme-btn" onclick="toggleThemeMenu()" title="Trocar tema" style="padding:4px 8px;font-size:14px;line-height:1">🎨</button>
+        <div class="tm" id="theme-menu">
+          <button class="tm-item" data-theme="default" onclick="setTheme('default')">☀️ Padrão</button>
+          <button class="tm-item" data-theme="very-dark" onclick="setTheme('very-dark')">🌑 Muito Escuro</button>
+          <button class="tm-item" data-theme="light" onclick="setTheme('light')">💡 Claro</button>
+        </div>
+      </div>
+      <!-- /THEME SELECTOR -->
       <div class="user-chip" onclick="showPage('profile')">
         <div class="uav" id="hdr-av">🦁</div>
         <span class="uname" id="hdr-name">—</span>
