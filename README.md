@@ -122,7 +122,7 @@ flowchart LR
 ### 1. Clonar e instalar
 
 ```bash
-git clone https://github.com/SEU_USUARIO/corleonemarket.git
+git clone https://github.com/LagBack/corleonemarket.git
 cd corleonemarket
 npm install
 ```
@@ -256,8 +256,3 @@ Sugestões de melhoria: testes automatizados, WebSocket para ticks, i18n EN/PT, 
 Projeto sob licença **MIT** — use, modifique e distribua com atribuição.
 
 ---
-
-<p align="center">
-  Feito com ☕ e volatilidade controlada.<br>
-  <strong>Corleone Market</strong> — o pregão que nunca dorme (enquanto o admin deixar aberto).
-</p>

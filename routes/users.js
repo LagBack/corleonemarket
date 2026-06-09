@@ -59,12 +59,18 @@ router.get('/me/dividends', requireAuth, async (req, res) => {
 
 // PUT /api/users/me
 router.put('/me', requireAuth, async (req, res) => {
-  const { nick, bio, country, avatar } = req.body;
+  const body = req.body; // may include name, nick, bio, country, avatar
+  const sets = [];
+  const vals = [];
+  if (body.name !== undefined)       { sets.push('name=?');   vals.push(body.name); }
+  if (body.nick !== undefined)       { sets.push('nick=?');   vals.push(body.nick); }
+  if (body.bio !== undefined)        { sets.push('bio=?');    vals.push(body.bio); }
+  if (body.country !== undefined)    { sets.push('country=?'); vals.push(normalizeCountry(body.country)); }
+  if (body.avatar !== undefined)     { sets.push('avatar=?');  vals.push(body.avatar); }
   try {
-    await pool.query(
-      'UPDATE users SET nick=?, bio=?, country=?, avatar=? WHERE id=?',
-      [nick, bio, normalizeCountry(country), avatar, req.session.userId]
-    );
+    if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar.' });
+    const query = 'UPDATE users SET ' + sets.join(', ') + ' WHERE id=?';
+    await pool.query(query, [...vals, req.session.userId]);
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
     res.json({ ok: true, user: toPublicUser(rows[0], { includePhotoData: true }) });
   } catch (e) { res.status(500).json({ error: e.message }); }

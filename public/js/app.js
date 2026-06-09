@@ -701,6 +701,7 @@ function renderProfile() {
       <div class="serif gold" style="font-size:26px">R$${fmtN(CU.balance)}</div>
     </div>
   `;
+  document.getElementById('edit-name').value = CU.name || '';
   document.getElementById('edit-nick').value = CU.nick || '';
   document.getElementById('edit-bio').value  = CU.bio  || '';
   const csel = document.getElementById('edit-country');
@@ -869,11 +870,14 @@ function renderDividends(divData) {
 }
 
 async function saveProfile() {
+  const name    = document.getElementById('edit-name').value.trim();
   const nick    = document.getElementById('edit-nick').value.trim();
   const bio     = document.getElementById('edit-bio').value.trim();
   const country = document.getElementById('edit-country').value;
   try {
-    const { user } = await PUT('users/me', { nick, bio, country, avatar: editAvatar });
+    const body = { nick, bio, country, avatar: editAvatar };
+    if (name) body.name = name;
+    const { user } = await PUT('users/me', body);
     CU = { ...CU, ...user };
     updateHeaderUser();
     showMsg('prof-msg', '✓ Perfil salvo!', 'ok');
