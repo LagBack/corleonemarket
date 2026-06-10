@@ -1565,7 +1565,9 @@ async function changeRole(selectEl) {
 }
 
 function openBalanceModal(uid, name, currentBalance) {
-  document.getElementById('modal-content').innerHTML = `
+  const modal = document.getElementById('modal-content');
+  modal.className = 'modal';
+  modal.innerHTML = `
     <h2>💰 Saldo de ${name}</h2>
     <p style="color:var(--text3);font-size:12px;margin-bottom:16px">Saldo atual: <span class="mono gold">R$${fmtN(currentBalance)}</span></p>
     <div class="fg"><label>Valor (R$)</label><input type="number" id="bal-val" placeholder="50000" step="0.01" style="width:100%"></div>
@@ -1616,46 +1618,138 @@ async function deleteUser(uid, name) {
   } catch(e) { showMsg('adm-users-msg', e.message, 'err'); }
 }
 
-function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
+function closeModal() {
+  document.getElementById('modal-bg').classList.remove('open');
+  _profileModalData = null;
+  const modal = document.getElementById('modal-content');
+  if (modal) modal.className = 'modal';
+}
 
 // ── PUBLIC PROFILE MODAL ──
+let _profileModalData = null;
+
+function renderProfileHoldings(holdings) {
+  if (!holdings.length) {
+    return '<p style="color:var(--text3);font-size:12px;padding:8px 0">Nenhum ativo em carteira.</p>';
+  }
+  return holdings.map(h => {
+    const dayCls = h.dayPct > 0 ? 'price-up' : h.dayPct < 0 ? 'price-dn' : '';
+    const daySign = h.dayPct > 0 ? '+' : '';
+    return `<div class="prof-hold-row">
+      <div>
+        <span class="sym-tag" style="font-size:10px">${h.sym}</span>
+        <span style="font-weight:600;color:var(--text2)">${h.name}</span>
+        <div class="prof-hold-meta">
+          <span class="sector-tag" style="font-size:9px">${h.sector}</span>
+          · ${h.qty} cotas · R$${h.price.toFixed(2)}
+          · <span class="${dayCls}">${daySign}${h.dayPct.toFixed(2)}% hoje</span>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div class="mono" style="font-size:12px">R$${fmtN(h.value)}</div>
+        <div class="prof-hold-meta">${h.pctOfPortfolio.toFixed(1)}% carteira · ${h.pctOfCompany.toFixed(4)}% empresa</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderProfileTransactions(txs, filter) {
+  const list = filter === 'all' ? txs : txs.filter(t => t.type === filter);
+  if (!list.length) {
+    const label = filter === 'buy' ? 'compras' : filter === 'sell' ? 'vendas' : 'operações';
+    return `<p style="color:var(--text3);font-size:12px;padding:8px 0">Sem ${label} registradas.</p>`;
+  }
+  return list.map(t => `<div class="hist-item">
+    <span class="hist-badge ${t.type}">${t.type === 'buy' ? 'COMPRA' : 'VENDA'}</span>
+    <span style="font-weight:600">${t.sym}</span>
+    <span style="color:var(--text3)">${t.qty}×</span>
+    <span class="mono" style="font-size:10px">R$${Number(t.price).toFixed(2)}</span>
+    <span class="mono ${t.type === 'buy' ? 'price-dn' : 'price-up'}" style="margin-left:auto;font-size:11px">R$${Number(t.total).toFixed(2)}</span>
+    <span style="color:var(--text3);font-size:9px">${t.time || ''}</span>
+  </div>`).join('');
+}
+
+function switchProfileTab(tab) {
+  document.querySelectorAll('.prof-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.prof-panel').forEach(p =>
+    p.classList.toggle('active', p.dataset.panel === tab));
+}
+
+function filterProfileTx(filter) {
+  if (!_profileModalData) return;
+  document.querySelectorAll('.prof-filter button').forEach(b =>
+    b.classList.toggle('active', b.dataset.filter === filter));
+  const el = document.getElementById('prof-tx-list');
+  if (el) el.innerHTML = renderProfileTransactions(_profileModalData.transactions, filter);
+}
+
 async function openProfileModal(uid) {
   try {
     const p = await GET('users/' + uid + '/public');
+    _profileModalData = p;
     const emoji = normalizeAvatar(p.avatar);
     const photoHtml = p.photo
       ? `<img src="${photoWithBust(p.photo)}" style="width:70px;height:70px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)" alt="${emoji}" onerror="this.replaceWith(document.createTextNode(this.alt))">`
       : `<span style="font-size:40px">${emoji}</span>`;
-    const holdingsHtml = p.holdings.length
-      ? p.holdings.map(h => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">
-            <div><span class="sym-tag" style="font-size:10px">${h.sym}</span> <span style="color:var(--text2)">${h.name}</span></div>
-            <div style="text-align:right">
-              <div class="mono" style="font-size:11px">${h.qty} cotas</div>
-              <div style="font-size:9px;color:var(--gold)">${h.pctOfCompany.toFixed(4)}% empresa</div>
-            </div>
-          </div>`).join('')
-      : '<p style="color:var(--text3);font-size:12px;padding:8px 0">Carteira vazia.</p>';
+    const financeHidden = p.totalWealth === null;
+    const topHoldings = (p.holdings || []).slice(0, 3);
+    const topHoldingsHtml = topHoldings.length
+      ? topHoldings.map(h => `<div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)">
+          <span><span class="sym-tag" style="font-size:9px">${h.sym}</span> ${h.qty} cotas</span>
+          <span class="mono">R$${fmtN(h.value)}</span>
+        </div>`).join('')
+      : '<p style="color:var(--text3);font-size:11px;padding:4px 0">Sem posições.</p>';
 
-    document.getElementById('modal-content').innerHTML = `
-      <h2>Perfil do Investidor</h2>
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+    const modal = document.getElementById('modal-content');
+    modal.className = 'modal modal-wide';
+    modal.innerHTML = `
+      <h2>Análise do Investidor</h2>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
         <div style="width:70px;height:70px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--s3);overflow:hidden;flex-shrink:0">${photoHtml}</div>
-        <div>
+        <div style="flex:1;min-width:0">
           <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;font-style:italic">${p.nick}</div>
           <div style="font-size:11px;color:var(--text3)">${p.name} · ${formatCountry(p.country)}</div>
           <span class="role-badge ${p.role}" style="margin-top:4px;display:inline-block">${roleLabel(p.role)}</span>
           ${p.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${p.bio}"</div>` : ''}
         </div>
       </div>
-      <div class="grid2" style="gap:8px;margin-bottom:16px">
-        ${p.totalWealth !== null ? `<div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Patrimônio</div><div class="mono gold" style="font-size:16px">R$${fmtN(p.totalWealth)}</div></div>` : ''}
-        <div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Operações</div><div class="mono" style="font-size:16px">${p.totalTx}</div></div>
-        <div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Compras / Vendas</div><div class="mono" style="font-size:14px"><span style="color:var(--green2)">${p.buys}</span> / <span style="color:var(--red2)">${p.sells}</span></div></div>
-        <div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Membro desde</div><div class="mono" style="font-size:12px">${new Date(p.joined).toLocaleDateString('pt-BR')}</div></div>
+
+      <div class="prof-tabs">
+        <button type="button" class="prof-tab active" data-tab="summary" onclick="switchProfileTab('summary')">Resumo</button>
+        <button type="button" class="prof-tab" data-tab="portfolio" onclick="switchProfileTab('portfolio')">Carteira (${p.assetsCount || 0})</button>
+        <button type="button" class="prof-tab" data-tab="ops" onclick="switchProfileTab('ops')">Operações (${p.totalTx || 0})</button>
       </div>
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">Posições em Carteira</div>
-      ${holdingsHtml}
+
+      <div class="prof-panel active" data-panel="summary">
+        <div class="grid2" style="gap:8px;margin-bottom:14px">
+          ${!financeHidden ? `<div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Patrimônio</div><div class="mono gold" style="font-size:16px">R$${fmtN(p.totalWealth)}</div></div>` : ''}
+          ${!financeHidden ? `<div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Cash / Ações</div><div class="mono" style="font-size:12px">R$${fmtN(p.cash)} / R$${fmtN(p.marketValue)}</div></div>` : ''}
+          <div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Operações</div><div class="mono" style="font-size:16px">${p.totalTx}</div></div>
+          <div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Compras / Vendas</div><div class="mono" style="font-size:14px"><span class="green">${p.buys}</span> / <span class="red">${p.sells}</span></div></div>
+          ${!financeHidden ? `<div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Vol. Compras</div><div class="mono price-dn" style="font-size:13px">R$${fmtN(p.buyVolume)}</div></div>` : ''}
+          ${!financeHidden ? `<div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Vol. Vendas</div><div class="mono price-up" style="font-size:13px">R$${fmtN(p.sellVolume)}</div></div>` : ''}
+          <div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Ativos</div><div class="mono" style="font-size:16px">${p.assetsCount || 0}</div></div>
+          <div style="background:var(--s2);padding:10px;border:1px solid var(--border);border-radius:4px"><div class="stat-label">Membro desde</div><div class="mono" style="font-size:12px">${new Date(p.joined).toLocaleDateString('pt-BR')}</div></div>
+        </div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Maiores Posições</div>
+        ${topHoldingsHtml}
+      </div>
+
+      <div class="prof-panel" data-panel="portfolio">
+        ${renderProfileHoldings(p.holdings || [])}
+      </div>
+
+      <div class="prof-panel" data-panel="ops">
+        <div class="prof-filter">
+          <button type="button" class="active" data-filter="all" onclick="filterProfileTx('all')">Todas</button>
+          <button type="button" data-filter="buy" onclick="filterProfileTx('buy')">Compras (${p.buys})</button>
+          <button type="button" data-filter="sell" onclick="filterProfileTx('sell')">Vendas (${p.sells})</button>
+        </div>
+        <div class="prof-tx-list" id="prof-tx-list">${renderProfileTransactions(p.transactions || [], 'all')}</div>
+        ${(p.transactions || []).length >= 100 ? '<p style="font-size:9px;color:var(--text3);margin-top:8px">Exibindo as 100 operações mais recentes.</p>' : ''}
+      </div>
+
       <div style="margin-top:16px"><button class="btn btn-ghost" onclick="closeModal()" style="width:100%">Fechar</button></div>
     `;
     document.getElementById('modal-bg').classList.add('open');

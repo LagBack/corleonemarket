@@ -142,31 +142,91 @@ router.get('/:id/public', async (req, res) => {
     return res.status(400).json({ error: 'Use GET /api/users/me' });
   }
   try {
-    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    const uid = req.params.id;
+    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [uid]);
     if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado.' });
-    const user   = rows[0];
+    const user = rows[0];
     const stocks = db.get('stocks').value();
-    const pf     = db.get('portfolios').get(req.params.id).value() || {};
-    const txs    = db.get('transactions').filter({ uid: req.params.id }).value();
+    const hideFinance = ['admin', 'dev'].includes(user.role);
+
+    const [pfRows] = await pool.query(
+      'SELECT sym, qty FROM portfolios WHERE user_id = ? AND qty > 0',
+      [uid]
+    );
+    const [txRows] = await pool.query(
+      'SELECT type, sym, qty, price, total, time, ts FROM transactions WHERE uid = ? ORDER BY ts DESC LIMIT 100',
+      [uid]
+    );
+    const [txCountRows] = await pool.query(
+      `SELECT
+         COUNT(*) AS totalTx,
+         SUM(type = 'buy') AS buys,
+         SUM(type = 'sell') AS sells,
+         COALESCE(SUM(CASE WHEN type = 'buy'  THEN total ELSE 0 END), 0) AS buyVolume,
+         COALESCE(SUM(CASE WHEN type = 'sell' THEN total ELSE 0 END), 0) AS sellVolume
+       FROM transactions WHERE uid = ?`,
+      [uid]
+    );
+    const txStats = txCountRows[0] || {};
+
     let mv = 0;
-    const holdings = Object.entries(pf).map(([sym, qty]) => {
+    const holdings = pfRows.map(({ sym, qty }) => {
       const s = stocks.find(x => x.sym === sym);
       if (!s) return null;
-      const val = s.price * qty;
-      mv += val;
-      return { sym, name: s.name, qty, price: s.price, value: val, pctOfCompany: qty / s.shares * 100 };
-    }).filter(Boolean);
+      const value = s.price * qty;
+      mv += value;
+      const ref = s.dayOpen != null ? s.dayOpen : s.open;
+      const dayPct = ref > 0 ? (s.price - ref) / ref * 100 : 0;
+      return {
+        sym,
+        name: s.name,
+        sector: s.sector,
+        qty,
+        price: s.price,
+        value,
+        pctOfCompany: qty / s.shares * 100,
+        dayPct: Math.round(dayPct * 100) / 100,
+        status: s.status,
+      };
+    }).filter(Boolean).sort((a, b) => b.value - a.value);
+
+    const totalWealth = hideFinance ? null : user.balance + mv;
+    holdings.forEach(h => {
+      h.pctOfPortfolio = totalWealth > 0 ? Math.round(h.value / totalWealth * 10000) / 100 : 0;
+    });
+
+    const transactions = txRows.map(t => ({
+      type: t.type,
+      sym: t.sym,
+      qty: t.qty,
+      price: t.price,
+      total: t.total,
+      time: t.time,
+      ts: t.ts,
+    }));
+
     res.json({
-      id: user.id, nick: user.nick || user.name, name: user.name,
-      avatar: user.avatar, photo: hasAnyPhoto(user) ? photoUrlForUser(user) : null, country: user.country,
-      bio: user.bio, role: user.role, joined: user.joined,
-      balance:     ['admin', 'dev'].includes(user.role) ? null : user.balance,
-      totalTx:     txs.length,
-      buys:        txs.filter(t => t.type === 'buy').length,
-      sells:       txs.filter(t => t.type === 'sell').length,
+      id: user.id,
+      nick: user.nick || user.name,
+      name: user.name,
+      avatar: user.avatar,
+      photo: hasAnyPhoto(user) ? photoUrlForUser(user) : null,
+      country: user.country,
+      bio: user.bio,
+      role: user.role,
+      joined: user.joined,
+      balance: hideFinance ? null : user.balance,
+      cash: hideFinance ? null : user.balance,
+      marketValue: hideFinance ? null : Math.round(mv * 100) / 100,
+      totalWealth: hideFinance ? null : Math.round(totalWealth * 100) / 100,
+      totalTx: Number(txStats.totalTx) || 0,
+      buys: Number(txStats.buys) || 0,
+      sells: Number(txStats.sells) || 0,
+      buyVolume: hideFinance ? null : Math.round(Number(txStats.buyVolume) * 100) / 100,
+      sellVolume: hideFinance ? null : Math.round(Number(txStats.sellVolume) * 100) / 100,
       holdings,
-      marketValue: mv,
-      totalWealth: ['admin', 'dev'].includes(user.role) ? null : user.balance + mv,
+      transactions,
+      assetsCount: holdings.length,
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
