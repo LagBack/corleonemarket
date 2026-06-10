@@ -112,13 +112,28 @@ router.post('/me/photo', requireAuth, (req, res, next) => {
 router.delete('/me/photo', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT photo FROM users WHERE id = ?', [req.session.userId]);
-    if (rows.length && rows[0].photo) unlinkLegacyPhoto(rows[0].photo);
+    if (!rows.length) return res.status(404).json({ error: 'N達o encontrado' });
+    const user = rows[0];
+
+    // Clean up old disk-based photo (legacy) if it still exists on disk
+    const diskPath = legacyDiskPath(user.photo);
+    if (diskPath && fs.existsSync(diskPath)) {
+      try { fs.unlinkSync(diskPath); } catch (_) {}
+    }
+
     await pool.query(
       'UPDATE users SET photo=NULL, photo_data=NULL, photo_mime=NULL WHERE id=?',
       [req.session.userId]
     );
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    if (/Unknown column/i.test(e.message)) {
+      return res.status(500).json({
+        error: 'Colunas de foto n達o existem. Execute: node data/mysql-migrate.js'
+      });
+    }
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // GET /api/users/:id/public
