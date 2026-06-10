@@ -2,7 +2,7 @@ const router      = require('express').Router();
 const db          = require('../data/db');
 const pool        = require('../data/mysql');
 const usersStore  = require('../data/users-store');
-const { photoUrlForUser } = require('../data/user-serialize');
+const { photoUrlForUser, hasAnyPhoto } = require('../data/user-serialize');
 const { requireAuth }     = require('../middleware/auth');
 const { normalizeRole } = require('../data/roles');
 
@@ -200,7 +200,7 @@ router.get('/ranking', async (req, res) => {
         });
         return {
           id: u.id, name: u.nick || u.name,
-          avatar: u.avatar, photo: photoUrlForUser(u),
+          avatar: u.avatar, photo: hasAnyPhoto(u) ? photoUrlForUser(u) : null,
           role: normalizeRole(u.role), country: u.country,
           total: Math.round((u.balance + mv) * 100) / 100,
           cash: u.balance, stocks: mv

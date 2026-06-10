@@ -112,13 +112,18 @@ function authTab(t) {
   document.getElementById('auth-register').style.display = t === 'register' ? 'block' : 'none';
 }
 
+function normalizeAvatar(avatar) {
+  return AVATARS.includes(avatar) ? avatar : '🦁';
+}
+
 function buildAvatarGrid(containerId, onSelect, current) {
   const el = document.getElementById(containerId);
   if (!el) return;
+  const selected = normalizeAvatar(current);
   el.innerHTML = '';
   AVATARS.forEach(a => {
     const d = document.createElement('div');
-    d.className = 'av-opt' + (a === current ? ' sel' : '');
+    d.className = 'av-opt' + (a === selected ? ' sel' : '');
     d.textContent = a;
     d.onclick = () => {
       el.querySelectorAll('.av-opt').forEach(x => x.classList.remove('sel'));
@@ -216,16 +221,34 @@ function userPhotoSrc(user) {
   return user.photoDisplay || user.photo || null;
 }
 
+function photoWithBust(url) {
+  if (!url || url.startsWith('data:')) return url || '';
+  return url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+}
+
+function userAvatarHtml(user, { wrapClass = '' } = {}) {
+  const emoji = normalizeAvatar(user?.avatar);
+  const src = userPhotoSrc(user);
+  if (src) {
+    const bust = photoWithBust(src);
+    return `<div class="${wrapClass}"><img src="${bust}" alt="${emoji}" onerror="this.parentElement.textContent=this.alt"></div>`;
+  }
+  return `<div class="${wrapClass}">${emoji}</div>`;
+}
+
+function refreshRankingIfActive() {
+  if (document.getElementById('p-ranking')?.classList.contains('active')) renderRanking();
+}
+
 function updateHeaderUser() {
   if (!CU) return;
   document.getElementById('hdr-name').textContent = CU.nick || CU.name;
   const avEl = document.getElementById('hdr-av');
   const src = userPhotoSrc(CU);
   if (src) {
-    const bust = src.startsWith('data:') ? '' : `?t=${Date.now()}`;
-    avEl.innerHTML = `<img src="${src}${bust}" alt="">`;
+    avEl.innerHTML = `<img src="${photoWithBust(src)}" alt="${normalizeAvatar(CU.avatar)}" onerror="this.replaceWith(document.createTextNode(this.alt))">`;
   } else {
-    avEl.textContent = CU.avatar || '🦁';
+    avEl.textContent = normalizeAvatar(CU.avatar);
   }
 }
 
@@ -645,9 +668,7 @@ async function renderRanking() {
     if (gen !== _pageLoadGen) return;
     const medals = ['r1', 'r2', 'r3'];
     document.getElementById('rank-inv').innerHTML = investors.map((r, i) => {
-      const avHtml = r.photo
-        ? `<div class="rank-av"><img src="${r.photo}"></div>`
-        : `<div class="rank-av">${r.avatar||'🦁'}</div>`;
+      const avHtml = userAvatarHtml(r, { wrapClass: 'rank-av' });
       return `<div class="rank-row" onclick="openProfileModal('${r.id}')" style="cursor:pointer" title="Ver perfil">
         <div class="rank-n ${medals[i]||''} serif">${i+1}</div>
         ${avHtml}
@@ -680,11 +701,12 @@ async function renderRanking() {
 
 // ── PROFILE ──
 function renderProfile() {
-  editAvatar = CU.avatar || '🦁';
+  editAvatar = normalizeAvatar(CU.avatar);
   const photoSrc = userPhotoSrc(CU);
+  const emoji = normalizeAvatar(CU.avatar);
   const photoHtml = photoSrc
-    ? `<img src="${photoSrc}${photoSrc.startsWith('data:') ? '' : `?t=${Date.now()}`}" alt="">`
-    : CU.avatar || '🦁';
+    ? `<img src="${photoWithBust(photoSrc)}" alt="${emoji}" onerror="this.replaceWith(document.createTextNode(this.alt))">`
+    : emoji;
   document.getElementById('prof-hero').innerHTML = `
     <div class="profile-photo" onclick="document.getElementById('photo-input').click()" title="Clique para trocar foto">
       ${photoHtml}
@@ -707,7 +729,7 @@ function renderProfile() {
   const csel = document.getElementById('edit-country');
   const countryVal = countryNameOnly(CU.country);
   for (let o of csel.options) o.selected = (o.value === countryVal);
-  buildAvatarGrid('edit-av-grid', a => editAvatar = a, CU.avatar || '🦁');
+  buildAvatarGrid('edit-av-grid', a => editAvatar = a, normalizeAvatar(CU.avatar));
 
   // Stats + pie chart + dividends — load in parallel (portfolio failure must not break profile)
   Promise.all([
@@ -879,7 +901,9 @@ async function saveProfile() {
     if (name) body.name = name;
     const { user } = await PUT('users/me', body);
     CU = { ...CU, ...user };
+    editAvatar = normalizeAvatar(CU.avatar);
     updateHeaderUser();
+    refreshRankingIfActive();
     showMsg('prof-msg', '✓ Perfil salvo!', 'ok');
     renderProfile();
   } catch(e) { showMsg('prof-msg', e.message, 'err'); }
@@ -904,6 +928,7 @@ async function uploadPhoto(input) {
       CU = { ...CU, ...me };
     } catch (_) {}
     updateHeaderUser();
+    refreshRankingIfActive();
     showMsg('prof-msg', '✓ Foto atualizada!', 'ok');
     renderProfile();
   } catch(e) { showMsg('prof-msg', e.message, 'err'); }
@@ -912,14 +937,20 @@ async function uploadPhoto(input) {
 
 async function removePhoto() {
   try {
-    await fetch('/api/users/me/photo', { method: 'DELETE', credentials: 'include' });
+    const r = await fetch('/api/users/me/photo', { method: 'DELETE', credentials: 'include' });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      throw new Error(data.error || 'Não foi possível remover a foto.');
+    }
     CU.photo = null;
     CU.photoDisplay = null;
     try {
       const me = await GET('auth/me');
       CU = { ...CU, ...me };
     } catch (_) {}
+    editAvatar = normalizeAvatar(CU.avatar);
     updateHeaderUser();
+    refreshRankingIfActive();
     showMsg('prof-msg', 'Foto removida — usando emoji.', 'ok');
     renderProfile();
   } catch(e) { showMsg('prof-msg', e.message, 'err'); }
@@ -1087,9 +1118,10 @@ async function cancelOwnershipOffer(offerId) {
 // ── ADMIN ──
 function renderUsersTable(usersData) {
   document.getElementById('users-body').innerHTML = usersData.map(u => {
+    const emoji = normalizeAvatar(u.avatar);
     const avHtml = u.photo
-      ? `<img src="${u.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle">`
-      : `<span style="font-size:18px">${u.avatar||'👤'}</span>`;
+      ? `<img src="${photoWithBust(u.photo)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle" alt="${emoji}" onerror="this.replaceWith(document.createTextNode(this.alt))">`
+      : `<span style="font-size:18px">${emoji}</span>`;
     const isSelf = sameUserId(u.id, CU.id);
     const roleLocked = u.role === 'dev';
     const canEditRole = canAccessFullAdmin() && !roleLocked && (!isSelf || canAccessDev());
@@ -1590,9 +1622,10 @@ function closeModal() { document.getElementById('modal-bg').classList.remove('op
 async function openProfileModal(uid) {
   try {
     const p = await GET('users/' + uid + '/public');
+    const emoji = normalizeAvatar(p.avatar);
     const photoHtml = p.photo
-      ? `<img src="${p.photo}" style="width:70px;height:70px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)">`
-      : `<span style="font-size:40px">${p.avatar||'🦁'}</span>`;
+      ? `<img src="${photoWithBust(p.photo)}" style="width:70px;height:70px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)" alt="${emoji}" onerror="this.replaceWith(document.createTextNode(this.alt))">`
+      : `<span style="font-size:40px">${emoji}</span>`;
     const holdingsHtml = p.holdings.length
       ? p.holdings.map(h => `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">

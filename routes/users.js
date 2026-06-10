@@ -2,7 +2,7 @@ const router = require('express').Router();
 const multer = require('multer');
 const pool   = require('../data/mysql');
 const { normalizeCountry } = require('../data/countries');
-const { toPublicUser, photoUrlForUser } = require('../data/user-serialize');
+const { toPublicUser, photoUrlForUser, hasAnyPhoto } = require('../data/user-serialize');
 const { legacyDiskPath } = require('./user-photo');
 const fs     = require('fs');
 const db     = require('../data/db');
@@ -158,7 +158,7 @@ router.get('/:id/public', async (req, res) => {
     }).filter(Boolean);
     res.json({
       id: user.id, nick: user.nick || user.name, name: user.name,
-      avatar: user.avatar, photo: photoUrlForUser(user), country: user.country,
+      avatar: user.avatar, photo: hasAnyPhoto(user) ? photoUrlForUser(user) : null, country: user.country,
       bio: user.bio, role: user.role, joined: user.joined,
       balance:     ['admin', 'dev'].includes(user.role) ? null : user.balance,
       totalTx:     txs.length,

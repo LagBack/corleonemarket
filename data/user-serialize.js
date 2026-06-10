@@ -11,16 +11,14 @@ function hasPhotoData(row) {
 
 function photoUrlForUser(row) {
   if (!row) return null;
-  // Prefer db-stored data (always valid when returned)
   if (hasPhotoData(row)) {
     return `/api/users/${row.id}/photo`;
   }
-  // Only return legacy disk path if we can't guarantee the file exists on disk
-  // The caller should verify existence before using it
-  if (row.photo && String(row.photo).startsWith('/uploads/')) {
-    return row.photo;
+  const photo = row.photo && String(row.photo).trim();
+  if (photo && photo.startsWith('/uploads/')) {
+    return photo;
   }
-  return row.photo || null;
+  return null;
 }
 
 function photoDataUrl(row) {
@@ -53,4 +51,4 @@ function toPublicUser(row, opts = {}) {
   return rest;
 }
 
-module.exports = { photoUrlForUser, photoDataUrl, toPublicUser, hasPhotoData };
+module.exports = { photoUrlForUser, photoDataUrl, toPublicUser, hasPhotoData, hasAnyPhoto };
