@@ -93,10 +93,10 @@ async function seedMySQL() {
     for (const u of users) {
       await pool.query(
         `INSERT INTO users
-           (id, email, pass, name, nick, avatar, photo, country, bio, role, balance, joined)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, email, pass, name, nick, avatar, photo, country, bio, role, balance, joined, wealth_tier)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [u.id, u.email, u.pass, u.name, u.nick, u.avatar,
-         u.photo, u.country, u.bio, u.role, u.balance, u.joined]
+         u.photo, u.country, u.bio, u.role, u.balance, u.joined, 'investidor']
       );
     }
 

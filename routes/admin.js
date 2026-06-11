@@ -7,6 +7,7 @@ const pool   = require('../data/mysql');
 const { requireAdmin, requireMod, requireDev } = require('../middleware/auth');
 const { toPublicUser } = require('../data/user-serialize');
 const { normalizeRole } = require('../data/roles');
+const { computeTier }    = require('../data/tiers');
 const simulator = require('../data/simulator');
 
 const uploadMem = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -53,7 +54,23 @@ router.get('/log', requireMod, (req, res) => {
 router.get('/users', requireMod, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users');
-    res.json(rows.map(toPublicUser));
+    // Load all stocks and portfolios for MV computation (needed for wealthTier)
+    const stocks = db.get('stocks').value();
+    const [pfRows] = await pool.query('SELECT user_id, sym, qty FROM portfolios WHERE qty > 0');
+    const pfMap = {};
+    pfRows.forEach(r => {
+      if (!pfMap[r.user_id]) pfMap[r.user_id] = {};
+      pfMap[r.user_id][r.sym] = r.qty;
+    });
+
+    res.json(rows.map(u => {
+      let mv = 0;
+      Object.entries(pfMap[u.id] || {}).forEach(([sym, qty]) => {
+        const s = stocks.find(x => x.sym === sym);
+        if (s) mv += s.price * qty;
+      });
+      return { ...toPublicUser(u), wealthTier: computeTier(u.balance + mv) };
+    }));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

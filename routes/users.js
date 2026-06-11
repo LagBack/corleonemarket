@@ -7,6 +7,7 @@ const { legacyDiskPath } = require('./user-photo');
 const fs     = require('fs');
 const db     = require('../data/db');
 const { requireAuth } = require('../middleware/auth');
+const { computeTier }  = require('../data/tiers');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -29,7 +30,18 @@ router.get('/me', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [req.session.userId]);
     if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
-    res.json(toPublicUser(rows[0], { includePhotoData: true }));
+
+    // Compute wealth tier (balance + portfolio market value)
+    let mv = 0;
+    const pfRows = await pool.query('SELECT sym, qty FROM portfolios WHERE user_id = ? AND qty > 0', [req.session.userId]);
+    const stocks = db.get('stocks').value();
+    for (const r of pfRows[0]) {
+      const s = stocks.find(x => x.sym === r.sym);
+      if (s) mv += s.price * r.qty;
+    }
+    const totalWealth = rows[0].balance + mv;
+
+    res.json({ ...toPublicUser(rows[0], { includePhotoData: true }), wealthTier: computeTier(totalWealth) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -219,6 +231,7 @@ router.get('/:id/public', async (req, res) => {
       cash: hideFinance ? null : user.balance,
       marketValue: hideFinance ? null : Math.round(mv * 100) / 100,
       totalWealth: hideFinance ? null : Math.round(totalWealth * 100) / 100,
+      wealthTier: hideFinance ? 'investidor' : computeTier(totalWealth),
       totalTx: Number(txStats.totalTx) || 0,
       buys: Number(txStats.buys) || 0,
       sells: Number(txStats.sells) || 0,

@@ -5,6 +5,7 @@ const usersStore  = require('../data/users-store');
 const { photoUrlForUser, hasAnyPhoto } = require('../data/user-serialize');
 const { requireAuth }     = require('../middleware/auth');
 const { normalizeRole } = require('../data/roles');
+const { computeTier }    = require('../data/tiers');
 
 // ── Portfolio helpers (MySQL) ──────────────────────────────────────────────
 
@@ -198,12 +199,13 @@ router.get('/ranking', async (req, res) => {
           const s = stocks.find(x => x.sym === sym);
           if (s) mv += s.price * qty;
         });
+        const total = Math.round((u.balance + mv) * 100) / 100;
         return {
           id: u.id, name: u.nick || u.name,
           avatar: u.avatar, photo: hasAnyPhoto(u) ? photoUrlForUser(u) : null,
           role: normalizeRole(u.role), country: u.country,
-          total: Math.round((u.balance + mv) * 100) / 100,
-          cash: u.balance, stocks: mv
+          total, cash: u.balance, stocks: mv,
+          wealthTier: computeTier(total),
         };
       }).sort((a, b) => b.total - a.total);
 
