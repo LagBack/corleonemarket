@@ -20,14 +20,14 @@ async function validateOwners(owners) {
     const u = allUsers.find(x => x.id === o.userId);
     if (!u) throw new Error(`Usuário não encontrado: ${o.userId}`);
     const pct = parseFloat(o.pct);
-    if (isNaN(pct) || pct <= 0 || pct > 0.5)
-      throw new Error(`Porcentagem inválida para ${u.nick || u.name}. Máx 0.5%.`);
+    if (isNaN(pct) || pct <= 0 || pct > 10)
+      throw new Error(`Porcentagem inválida para ${u.nick || u.name}. Máx 10%.`);
     totalPct += pct;
     seen.add(o.userId);
     validatedOwners.push({ userId: o.userId, name: u.nick || u.name, pct });
   }
-  if (totalPct > 0.5)
-    throw new Error(`Total de porcentagens (${totalPct.toFixed(3)}%) excede o limite de 0.5%.`);
+  if (totalPct > 10)
+    throw new Error(`Total de porcentagens (${totalPct.toFixed(3)}%) excede o limite de 10%.`);
   return validatedOwners;
 }
 

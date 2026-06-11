@@ -481,9 +481,8 @@ function showPage(pg) {
 }
 
 function roleSelectOptions(currentRole) {
-  const roles = canAccessDev()
-    ? ['user', 'moderator', 'admin', 'dev']
-    : ['user', 'moderator', 'admin'];
+  // 'dev' can only be granted via direct database edit — not through the admin panel
+  const roles = ['user', 'moderator', 'admin'];
   return roles.map(r =>
     `<option value="${r}" ${currentRole === r ? 'selected' : ''}>${r}</option>`
   ).join('');
@@ -1415,7 +1414,7 @@ function renderOwnerRowsList(rows, containerId, totalId, warningId, summaryId, u
 
   const total = rows.reduce((a, r) => a + r.pct, 0);
   if (totalPctEl) totalPctEl.textContent = total.toFixed(3) + '%';
-  if (warning) warning.style.display = total > 1 ? 'block' : 'none';
+  if (warning) warning.style.display = total > 7 ? 'block' : 'none';
   if (summary) summary.textContent = rows.length ? `${rows.length} dono(s) · ${total.toFixed(3)}% total por trade` : '';
 
   container.innerHTML = rows.length
@@ -1426,7 +1425,7 @@ function renderOwnerRowsList(rows, containerId, totalId, warningId, summaryId, u
           <div style="font-weight:600;font-size:12px">${r.name}${r.userId === CU?.id ? ' <span style="color:var(--gold);font-size:10px">(você)</span>' : ''}</div>
           <div style="font-size:10px;color:var(--text3)">Recebe <span class="mono gold">${r.pct.toFixed(3)}%</span> de cada trade</div>
         </div>
-        <input type="number" value="${r.pct}" min="0.001" max="0.5" step="0.001"
+        <input type="number" value="${r.pct}" min="0.001" max="10" step="0.001"
           style="width:80px;text-align:right;font-size:12px;padding:6px"
           onchange="${updateFn}('${r.userId}', this.value)">
         <span style="font-size:11px;color:var(--text3)">%</span>
