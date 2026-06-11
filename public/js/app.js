@@ -1464,7 +1464,7 @@ async function adminCreateStock() {
   const status = document.getElementById('na-status').value;
 
   const total = ownerRows.reduce((a, r) => a + r.pct, 0);
-  if (total > 1) { showMsg('adm-create-msg', 'Total de % dos donos não pode ultrapassar 1%.', 'err'); return; }
+  if (total > 10) { showMsg('adm-create-msg', 'Total de % dos donos não pode ultrapassar 10%.', 'err'); return; }
 
   try {
     await POST('stocks', { sym, name, sector, desc, price, shares, vol, status, owners: ownerRows });
@@ -1502,7 +1502,7 @@ async function adminSaveStock() {
   const status = document.getElementById('es-status').value;
   const pricePct = document.getElementById('es-pct').value;
   const totalOwners = editOwnerRows.reduce((a, r) => a + r.pct, 0);
-  if (totalOwners > 1) { showMsg('adm-edit-msg', 'Total de % dos donos não pode ultrapassar 1%.', 'err'); return; }
+  if (totalOwners > 10) { showMsg('adm-edit-msg', 'Total de % dos donos não pode ultrapassar 10%.', 'err'); return; }
   try {
     await PUT(`stocks/${sym}`, { name, sector, desc, vol, status, pricePct, owners: editOwnerRows });
     showMsg('adm-edit-msg', `✓ ${sym} atualizado!`, 'ok');
