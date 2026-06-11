@@ -182,8 +182,21 @@ router.put('/users/:id/balance', requireMod, async (req, res) => {
     else if (mode === 'subtract') newBalance = Math.max(0, Math.round((currentBal - amt) * 100) / 100);
     else                          newBalance = Math.max(0, Math.round(amt * 100) / 100);
     await pool.query('UPDATE users SET balance = ? WHERE id = ?', [newBalance, req.params.id]);
+
+    // Recompute wealth_tier from balance + portfolio market value
+    const stocks = db.get('stocks').value();
+    const [pfRows] = await pool.query('SELECT sym, qty FROM portfolios WHERE user_id = ? AND qty > 0', [req.params.id]);
+    let mv = 0;
+    for (const r of pfRows[0]) {
+      const s = stocks.find(x => x.sym === r.sym);
+      if (s) mv += s.price * r.qty;
+    }
+    const totalWealth = newBalance + mv;
+    const newTier = computeTier(totalWealth);
+    await pool.query('UPDATE users SET wealth_tier = ? WHERE id = ?', [newTier, req.params.id]);
+
     db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `Saldo de ${target.nick || target.name} alterado para R$${newBalance.toFixed(2)} por ${req.session.userId}` }).write();
-    res.json({ ok: true, balance: newBalance });
+    res.json({ ok: true, balance: newBalance, wealthTier: newTier });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
