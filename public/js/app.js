@@ -135,11 +135,29 @@ function tierTooltip(tierId) {
 
 function supporterBadge(user) {
   if (!user || !user.hasDonated) return '';
-  return `<span class="badge-tip"><span class="supporter-badge">🌟 Apoia</span><span class="tip-bubble">Entregue aos usuários que contribuíram ao projeto doando dinheiro.</span></span>`;
+  return `<span class="badge-tip"><span class="supporter-badge">🌟 Supporter</span><span class="tip-bubble">Entregue aos usuários que contribuíram ao projeto doando dinheiro.</span></span>`;
 }
 
+const FONT_FAMILIES = {
+  '':          "'DM Sans', sans-serif",
+  'playfair':  "'Playfair Display', serif",
+  'dm-mono':   "'DM Mono', monospace",
+  'inter':     "'Inter', sans-serif",
+  'roboto':    "'Roboto', sans-serif",
+  'poppins':   "'Poppins', sans-serif",
+  'lora':      "'Lora', serif",
+  'cormorant': "'Cormorant Garamond', serif",
+  'roboto-mono':"'Roboto Mono', monospace",
+};
+
 function getFontClass() {
-  return localStorage.getItem('corleone-font-preference') || '';
+  const v = localStorage.getItem('corleone-font-preference') || '';
+  return v ? `ft-${v}` : 'ft-default';
+}
+
+function getFontStyle() {
+  const v = localStorage.getItem('corleone-font-preference') || '';
+  return FONT_FAMILIES[v] || FONT_FAMILIES[''];
 }
 
 // ── AUTH TAB ──
@@ -283,6 +301,7 @@ function updateHeaderUser() {
   const nameEl = document.getElementById('hdr-name');
   nameEl.textContent = CU.nick || CU.name;
   nameEl.className = getFontClass();
+  nameEl.style.fontFamily = getFontStyle();
   const avEl = document.getElementById('hdr-av');
   const src = userPhotoSrc(CU);
   if (src) {
@@ -712,7 +731,7 @@ async function renderRanking() {
         <div class="rank-n ${medals[i]||''} serif">${i+1}</div>
         ${avHtml}
         <div style="flex:1">
-          <div style="font-weight:600;font-size:13px" class="${getFontClass()}">${r.name} <span style="font-size:10px;color:var(--text3)">${formatCountry(r.country)}</span></div>
+          <div style="font-weight:600;font-size:13px;font-family:${getFontStyle()}" class="${getFontClass()}">${r.name} <span style="font-size:10px;color:var(--text3)">${formatCountry(r.country)}</span></div>
           <span class="badge-tip"><span class="tier-badge ${r.wealthTier}" style="color:${tierColorStr(r.wealthTier)}">${tierBadge(r.wealthTier)} ${tierName(r.wealthTier)}</span><span class="tip-bubble">${tierTooltip(r.wealthTier)}</span></span>
           ${r.role !== 'user' ? `<span class="role-badge ${r.role}">${roleLabel(r.role)}</span>` : ''}${supporterBadge(r)}
           <div style="font-size:10px;color:var(--text3)">Cash R$${fmtN(r.cash)}</div>
@@ -753,7 +772,7 @@ function renderProfile() {
       <div class="ph-overlay">📷 Trocar</div>
     </div>
     <div>
-      <div class="profile-name-big ${getFontClass()}">${CU.nick || CU.name}</div>
+      <div class="profile-name-big" style="font-family:${getFontStyle()}">${CU.nick || CU.name}</div>
       <div style="font-size:12px;color:var(--text3)">${CU.name} · ${formatCountry(CU.country)}</div>
       <span class="badge-tip"><span class="tier-badge ${CU.wealthTier || 'investidor'}" style="color:${tierColorStr(CU.wealthTier || 'investidor')}">${tierBadge(CU.wealthTier || 'investidor')} ${tierName(CU.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(CU.wealthTier || 'investidor')}</span></span>
       ${CU.role !== 'user' ? `<span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span>` : ''}${supporterBadge(CU)}
@@ -772,16 +791,47 @@ function renderProfile() {
   for (let o of csel.options) o.selected = (o.value === countryVal);
   buildAvatarGrid('edit-av-grid', a => editAvatar = a, normalizeAvatar(CU.avatar));
 
-  // Font selector
-  const fSel = document.getElementById('edit-font-select');
-  if (fSel) {
-    fSel.value = localStorage.getItem('corleone-font-preference') || '';
-    fSel.addEventListener('change', function() {
+  // Font selector visibility — supporters only
+  const fBox = document.getElementById('font-selector-box');
+  if (fBox) fBox.style.display = CU && CU.hasDonated ? '' : 'none';
+
+  // Global font selector (ranking page) — supporters only
+  let gSel = document.getElementById('global-font-select');
+  if (gSel) {
+    gSel.style.display = CU && CU.hasDonated ? '' : 'none';
+    gSel.value = localStorage.getItem('corleone-font-preference') || '';
+    gSel.onchange = function() {
       localStorage.setItem('corleone-font-preference', this.value);
-      // Re-render all badges so font class updates everywhere
       renderProfile();
-      if (document.getElementById('rank-inv')) renderRanking();
-    });
+      renderRanking();
+    };
+  }
+
+  // Profile modal font selector — supporters viewing their own profile
+  let pModalSel = document.getElementById('prof-modal-font-select');
+  if (pModalSel && _profileModalData && CU && _profileModalData.id === CU.id) {
+    pModalSel.style.display = CU.hasDonated ? '' : 'none';
+    pModalSel.value = localStorage.getItem('corleone-font-preference') || '';
+    pModalSel.onchange = function() {
+      localStorage.setItem('corleone-font-preference', this.value);
+      renderProfile();
+      renderRanking();
+      if (document.getElementById('modal-bg').classList.contains('open')) openProfileModal(CU.id);
+    };
+  }
+
+  // Font selector (edit profile) — always init but hidden via font-selector-box for non-supporters
+  const fSel = document.getElementById('edit-font-select');
+  if (fSel && (!CU || !CU.hasDonated)) fSel.value = localStorage.getItem('corleone-font-preference') || '';
+  if (fSel) {
+    if (CU && CU.hasDonated) {
+      fSel.value = localStorage.getItem('corleone-font-preference') || '';
+      fSel.addEventListener('change', function() {
+        localStorage.setItem('corleone-font-preference', this.value);
+        renderProfile();
+        renderRanking();
+      });
+    }
   }
 
   // Stats + pie chart + dividends — load in parallel (portfolio failure must not break profile)
@@ -1761,7 +1811,7 @@ async function openProfileModal(uid) {
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
         <div style="width:70px;height:70px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--s3);overflow:hidden;flex-shrink:0">${photoHtml}</div>
         <div style="flex:1;min-width:0">
-          <div class="${getFontClass()}" style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;font-style:italic">${p.nick}</div>
+          <div class="${getFontClass()}" style="font-family:${getFontStyle()};font-size:20px;font-weight:700">${p.nick}</div>
           <div style="font-size:11px;color:var(--text3)">${p.name} · ${formatCountry(p.country)}</div>
           <span class="badge-tip"><span class="tier-badge ${p.wealthTier || 'investidor'}" style="color:${tierColorStr(p.wealthTier || 'investidor')}">${tierBadge(p.wealthTier || 'investidor')} ${tierName(p.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(p.wealthTier || 'investidor')}</span></span>
           ${p.role !== 'user' ? `<span class="role-badge ${p.role}" style="margin-top:4px;display:inline-block">${roleLabel(p.role)}</span>` : ''}${supporterBadge({ hasDonated: p.hasDonated })}
@@ -1802,6 +1852,23 @@ async function openProfileModal(uid) {
         </div>
         <div class="prof-tx-list" id="prof-tx-list">${renderProfileTransactions(p.transactions || [], 'all')}</div>
         ${(p.transactions || []).length >= 100 ? '<p style="font-size:9px;color:var(--text3);margin-top:8px">Exibindo as 100 operações mais recentes.</p>' : ''}
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">🔤 Fonte do Usuário (apenas supporter)</div>
+        <div style="padding:6px 0">
+          <select id="prof-modal-font-select" style="width:100%;padding:7px 9px;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px;font-family:'DM Sans',sans-serif">
+            <option value="">Padrão (DM Sans)</option>
+            <option value="playfair">Playfair Display (serif, itálico)</option>
+            <option value="dm-mono">DM Mono (monospace)</option>
+            <option value="inter">Inter (sans-serif, limpo)</option>
+            <option value="roboto">Roboto (sans-serif, neutro)</option>
+            <option value="poppins">Poppins (sans-serif, arredondado)</option>
+            <option value="lora">Lora (serif, elegante)</option>
+            <option value="cormorant">Cormorant Garamond (serif, clássico)</option>
+            <option value="roboto-mono">Roboto Mono (monospace)</option>
+          </select>
+        </div>
       </div>
 
       <div style="margin-top:16px"><button class="btn btn-ghost" onclick="closeModal()" style="width:100%">Fechar</button></div>
