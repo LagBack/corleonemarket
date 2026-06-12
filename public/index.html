@@ -235,6 +235,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .role-badge.dev{background:rgba(155,89,182,.16);color:#bb8fce;border:1px solid rgba(155,89,182,.35)}
 .role-badge.user{background:var(--s3);color:var(--text3);border:1px solid var(--border2)}
 
+/* ── BADGE TOOLTIP ── */
+.badge-tip{position:relative;cursor:help}
+.badge-tip .tip-bubble{visibility:hidden;opacity:0;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--s2);color:var(--text1);font-size:11px;font-weight:400;padding:6px 10px;border-radius:6px;border:1px solid var(--border);white-space:nowrap;z-index:9999;pointer-events:none;transition:opacity .15s,visibility .15s;box-shadow:0 4px 12px rgba(0,0,0,.3);line-height:1.3}
+.badge-tip .tip-bubble::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--s2)}
+.badge-tip:hover .tip-bubble{visibility:visible;opacity:1}
+
 /* ── RANKING ── */
 .rank-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:4px;margin-bottom:6px;background:var(--s1)}
 .rank-n{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;min-width:28px;color:var(--text3)}

@@ -108,6 +108,15 @@ const TIER_EMOJI = { don_corleone:'🔥', supremo:'⚡', magnata:'🏆', padrino
 const TIER_LABEL = { don_corleone:'Don Corleone', supremo:'SUPREMO', magnata:'MAGNATA', padrinom:'PADRINO', notavel:'NOTÁVEL', investidor:'INVESTIDOR' };
 const TIER_COLOR = { don_corleone:'#FFD700', supremo:'#FF6B35', magnata:'#DAA520', padrinom:'#CD853F', notavel:'#90EE90', investidor:'#aaa' };
 
+const TIER_TT = {
+  don_corleone:  'Patrimônio ≥ R$1 bilhão. O ápice do mercado.',
+  supremo:       'Patrimônio ≥ R$500 milhões. Elite financeira.',
+  magnata:       'Patrimônio ≥ R$100 milhões. Magnata do mercado.',
+  padrinom:      'Patrimônio ≥ R$10 milhões. Padrino dos negócios.',
+  notavel:       'Patrimônio ≥ R$1 milhão. Investidor Notável.',
+  investidor:    'Comece a investir! Compre ações e cresça seu patrimônio.',
+};
+
 function tierBadge(tierId) {
   return TIER_EMOJI[tierId] || '💰';
 }
@@ -118,6 +127,10 @@ function tierName(tierId) {
 
 function tierColorStr(tierId) {
   return TIER_COLOR[tierId] || '#aaa';
+}
+
+function tierTooltip(tierId) {
+  return TIER_TT[tierId] || '';
 }
 
 // ── AUTH TAB ──
@@ -689,7 +702,7 @@ async function renderRanking() {
         ${avHtml}
         <div style="flex:1">
           <div style="font-weight:600;font-size:13px">${r.name} <span style="font-size:10px;color:var(--text3)">${formatCountry(r.country)}</span></div>
-          <span class="tier-badge ${r.wealthTier}" style="color:${tierColorStr(r.wealthTier)}">${tierBadge(r.wealthTier)} ${tierName(r.wealthTier)}</span>
+          <span class="badge-tip"><span class="tier-badge ${r.wealthTier}" style="color:${tierColorStr(r.wealthTier)}">${tierBadge(r.wealthTier)} ${tierName(r.wealthTier)}</span><span class="tip-bubble">${tierTooltip(r.wealthTier)}</span></span>
           ${r.role !== 'user' ? `<span class="role-badge ${r.role}">${roleLabel(r.role)}</span>` : ''}
           <div style="font-size:10px;color:var(--text3)">Cash R$${fmtN(r.cash)}</div>
         </div>
@@ -731,7 +744,7 @@ function renderProfile() {
     <div>
       <div class="profile-name-big">${CU.nick || CU.name}</div>
       <div style="font-size:12px;color:var(--text3)">${CU.name} · ${formatCountry(CU.country)}</div>
-      <span class="tier-badge ${CU.wealthTier || 'investidor'}" style="color:${tierColorStr(CU.wealthTier || 'investidor')}">${tierBadge(CU.wealthTier || 'investidor')} ${tierName(CU.wealthTier || 'investidor')}</span>
+      <span class="badge-tip"><span class="tier-badge ${CU.wealthTier || 'investidor'}" style="color:${tierColorStr(CU.wealthTier || 'investidor')}">${tierBadge(CU.wealthTier || 'investidor')} ${tierName(CU.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(CU.wealthTier || 'investidor')}</span></span>
       ${CU.role !== 'user' ? `<span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span>` : ''}
       ${CU.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${CU.bio}"</div>` : ''}
     </div>
@@ -1153,7 +1166,7 @@ function renderUsersTable(usersData) {
           ? `<select class="role-select" data-uid="${u.id}" data-prev="${u.role}" onchange="changeRole(this)">
               ${roleSelectOptions(u.role)}
             </select>`
-          : `<span class="tier-badge ${u.wealthTier || 'investidor'}" style="color:${tierColorStr(u.wealthTier || 'investidor')}">${tierBadge(u.wealthTier || 'investidor')} ${tierName(u.wealthTier || 'investidor')}</span>${u.role !== 'user' ? `<span class="role-badge ${u.role}">${roleLabel(u.role)}</span>` : ''}${roleLocked ? ' <span style="font-size:9px;color:var(--text3)">🔒</span>' : ''}`}
+          : `<span class="badge-tip"><span class="tier-badge ${u.wealthTier || 'investidor'}" style="color:${tierColorStr(u.wealthTier || 'investidor')}">${tierBadge(u.wealthTier || 'investidor')} ${tierName(u.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(u.wealthTier || 'investidor')}</span></span>${u.role !== 'user' ? `<span class="role-badge ${u.role}">${roleLabel(u.role)}</span>` : ''}${roleLocked ? ' <span style="font-size:9px;color:var(--text3)">🔒</span>' : ''}`}
       </td>
       <td data-label="Saldo" class="mono" style="font-size:11px">R$${fmtN(u.balance)}</td>
       <td class="td-actions" data-label="Ações">
@@ -1727,7 +1740,7 @@ async function openProfileModal(uid) {
         <div style="flex:1;min-width:0">
           <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;font-style:italic">${p.nick}</div>
           <div style="font-size:11px;color:var(--text3)">${p.name} · ${formatCountry(p.country)}</div>
-          <span class="tier-badge ${p.wealthTier || 'investidor'}" style="color:${tierColorStr(p.wealthTier || 'investidor')}">${tierBadge(p.wealthTier || 'investidor')} ${tierName(p.wealthTier || 'investidor')}</span>
+          <span class="badge-tip"><span class="tier-badge ${p.wealthTier || 'investidor'}" style="color:${tierColorStr(p.wealthTier || 'investidor')}">${tierBadge(p.wealthTier || 'investidor')} ${tierName(p.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(p.wealthTier || 'investidor')}</span></span>
           ${p.role !== 'user' ? `<span class="role-badge ${p.role}" style="margin-top:4px;display:inline-block">${roleLabel(p.role)}</span>` : ''}
           ${p.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${p.bio}"</div>` : ''}
         </div>
