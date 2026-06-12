@@ -27,6 +27,10 @@ async function migrateUsersTable() {
     await pool.query(`ALTER TABLE users ADD COLUMN wealth_tier VARCHAR(20) DEFAULT 'investidor'`);
     console.log('📦 MySQL: coluna wealth_tier adicionada.');
   }
+  if (!(await columnExists('users', 'has_donated'))) {
+    await pool.query(`ALTER TABLE users ADD COLUMN has_donated BOOLEAN DEFAULT FALSE`);
+    console.log('🌟 MySQL: coluna has_donated adicionada.');
+  }
 }
 
 module.exports = migrateUsersTable;

@@ -43,6 +43,7 @@ function toPublicUser(row, opts = {}) {
   if (!row) return null;
   const { pass, photo_data, photo_mime, ...rest } = row;
   if (rest.role != null) rest.role = normalizeRole(rest.role);
+  if (rest.has_donated != null) { rest.hasDonated = !!rest.has_donated; delete rest.has_donated; }
   // Only set photo field if there's actual backing data; otherwise null so client falls back to emoji
   rest.photo = hasAnyPhoto(row) ? photoUrlForUser(row) : null;
   if (opts.includePhotoData) {

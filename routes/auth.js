@@ -63,11 +63,11 @@ router.post('/register', async (req, res) => {
       joined:  Date.now()
     };
     await pool.query(
-      `INSERT INTO users (id, email, pass, name, nick, avatar, photo, country, bio, role, balance, joined)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (id, email, pass, name, nick, avatar, photo, country, bio, role, balance, joined, has_donated)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [newUser.id, newUser.email, newUser.pass, newUser.name, newUser.nick,
        newUser.avatar, newUser.photo, newUser.country, newUser.bio,
-       newUser.role, newUser.balance, newUser.joined]
+       newUser.role, newUser.balance, newUser.joined, false]
     );
     // Create empty portfolio in lowdb
     const pfs = db.get('portfolios').value();

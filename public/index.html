@@ -235,6 +235,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .role-badge.dev{background:rgba(155,89,182,.16);color:#bb8fce;border:1px solid rgba(155,89,182,.35)}
 .role-badge.user{background:var(--s3);color:var(--text3);border:1px solid var(--border2)}
 
+/* ── SUPPORTER BADGE ── */
+.supporter-badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.5px;margin-top:4px;background:rgba(255,215,0,.15);color:#FFD700;border:1px solid rgba(255,215,0,.4)}
+
 /* ── BADGE TOOLTIP ── */
 .badge-tip{position:relative;cursor:help}
 .badge-tip .tip-bubble{visibility:hidden;opacity:0;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--s2);color:var(--text1);font-size:11px;font-weight:400;padding:6px 10px;border-radius:6px;border:1px solid var(--border);white-space:nowrap;z-index:9999;pointer-events:none;transition:opacity .15s,visibility .15s;box-shadow:0 4px 12px rgba(0,0,0,.3);line-height:1.3}
@@ -584,6 +587,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           <div class="fg"><label>Nome</label><input type="text" id="edit-name" placeholder="Seu nome completo"></div>
           <div class="fg"><label>Apelido</label><input type="text" id="edit-nick"></div>
           <div class="fg"><label>Avatar Emoji</label><div class="avatar-grid" id="edit-av-grid"></div></div>
+          <div class="fg"><label>Fonte do Nome</label>
+            <select id="edit-font-select">
+              <option value="">Padrão (DM Sans)</option>
+              <option value="playfair">Playfair Display (serif, itálico)</option>
+              <option value="dm-mono">DM Mono (monospace)</option>
+            </select>
+          </div>
           <div class="fg"><label>País</label>
             <select id="edit-country">
               <option value="Brasil">🇧🇷 Brasil</option>

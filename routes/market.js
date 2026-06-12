@@ -206,6 +206,7 @@ router.get('/ranking', async (req, res) => {
           role: normalizeRole(u.role), country: u.country,
           total, cash: u.balance, stocks: mv,
           wealthTier: computeTier(total),
+          hasDonated: !!u.has_donated,
         };
       }).sort((a, b) => b.total - a.total);
 

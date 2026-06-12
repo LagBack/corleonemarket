@@ -133,6 +133,15 @@ function tierTooltip(tierId) {
   return TIER_TT[tierId] || '';
 }
 
+function supporterBadge(user) {
+  if (!user || !user.hasDonated) return '';
+  return `<span class="badge-tip"><span class="supporter-badge">🌟 Apoia</span><span class="tip-bubble">Entregue aos usuários que contribuíram ao projeto doando dinheiro.</span></span>`;
+}
+
+function getFontClass() {
+  return localStorage.getItem('corleone-font-preference') || '';
+}
+
 // ── AUTH TAB ──
 function authTab(t) {
   document.querySelectorAll('.auth-tab').forEach((b, i) =>
@@ -271,7 +280,9 @@ function refreshRankingIfActive() {
 
 function updateHeaderUser() {
   if (!CU) return;
-  document.getElementById('hdr-name').textContent = CU.nick || CU.name;
+  const nameEl = document.getElementById('hdr-name');
+  nameEl.textContent = CU.nick || CU.name;
+  nameEl.className = getFontClass();
   const avEl = document.getElementById('hdr-av');
   const src = userPhotoSrc(CU);
   if (src) {
@@ -701,9 +712,9 @@ async function renderRanking() {
         <div class="rank-n ${medals[i]||''} serif">${i+1}</div>
         ${avHtml}
         <div style="flex:1">
-          <div style="font-weight:600;font-size:13px">${r.name} <span style="font-size:10px;color:var(--text3)">${formatCountry(r.country)}</span></div>
+          <div style="font-weight:600;font-size:13px" class="${getFontClass()}">${r.name} <span style="font-size:10px;color:var(--text3)">${formatCountry(r.country)}</span></div>
           <span class="badge-tip"><span class="tier-badge ${r.wealthTier}" style="color:${tierColorStr(r.wealthTier)}">${tierBadge(r.wealthTier)} ${tierName(r.wealthTier)}</span><span class="tip-bubble">${tierTooltip(r.wealthTier)}</span></span>
-          ${r.role !== 'user' ? `<span class="role-badge ${r.role}">${roleLabel(r.role)}</span>` : ''}
+          ${r.role !== 'user' ? `<span class="role-badge ${r.role}">${roleLabel(r.role)}</span>` : ''}${supporterBadge(r)}
           <div style="font-size:10px;color:var(--text3)">Cash R$${fmtN(r.cash)}</div>
         </div>
         <div class="mono gold" style="font-size:13px">R$${fmtN(r.total)}</div>
@@ -742,10 +753,10 @@ function renderProfile() {
       <div class="ph-overlay">📷 Trocar</div>
     </div>
     <div>
-      <div class="profile-name-big">${CU.nick || CU.name}</div>
+      <div class="profile-name-big ${getFontClass()}">${CU.nick || CU.name}</div>
       <div style="font-size:12px;color:var(--text3)">${CU.name} · ${formatCountry(CU.country)}</div>
       <span class="badge-tip"><span class="tier-badge ${CU.wealthTier || 'investidor'}" style="color:${tierColorStr(CU.wealthTier || 'investidor')}">${tierBadge(CU.wealthTier || 'investidor')} ${tierName(CU.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(CU.wealthTier || 'investidor')}</span></span>
-      ${CU.role !== 'user' ? `<span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span>` : ''}
+      ${CU.role !== 'user' ? `<span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span>` : ''}${supporterBadge(CU)}
       ${CU.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${CU.bio}"</div>` : ''}
     </div>
     <div style="margin-left:auto;text-align:right">
@@ -760,6 +771,18 @@ function renderProfile() {
   const countryVal = countryNameOnly(CU.country);
   for (let o of csel.options) o.selected = (o.value === countryVal);
   buildAvatarGrid('edit-av-grid', a => editAvatar = a, normalizeAvatar(CU.avatar));
+
+  // Font selector
+  const fSel = document.getElementById('edit-font-select');
+  if (fSel) {
+    fSel.value = localStorage.getItem('corleone-font-preference') || '';
+    fSel.addEventListener('change', function() {
+      localStorage.setItem('corleone-font-preference', this.value);
+      // Re-render all badges so font class updates everywhere
+      renderProfile();
+      if (document.getElementById('rank-inv')) renderRanking();
+    });
+  }
 
   // Stats + pie chart + dividends — load in parallel (portfolio failure must not break profile)
   Promise.all([
@@ -1166,7 +1189,7 @@ function renderUsersTable(usersData) {
           ? `<select class="role-select" data-uid="${u.id}" data-prev="${u.role}" onchange="changeRole(this)">
               ${roleSelectOptions(u.role)}
             </select>`
-          : `<span class="badge-tip"><span class="tier-badge ${u.wealthTier || 'investidor'}" style="color:${tierColorStr(u.wealthTier || 'investidor')}">${tierBadge(u.wealthTier || 'investidor')} ${tierName(u.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(u.wealthTier || 'investidor')}</span></span>${u.role !== 'user' ? `<span class="role-badge ${u.role}">${roleLabel(u.role)}</span>` : ''}${roleLocked ? ' <span style="font-size:9px;color:var(--text3)">🔒</span>' : ''}`}
+          : `<span class="badge-tip"><span class="tier-badge ${u.wealthTier || 'investidor'}" style="color:${tierColorStr(u.wealthTier || 'investidor')}">${tierBadge(u.wealthTier || 'investidor')} ${tierName(u.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(u.wealthTier || 'investidor')}</span></span>${u.role !== 'user' ? `<span class="role-badge ${u.role}">${roleLabel(u.role)}</span>` : ''}${supporterBadge({ hasDonated: u.hasDonated })}${roleLocked ? ' <span style="font-size:9px;color:var(--text3)">🔒</span>' : ''}`}
       </td>
       <td data-label="Saldo" class="mono" style="font-size:11px">R$${fmtN(u.balance)}</td>
       <td class="td-actions" data-label="Ações">
@@ -1738,10 +1761,10 @@ async function openProfileModal(uid) {
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
         <div style="width:70px;height:70px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--s3);overflow:hidden;flex-shrink:0">${photoHtml}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;font-style:italic">${p.nick}</div>
+          <div class="${getFontClass()}" style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;font-style:italic">${p.nick}</div>
           <div style="font-size:11px;color:var(--text3)">${p.name} · ${formatCountry(p.country)}</div>
           <span class="badge-tip"><span class="tier-badge ${p.wealthTier || 'investidor'}" style="color:${tierColorStr(p.wealthTier || 'investidor')}">${tierBadge(p.wealthTier || 'investidor')} ${tierName(p.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(p.wealthTier || 'investidor')}</span></span>
-          ${p.role !== 'user' ? `<span class="role-badge ${p.role}" style="margin-top:4px;display:inline-block">${roleLabel(p.role)}</span>` : ''}
+          ${p.role !== 'user' ? `<span class="role-badge ${p.role}" style="margin-top:4px;display:inline-block">${roleLabel(p.role)}</span>` : ''}${supporterBadge({ hasDonated: p.hasDonated })}
           ${p.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${p.bio}"</div>` : ''}
         </div>
       </div>
