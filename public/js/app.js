@@ -135,7 +135,7 @@ function tierTooltip(tierId) {
 
 function supporterBadge(user) {
   if (!user || !user.hasDonated) return '';
-  return `<span class="badge-tip"><span class="supporter-badge">🌟 Supporter</span><span class="tip-bubble">Entregue aos usuários que contribuíram ao projeto doando dinheiro.</span></span>`;
+  return `<span class="badge-tip"><span class="supporter-badge">🌟 Supporter</span><span class="tip-bubble">Entregue aos usuários que contribuíram ao projeto doando.</span></span>`;
 }
 
 function getFontClass() {
@@ -282,7 +282,6 @@ function updateHeaderUser() {
   if (!CU) return;
   const nameEl = document.getElementById('hdr-name');
   nameEl.textContent = CU.nick || CU.name;
-  nameEl.className = getFontClass();
   const avEl = document.getElementById('hdr-av');
   const src = userPhotoSrc(CU);
   if (src) {
@@ -713,8 +712,10 @@ async function renderRanking() {
         ${avHtml}
         <div style="flex:1">
           <div style="font-weight:600;font-size:13px" class="${getFontClass()}">${r.name} <span style="font-size:10px;color:var(--text3)">${formatCountry(r.country)}</span></div>
-          <span class="badge-tip"><span class="tier-badge ${r.wealthTier}" style="color:${tierColorStr(r.wealthTier)}">${tierBadge(r.wealthTier)} ${tierName(r.wealthTier)}</span><span class="tip-bubble">${tierTooltip(r.wealthTier)}</span></span>
-          ${r.role !== 'user' ? `<span class="role-badge ${r.role}">${roleLabel(r.role)}</span>` : ''}${supporterBadge(r)}
+          <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+            <span class="badge-tip"><span class="tier-badge ${r.wealthTier}" style="color:${tierColorStr(r.wealthTier)}">${tierBadge(r.wealthTier)} ${tierName(r.wealthTier)}</span><span class="tip-bubble">${tierTooltip(r.wealthTier)}</span></span>
+            ${r.role !== 'user' ? `<span class="badge-tip"><span class="role-badge ${r.role}">${roleLabel(r.role)}</span></span>` : ''}${supporterBadge(r)}
+          </div>
           <div style="font-size:10px;color:var(--text3)">Cash R$${fmtN(r.cash)}</div>
         </div>
         <div class="mono gold" style="font-size:13px">R$${fmtN(r.total)}</div>
@@ -753,10 +754,12 @@ function renderProfile() {
       <div class="ph-overlay">📷 Trocar</div>
     </div>
     <div>
-      <div class="profile-name-big ${getFontClass()}">${CU.nick || CU.name}</div>
+      <div class="profile-name-big">${CU.nick || CU.name}</div>
       <div style="font-size:12px;color:var(--text3)">${CU.name} · ${formatCountry(CU.country)}</div>
-      <span class="badge-tip"><span class="tier-badge ${CU.wealthTier || 'investidor'}" style="color:${tierColorStr(CU.wealthTier || 'investidor')}">${tierBadge(CU.wealthTier || 'investidor')} ${tierName(CU.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(CU.wealthTier || 'investidor')}</span></span>
-      ${CU.role !== 'user' ? `<span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span>` : ''}${supporterBadge(CU)}
+      <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:4px">
+        <span class="badge-tip"><span class="tier-badge ${CU.wealthTier || 'investidor'}" style="color:${tierColorStr(CU.wealthTier || 'investidor')}">${tierBadge(CU.wealthTier || 'investidor')} ${tierName(CU.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(CU.wealthTier || 'investidor')}</span></span>
+        ${CU.role !== 'user' ? `<span class="badge-tip"><span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span></span>` : ''}${supporterBadge(CU)}
+      </div>
       ${CU.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${CU.bio}"</div>` : ''}
     </div>
     <div style="margin-left:auto;text-align:right">
@@ -1763,8 +1766,10 @@ async function openProfileModal(uid) {
         <div style="flex:1;min-width:0">
           <div class="${getFontClass()}" style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;font-style:italic">${p.nick}</div>
           <div style="font-size:11px;color:var(--text3)">${p.name} · ${formatCountry(p.country)}</div>
-          <span class="badge-tip"><span class="tier-badge ${p.wealthTier || 'investidor'}" style="color:${tierColorStr(p.wealthTier || 'investidor')}">${tierBadge(p.wealthTier || 'investidor')} ${tierName(p.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(p.wealthTier || 'investidor')}</span></span>
-          ${p.role !== 'user' ? `<span class="role-badge ${p.role}" style="margin-top:4px;display:inline-block">${roleLabel(p.role)}</span>` : ''}${supporterBadge({ hasDonated: p.hasDonated })}
+          <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:4px">
+            <span class="badge-tip"><span class="tier-badge ${p.wealthTier || 'investidor'}" style="color:${tierColorStr(p.wealthTier || 'investidor')}">${tierBadge(p.wealthTier || 'investidor')} ${tierName(p.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(p.wealthTier || 'investidor')}</span></span>
+            ${p.role !== 'user' ? `<span class="badge-tip"><span class="role-badge ${p.role}">${roleLabel(p.role)}</span></span>` : ''}${supporterBadge({ hasDonated: p.hasDonated })}
+          </div>
           ${p.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${p.bio}"</div>` : ''}
         </div>
       </div>

@@ -232,6 +232,7 @@ router.get('/:id/public', async (req, res) => {
       marketValue: hideFinance ? null : Math.round(mv * 100) / 100,
       totalWealth: hideFinance ? null : Math.round(totalWealth * 100) / 100,
       wealthTier: hideFinance ? 'investidor' : computeTier(totalWealth),
+      hasDonated: !!user.has_donated,
       totalTx: Number(txStats.totalTx) || 0,
       buys: Number(txStats.buys) || 0,
       sells: Number(txStats.sells) || 0,
