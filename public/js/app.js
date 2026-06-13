@@ -195,11 +195,39 @@ async function doRegister() {
   const pass    = document.getElementById('r-pass').value;
   const nick    = document.getElementById('r-nick').value.trim();
   const country = document.getElementById('r-country').value;
+  if (!isValidEmailFormat(email)) {
+    showAuthErr('Formato de e-mail inválido. Use o formato: qualquer@provedor.com (ex: voce@gmail.com).');
+    return;
+  }
   try {
     const { user } = await POST('auth/register', { name, lname, email, pass, nick, avatar: regAvatar, country });
     CU = user;
     startApp();
   } catch(e) { showAuthErr(e.message); }
+}
+
+// Email format: (anything)@(any provider).com
+// e.g. user@gmail.com, name@outlook.com
+const REGISTER_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.com$/i;
+function isValidEmailFormat(email) {
+  return typeof email === 'string' && REGISTER_EMAIL_REGEX.test(email.trim());
+}
+
+function validateRegisterEmail() {
+  const input  = document.getElementById('r-email');
+  const fb     = document.getElementById('r-email-feedback');
+  if (!input || !fb) return;
+  const value  = input.value.trim();
+  fb.classList.remove('invalid', 'valid');
+  fb.innerHTML = '';
+  if (!value) return;
+  if (isValidEmailFormat(value)) {
+    fb.classList.add('valid');
+    fb.innerHTML = '<span class="ef-icon">✓</span><span>E-mail válido</span>';
+  } else {
+    fb.classList.add('invalid');
+    fb.innerHTML = '<span class="ef-icon">✕</span><span>Formato inválido — use qualquer@provedor.com (ex: voce@gmail.com)</span>';
+  }
 }
 
 async function doLogout() {
