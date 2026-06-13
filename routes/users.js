@@ -2,7 +2,7 @@ const router = require('express').Router();
 const multer = require('multer');
 const pool   = require('../data/mysql');
 const { normalizeCountry } = require('../data/countries');
-const { toPublicUser, photoUrlForUser, hasAnyPhoto } = require('../data/user-serialize');
+const { toPublicUser, photoUrlForUser, hasAnyPhoto, hasAnyBanner, bannerDataUrl } = require('../data/user-serialize');
 const { legacyDiskPath } = require('./user-photo');
 const fs     = require('fs');
 const db     = require('../data/db');
@@ -148,6 +148,75 @@ router.delete('/me/photo', requireAuth, async (req, res) => {
   }
 });
 
+// ── Banner upload helpers ──
+
+function unlinkLegacyBanner(bannerPath) {
+  const diskPath = legacyDiskPath(bannerPath);
+  if (diskPath && fs.existsSync(diskPath)) {
+    try { fs.unlinkSync(diskPath); } catch (_) {}
+  }
+}
+
+// POST /api/users/me/banner
+router.post('/me/banner', requireAuth, (req, res, next) => {
+  upload.single('banner')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload inválido.' });
+    next();
+  });
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+  const uid = req.session.userId;
+  const bannerUrl = `/api/users/${uid}/banner`;
+  try {
+    const [rows] = await pool.query('SELECT banner FROM users WHERE id = ?', [uid]);
+    if (rows.length && rows[0].banner) unlinkLegacyBanner(rows[0].banner);
+
+    await pool.query(
+      `UPDATE users SET banner=?, banner_data=?, banner_mime=? WHERE id=?`,
+      [bannerUrl, req.file.buffer, req.file.mimetype, uid]
+    );
+
+    const display = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    res.json({ ok: true, banner: bannerUrl, bannerDisplay: display });
+  } catch (e) {
+    console.error('Banner upload error:', e.message);
+    if (/Unknown column/i.test(e.message)) {
+      return res.status(500).json({
+        error: 'Banco desatualizado. Reinicie o servidor para aplicar migrações ou rode mysql-migrate.'
+      });
+    }
+    res.status(500).json({ error: e.message || 'Não foi possível salvar o banner.' });
+  }
+});
+
+// DELETE /api/users/me/banner
+router.delete('/me/banner', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT banner FROM users WHERE id = ?', [req.session.userId]);
+    if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
+    const user = rows[0];
+
+    const diskPath = legacyDiskPath(user.banner);
+    if (diskPath && fs.existsSync(diskPath)) {
+      try { fs.unlinkSync(diskPath); } catch (_) {}
+    }
+
+    await pool.query(
+      'UPDATE users SET banner=NULL, banner_data=NULL, banner_mime=NULL WHERE id=?',
+      [req.session.userId]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    if (/Unknown column/i.test(e.message)) {
+      return res.status(500).json({
+        error: 'Colunas de banner não existem. Execute: node data/mysql-migrate.js'
+      });
+    }
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 // GET /api/users/:id/public
 router.get('/:id/public', async (req, res) => {
   if (req.params.id === 'me') {
@@ -223,6 +292,8 @@ router.get('/:id/public', async (req, res) => {
       name: user.name,
       avatar: user.avatar,
       photo: hasAnyPhoto(user) ? photoUrlForUser(user) : null,
+      banner: hasAnyBanner(user) ? `/api/users/${user.id}/banner` : null,
+      bannerDisplay: bannerDataUrl(user),
       country: user.country,
       bio: user.bio,
       role: user.role,

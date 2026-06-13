@@ -12,8 +12,11 @@ async function seedMySQL() {
         name     VARCHAR(255)  DEFAULT '',
         nick     VARCHAR(255)  DEFAULT '',
         avatar   VARCHAR(20)   DEFAULT '',
-        photo    VARCHAR(500)  DEFAULT NULL,
-        country  VARCHAR(100)  DEFAULT '',
+        photo      VARCHAR(500)  DEFAULT NULL,
+        banner     VARCHAR(500)  DEFAULT NULL,
+        banner_data MEDIUMBLOB   DEFAULT NULL,
+        banner_mime VARCHAR(64)  DEFAULT NULL,
+        country    VARCHAR(100)  DEFAULT '',
         bio      TEXT,
         role     VARCHAR(20)   DEFAULT 'user',
         balance  DOUBLE        DEFAULT 50000,
@@ -93,10 +96,10 @@ async function seedMySQL() {
     for (const u of users) {
       await pool.query(
         `INSERT INTO users
-           (id, email, pass, name, nick, avatar, photo, country, bio, role, balance, joined, wealth_tier)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, email, pass, name, nick, avatar, photo, banner, banner_data, banner_mime, country, bio, role, balance, joined, wealth_tier)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [u.id, u.email, u.pass, u.name, u.nick, u.avatar,
-         u.photo, u.country, u.bio, u.role, u.balance, u.joined, 'investidor']
+         u.photo, null, null, null, u.country, u.bio, u.role, u.balance, u.joined, 'investidor']
       );
     }
 

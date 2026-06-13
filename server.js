@@ -56,8 +56,9 @@ app.use(session({
 }));
 
 // Public profile photos (no auth — must be before SPA catch-all)
-const { serveUserPhoto } = require('./routes/user-photo');
+const { serveUserPhoto, serveUserBanner } = require('./routes/user-photo');
 app.get('/api/users/:id/photo', serveUserPhoto);
+app.get('/api/users/:id/banner', serveUserBanner);
 
 // ── Routes ──
 app.use('/api/auth', require('./routes/auth'));

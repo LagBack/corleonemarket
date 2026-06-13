@@ -29,7 +29,19 @@ async function migrateUsersTable() {
   }
   if (!(await columnExists('users', 'has_donated'))) {
     await pool.query(`ALTER TABLE users ADD COLUMN has_donated BOOLEAN DEFAULT FALSE`);
-    console.log('🌟 MySQL: coluna has_donated adicionada.');
+    console.log('🌟 MySQL: coluna has_donada adicionada.');
+  }
+  if (!(await columnExists('users', 'banner'))) {
+    await pool.query(`ALTER TABLE users ADD COLUMN banner VARCHAR(500) DEFAULT NULL`);
+    console.log('📦 MySQL: coluna banner adicionada.');
+  }
+  if (!(await columnExists('users', 'banner_data'))) {
+    await pool.query(`ALTER TABLE users ADD COLUMN banner_data MEDIUMBLOB DEFAULT NULL`);
+    console.log('📦 MySQL: coluna banner_data adicionada.');
+  }
+  if (!(await columnExists('users', 'banner_mime'))) {
+    await pool.query(`ALTER TABLE users ADD COLUMN banner_mime VARCHAR(64) DEFAULT NULL`);
+    console.log('📦 MySQL: coluna banner_mime adicionada.');
   }
 }
 

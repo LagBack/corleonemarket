@@ -12,7 +12,7 @@ function hasBuffer(data) {
   return (Buffer.isBuffer(data) ? data.length : data.length) > 0;
 }
 
-/** Public — no session required */
+/** Public — no session required. Serve a user's profile photo. */
 async function serveUserPhoto(req, res) {
   const id = req.params.id;
   if (!id || id === 'me') return res.status(404).end();
@@ -42,4 +42,34 @@ async function serveUserPhoto(req, res) {
   }
 }
 
-module.exports = { serveUserPhoto, legacyDiskPath, hasBuffer };
+/** Public — no session required. Serve a user's profile banner. */
+async function serveUserBanner(req, res) {
+  const id = req.params.id;
+  if (!id || id === 'me') return res.status(404).end();
+
+  try {
+    const [rows] = await pool.query(
+      'SELECT banner_data, banner_mime, banner FROM users WHERE id = ?',
+      [id]
+    );
+    if (!rows.length) return res.status(404).end();
+
+    const row = rows[0];
+    if (hasBuffer(row.banner_data)) {
+      res.set('Content-Type', row.banner_mime || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.send(row.banner_data);
+    }
+
+    const diskPath = legacyDiskPath(row.banner);
+    if (diskPath && fs.existsSync(diskPath)) {
+      return res.sendFile(diskPath);
+    }
+    res.status(404).end();
+  } catch (e) {
+    console.error('serveUserBanner:', e.message);
+    res.status(500).end();
+  }
+}
+
+module.exports = { serveUserPhoto, serveUserBanner, legacyDiskPath, hasBuffer };

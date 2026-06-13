@@ -292,6 +292,18 @@ function photoWithBust(url) {
   return url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
 }
 
+// ── BANNER HELPERS ──
+
+function userBannerSrc(user) {
+  if (!user) return null;
+  return user.bannerDisplay || user.banner || null;
+}
+
+function bannerWithBust(url) {
+  if (!url || url.startsWith('data:')) return url || '';
+  return url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+}
+
 function userAvatarHtml(user, { wrapClass = '' } = {}) {
   const emoji = normalizeAvatar(user?.avatar);
   const src = userPhotoSrc(user);
@@ -776,23 +788,30 @@ function renderProfile() {
   const photoHtml = photoSrc
     ? `<img src="${photoWithBust(photoSrc)}" alt="${emoji}" onerror="this.replaceWith(document.createTextNode(this.alt))">`
     : emoji;
+  const bannerSrc = userBannerSrc(CU);
+  const bannerHtml = bannerSrc
+    ? `<div class="profile-banner-wrap"><img src="${bannerWithBust(bannerSrc)}" alt="Banner" onerror="this.parentElement.style.display='none'"><div class="pb-overlay"><button class="pb-btn" onclick="document.getElementById('banner-input').click()">Trocar Banner</button></div></div>`
+    : `<div class="profile-banner-wrap" style="display:none"></div>`;
   document.getElementById('prof-hero').innerHTML = `
-    <div class="profile-photo" onclick="document.getElementById('photo-input').click()" title="Clique para trocar foto">
-      ${photoHtml}
-      <div class="ph-overlay">📷 Trocar</div>
-    </div>
-    <div>
-      <div class="profile-name-big">${CU.nick || CU.name}</div>
-      <div style="font-size:12px;color:var(--text3)">${CU.name} · ${formatCountry(CU.country)}</div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:4px">
-        <span class="badge-tip"><span class="tier-badge ${CU.wealthTier || 'investidor'}" style="color:${tierColorStr(CU.wealthTier || 'investidor')}">${tierBadge(CU.wealthTier || 'investidor')} ${tierName(CU.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(CU.wealthTier || 'investidor')}</span></span>
-        ${CU.role !== 'user' ? `<span class="badge-tip"><span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span></span>` : ''}${supporterBadge(CU)}
+    ${bannerHtml}
+    <div style="padding:20px;display:flex;align-items:center;gap:18px">
+      <div class="profile-photo" onclick="document.getElementById('photo-input').click()" title="Clique para trocar foto">
+        ${photoHtml}
+        <div class="ph-overlay">Trocar</div>
       </div>
-      ${CU.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${CU.bio}"</div>` : ''}
-    </div>
-    <div style="margin-left:auto;text-align:right">
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Saldo</div>
-      <div class="serif gold" style="font-size:26px">R$${fmtN(CU.balance)}</div>
+      <div style="flex:1">
+        <div class="profile-name-big">${CU.nick || CU.name}</div>
+        <div style="font-size:12px;color:var(--text3)">${CU.name} · ${formatCountry(CU.country)}</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:4px">
+          <span class="badge-tip"><span class="tier-badge ${CU.wealthTier || 'investidor'}" style="color:${tierColorStr(CU.wealthTier || 'investidor')}">${tierBadge(CU.wealthTier || 'investidor')} ${tierName(CU.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(CU.wealthTier || 'investidor')}</span></span>
+          ${CU.role !== 'user' ? `<span class="badge-tip"><span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span></span>` : ''}${supporterBadge(CU)}
+        </div>
+        ${CU.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${CU.bio}"</div>` : ''}
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Saldo</div>
+        <div class="serif gold" style="font-size:26px">R$${fmtN(CU.balance)}</div>
+      </div>
     </div>
   `;
   document.getElementById('edit-name').value = CU.name || '';
@@ -1036,6 +1055,46 @@ async function removePhoto() {
     updateHeaderUser();
     refreshRankingIfActive();
     showMsg('prof-msg', 'Foto removida — usando emoji.', 'ok');
+    renderProfile();
+  } catch(e) { showMsg('prof-msg', e.message, 'err'); }
+}
+
+// ── BANNER ──
+
+async function uploadBanner(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append('banner', file);
+  try {
+    const r = await fetch('/api/users/me/banner', { method: 'POST', credentials: 'include', body: formData });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      if (r.status === 401) throw new Error('Sessão expirada. Faça login novamente.');
+      throw new Error(data.error || `Erro ao enviar banner (${r.status})`);
+    }
+    CU.banner = data.banner || CU.banner;
+    CU.bannerDisplay = data.bannerDisplay || CU.bannerDisplay;
+    try { const me = await GET('auth/me'); CU = { ...CU, ...me }; } catch (_) {}
+    updateHeaderUser();
+    refreshRankingIfActive();
+    showMsg('prof-msg', 'Banner atualizado!', 'ok');
+    renderProfile();
+  } catch(e) { showMsg('prof-msg', e.message, 'err'); }
+  finally { input.value = ''; }
+}
+
+async function removeBanner() {
+  try {
+    const r = await fetch('/api/users/me/banner', { method: 'DELETE', credentials: 'include' });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      throw new Error(data.error || 'Não foi possível remover o banner.');
+    }
+    CU.banner = null;
+    CU.bannerDisplay = null;
+    try { const me = await GET('auth/me'); CU = { ...CU, ...me }; } catch (_) {}
+    showMsg('prof-msg', 'Banner removido.', 'ok');
     renderProfile();
   } catch(e) { showMsg('prof-msg', e.message, 'err'); }
 }
@@ -1787,8 +1846,15 @@ async function openProfileModal(uid) {
 
     const modal = document.getElementById('modal-content');
     modal.className = 'modal modal-wide';
+
+    // Banner in public profile modal
+    const modalBanner = p.banner && p.bannerDisplay
+      ? `<div class="profile-banner-wrap" style="margin:-16px -24px 0;border-radius:var(--radius) var(--radius) 0 0"><img src="${bannerWithBust(p.banner)}" alt="" onerror="this.parentElement.style.display='none'"></div>`
+      : '';
+
     modal.innerHTML = `
       <h2>Análise do Investidor</h2>
+      ${modalBanner}
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
         <div style="width:70px;height:70px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--s3);overflow:hidden;flex-shrink:0">${photoHtml}</div>
         <div style="flex:1;min-width:0">
