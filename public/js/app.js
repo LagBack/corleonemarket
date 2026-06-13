@@ -788,30 +788,23 @@ function renderProfile() {
   const photoHtml = photoSrc
     ? `<img src="${photoWithBust(photoSrc)}" alt="${emoji}" onerror="this.replaceWith(document.createTextNode(this.alt))">`
     : emoji;
-  const bannerSrc = userBannerSrc(CU);
-  const bannerHtml = bannerSrc
-    ? `<div class="profile-banner-wrap"><img src="${bannerWithBust(bannerSrc)}" alt="Banner" onerror="this.parentElement.style.display='none'"><div class="pb-overlay"><button class="pb-btn" onclick="document.getElementById('banner-input').click()">Trocar Banner</button></div></div>`
-    : `<div class="profile-banner-wrap" style="display:none"></div>`;
   document.getElementById('prof-hero').innerHTML = `
-    ${bannerHtml}
-    <div style="padding:20px;display:flex;align-items:center;gap:18px">
-      <div class="profile-photo" onclick="document.getElementById('photo-input').click()" title="Clique para trocar foto">
-        ${photoHtml}
-        <div class="ph-overlay">Trocar</div>
+    <div class="profile-photo" onclick="document.getElementById('photo-input').click()" title="Clique para trocar foto">
+      ${photoHtml}
+      <div class="ph-overlay">📷 Trocar</div>
+    </div>
+    <div>
+      <div class="profile-name-big">${CU.nick || CU.name}</div>
+      <div style="font-size:12px;color:var(--text3)">${CU.name} · ${formatCountry(CU.country)}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:4px">
+        <span class="badge-tip"><span class="tier-badge ${CU.wealthTier || 'investidor'}" style="color:${tierColorStr(CU.wealthTier || 'investidor')}">${tierBadge(CU.wealthTier || 'investidor')} ${tierName(CU.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(CU.wealthTier || 'investidor')}</span></span>
+        ${CU.role !== 'user' ? `<span class="badge-tip"><span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span></span>` : ''}${supporterBadge(CU)}
       </div>
-      <div style="flex:1">
-        <div class="profile-name-big">${CU.nick || CU.name}</div>
-        <div style="font-size:12px;color:var(--text3)">${CU.name} · ${formatCountry(CU.country)}</div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:4px">
-          <span class="badge-tip"><span class="tier-badge ${CU.wealthTier || 'investidor'}" style="color:${tierColorStr(CU.wealthTier || 'investidor')}">${tierBadge(CU.wealthTier || 'investidor')} ${tierName(CU.wealthTier || 'investidor')}</span><span class="tip-bubble">${tierTooltip(CU.wealthTier || 'investidor')}</span></span>
-          ${CU.role !== 'user' ? `<span class="badge-tip"><span class="role-badge ${CU.role}">${roleLabel(CU.role)}</span></span>` : ''}${supporterBadge(CU)}
-        </div>
-        ${CU.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${CU.bio}"</div>` : ''}
-      </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Saldo</div>
-        <div class="serif gold" style="font-size:26px">R$${fmtN(CU.balance)}</div>
-      </div>
+      ${CU.bio ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;font-style:italic">"${CU.bio}"</div>` : ''}
+    </div>
+    <div style="margin-left:auto;text-align:right">
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Saldo</div>
+      <div class="serif gold" style="font-size:26px">R$${fmtN(CU.balance)}</div>
     </div>
   `;
   document.getElementById('edit-name').value = CU.name || '';
@@ -1847,15 +1840,15 @@ async function openProfileModal(uid) {
     const modal = document.getElementById('modal-content');
     modal.className = 'modal modal-wide';
 
-    // Banner in public profile modal
-    const modalBanner = p.banner && p.bannerDisplay
-      ? `<div class="profile-banner-wrap" style="margin:-16px -24px 0;border-radius:var(--radius) var(--radius) 0 0"><img src="${bannerWithBust(p.banner)}" alt="" onerror="this.parentElement.style.display='none'"></div>`
+    // Banner in public profile modal — inline with user photo/info row
+    const bannerHtml = p.banner && p.bannerDisplay
+      ? `<img src="${bannerWithBust(p.banner)}" alt="" style="width:150px;height:80px;border-radius:var(--radius);object-fit:cover;flex-shrink:0;background:var(--s3)" onerror="this.remove()">`
       : '';
 
     modal.innerHTML = `
       <h2>Análise do Investidor</h2>
-      ${modalBanner}
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+        ${bannerHtml}
         <div style="width:70px;height:70px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--s3);overflow:hidden;flex-shrink:0">${photoHtml}</div>
         <div style="flex:1;min-width:0">
           <div class="${getFontClass()}" style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;font-style:italic">${p.nick}</div>
