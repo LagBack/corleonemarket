@@ -8,6 +8,13 @@ const { normalizeRole } = require('../data/roles');
 const db   = require('../data/db');       // lowdb — still used for portfolios
 const { requireAuth } = require('../middleware/auth');
 
+// Email format: (anything)@(any provider).com
+// e.g. user@gmail.com, name@outlook.com, foo@yahoo.com
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.com$/i;
+function isValidEmailFormat(email) {
+  return typeof email === 'string' && EMAIL_REGEX.test(email.trim());
+}
+
 // GET /api/auth/me
 router.get('/me', requireAuth, async (req, res) => {
   try {
@@ -45,12 +52,16 @@ router.post('/register', async (req, res) => {
   const { name, lname, email, pass, nick, avatar, country } = req.body;
   if (!name || !email || !pass) return res.status(400).json({ error: 'Nome, e-mail e senha são obrigatórios.' });
   if (pass.length < 6) return res.status(400).json({ error: 'Senha mínima: 6 caracteres.' });
+  const normalizedEmail = email.toLowerCase().trim();
+  if (!isValidEmailFormat(normalizedEmail)) {
+    return res.status(400).json({ error: 'Formato de e-mail inválido. Use o formato: qualquer@provedor.com (ex: voce@gmail.com).' });
+  }
   try {
-    const [exists] = await pool.query('SELECT id FROM users WHERE email = ?', [email.toLowerCase().trim()]);
+    const [exists] = await pool.query('SELECT id FROM users WHERE email = ?', [normalizedEmail]);
     if (exists.length) return res.status(409).json({ error: 'E-mail já cadastrado.' });
     const newUser = {
       id:      uuid(),
-      email:   email.toLowerCase().trim(),
+      email:   normalizedEmail,
       pass:    bcrypt.hashSync(pass, 10),
       name:    `${name} ${lname || ''}`.trim(),
       nick:    nick || name,
