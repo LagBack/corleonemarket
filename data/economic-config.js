@@ -79,10 +79,10 @@ module.exports = {
     return value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   },
 
-  // Full export for admin API
+  // Full export for admin API (static — computed values, not `this`)
   config: {
-    buyFeeRate: this.buyFeeRate * 100,   // display as percent → 2
-    sellFeeRate: this.sellFeeRate * 100, // display as percent → 3
+    buyFeeRate:     2,   // 2% buy fee
+    sellFeeRate:    3,   // 3% sell fee
     dailyMaintenanceBrackets: DAILY_MAINTENANCE_BRACKETS.map(b => ({ ...b })),
     wealthTaxBrackets: WEALTH_TAX_BRACKETS.map(b => ({ ...b })),
     wealthTaxCycleDays: 15,

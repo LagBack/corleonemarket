@@ -43,7 +43,6 @@ async function migrateUsersTable() {
     await pool.query(`ALTER TABLE users ADD COLUMN banner_mime VARCHAR(64) DEFAULT NULL`);
     console.log('📦 MySQL: coluna banner_mime adicionada.');
   }
-}
 
   // ── Economic system tables (new in v5.7) ────────────────────
 
