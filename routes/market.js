@@ -6,6 +6,7 @@ const { photoUrlForUser, hasAnyPhoto } = require('../data/user-serialize');
 const { requireAuth }     = require('../middleware/auth');
 const { normalizeRole } = require('../data/roles');
 const { computeTier }    = require('../data/tiers');
+const econConfig         = require('../data/economic-config');
 
 // ── Portfolio helpers (MySQL) ──────────────────────────────────────────────
 
@@ -105,12 +106,15 @@ router.post('/order', requireAuth, async (req, res) => {
     if (!stock) return res.status(404).json({ error: 'Ativo não encontrado.' });
     if (stock.status !== 'active') return res.status(403).json({ error: 'Ativo suspenso.' });
 
-    const total = Math.round(stock.price * quantity * 100) / 100;
-    const pf    = await getPortfolio(uid);
+    const total     = Math.round(stock.price * quantity * 100) / 100;
+    const buyFee    = econConfig.calculateTradingFee(total, 'buy');
+    const sellFee   = econConfig.calculateTradingFee(total, 'sell');
+    const pf        = await getPortfolio(uid);
 
     if (type === 'buy') {
-      if (user.balance < total) return res.status(400).json({ error: 'Saldo insuficiente.' });
-      await usersStore.setUserBalance(uid, user.balance - total);
+      const totalCost = total + buyFee;          // trade value + fee
+      if (user.balance < totalCost) return res.status(400).json({ error: 'Saldo insuficiente.' });
+      await usersStore.setUserBalance(uid, user.balance - totalCost);
       await setPortfolioQty(uid, sym, (pf[sym] || 0) + quantity);
       db.get('stocks').find({ sym }).assign({
         demand: Math.min(0.95, stock.demand + 0.03),
@@ -120,7 +124,8 @@ router.post('/order', requireAuth, async (req, res) => {
     } else if (type === 'sell') {
       const owned = pf[sym] || 0;
       if (owned < quantity) return res.status(400).json({ error: 'Cotas insuficientes.' });
-      await usersStore.setUserBalance(uid, user.balance + total);
+      const netReceived = total - sellFee;         // sale value minus fee
+      await usersStore.setUserBalance(uid, user.balance + netReceived);
       await setPortfolioQty(uid, sym, owned - quantity);
       db.get('stocks').find({ sym }).assign({
         supply: Math.min(0.95, stock.supply + 0.03),
@@ -131,14 +136,23 @@ router.post('/order', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Tipo de ordem inválido.' });
     }
 
+    // Record fee in transaction table
     const tx = {
       uid, uname: user.nick || user.name,
       type, sym, qty: quantity,
       price: stock.price, total,
+      fee:   type === 'buy' ? buyFee : sellFee,
+      fee_type: type === 'buy' ? 'buy_fee' : 'sell_fee',
       time: new Date().toLocaleTimeString('pt-BR'),
       ts:   Date.now()
     };
-    await addTransaction(tx);
+
+    // Override addTransaction to write the fee columns
+    await pool.query(
+      `INSERT INTO transactions (uid, uname, type, sym, qty, price, total, fee, fee_type, time, ts)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [tx.uid, tx.uname, tx.type, tx.sym, tx.qty, tx.price, tx.total, tx.fee, tx.fee_type, tx.time, tx.ts]
+    );
 
     // ── Owner revenue share ──
     const freshStock = db.get('stocks').find({ sym }).value();
@@ -169,11 +183,18 @@ router.post('/order', requireAuth, async (req, res) => {
 
     db.get('adminLog').push({
       t:   new Date().toLocaleTimeString('pt-BR'),
-      msg: `${user.nick || user.name} ${type === 'buy' ? 'COMPROU' : 'VENDEU'} ${quantity}× ${sym} @ R$${stock.price.toFixed(2)}`
+      msg: `${user.nick || user.name} ${type === 'buy' ? 'COMPROU' : 'VENDEU'} ${quantity}× ${sym} @ R$${stock.price.toFixed(2)} | Taxa: R$${(type === 'buy' ? buyFee : sellFee).toFixed(2)}`
     }).write();
 
     const updatedUser = await usersStore.getUserById(uid);
-    res.json({ ok: true, tx, user: usersStore.safeUser(updatedUser), portfolio: await getPortfolio(uid) });
+    res.json({
+      ok: true,
+      tx,
+      fee:   type === 'buy' ? buyFee : sellFee,
+      feeType: type === 'buy' ? 'buy_fee' : 'sell_fee',
+      user:  usersStore.safeUser(updatedUser),
+      portfolio: await getPortfolio(uid)
+    });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

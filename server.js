@@ -66,6 +66,7 @@ app.use('/api/market', require('./routes/market'));
 app.use('/api/stocks', require('./routes/stocks'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/economic', require('./routes/economic'));
 
 // ── Serve frontend ──
 app.get('*', (req, res) => {

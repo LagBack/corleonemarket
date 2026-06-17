@@ -45,6 +45,8 @@ async function seedMySQL() {
         qty    INT           NOT NULL,
         price  DOUBLE        NOT NULL,
         total  DOUBLE        NOT NULL,
+        fee    DOUBLE        DEFAULT NULL,
+        fee_type  VARCHAR(20)  DEFAULT NULL,
         time   VARCHAR(20)   DEFAULT '',
         ts     BIGINT        DEFAULT 0,
         PRIMARY KEY (id),
@@ -52,7 +54,25 @@ async function seedMySQL() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
-    console.log('✅ MySQL tables ready (users, portfolios, transactions)');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS economic_fees (
+        id          BIGINT       NOT NULL AUTO_INCREMENT,
+        user_id     VARCHAR(36)  NOT NULL,
+        fee_type    VARCHAR(20)  NOT NULL COMMENT 'daily_maintenance OR wealth_tax',
+        amount      DOUBLE       NOT NULL,
+        net_worth   DOUBLE       NOT NULL,
+        tx_id       BIGINT       DEFAULT NULL,
+        day_key     VARCHAR(10)  DEFAULT NULL,
+        cycle_key   VARCHAR(10)  DEFAULT NULL,
+        created_at  BIGINT       NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_user_fee_day (user_id, fee_type, day_key),
+        UNIQUE KEY uk_user_fee_cycle (user_id, fee_type, cycle_key),
+        KEY idx_fee_type (fee_type)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    console.log('✅ MySQL tables ready (users, portfolios, transactions, economic_fees)');
 
     const [rows] = await pool.query('SELECT COUNT(*) as cnt FROM users');
     if (rows[0].cnt > 0) {

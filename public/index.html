@@ -465,6 +465,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <button class="hn-btn" data-page="portfolio" onclick="showPage('portfolio')">Portfólio</button>
       <button class="hn-btn" data-page="ranking" onclick="showPage('ranking')">Ranking</button>
       <button class="hn-btn" data-page="profile" onclick="showPage('profile')">Perfil</button>
+      <button class="hn-btn admin-only" data-page="economic" style="display:none" onclick="showPage('economic')">📋 Econômico</button>
       <button class="hn-btn admin-only" data-page="admin" style="display:none" onclick="showPage('admin')">⚙ Admin</button>
       <button class="hn-btn dev-only" data-page="dev" style="display:none" onclick="showPage('dev')">Dev</button>
     </div>
@@ -538,7 +539,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             <div class="trade-info-box">
               <div class="tib-row"><span style="color:var(--text3)">Preço atual</span><span class="mono" id="td-price">—</span></div>
               <div class="tib-row"><span style="color:var(--text3)">Saldo cash</span><span class="mono" id="td-bal">—</span></div>
-              <div class="tib-total"><span>Total</span><span class="mono" id="td-total">—</span></div>
+              <div class="tib-row" id="td-fee-row" style="display:none;border-top:1px solid var(--border);padding-top:6px;margin-top:4px"><span style="color:var(--text3)">Taxa operacional (<span id="td-fee-rate">0</span>%)</span><span class="mono" id="td-fee" style="color:var(--red2)">R$0,00</span></div>
+              <div class="tib-row" id="td-total-label-row"><span>Total ${orderType==='buy'?'a pagar':'a receber'}</span><span class="mono" id="td-total">—</span></div>
             </div>
             <button class="btn btn-gold" style="width:100%" id="exec-btn" onclick="executeOrder()">Executar Ordem</button>
             <div id="trade-msg" style="margin-top:8px"></div>
@@ -563,6 +565,35 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div class="grid2">
         <div class="card"><div class="card-title">Carteira</div><div id="pf-assets"></div></div>
         <div class="card"><div class="card-title">Histórico</div><div id="pf-hist" style="max-height:380px;overflow-y:auto"></div></div>
+      </div>
+    </div>
+
+    <!-- ECONOMIC -->
+    <div class="page" id="p-economic">
+      <div class="grid4" style="margin-bottom:14px" id="econ-stats"></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">📊 Configuração Atual</div>
+          <div id="econ-config" style="font-size:12px;line-height:2"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">⚡ Ações Manuais (Admin)</div>
+          <div class="btns-row" style="gap:8px;flex-wrap:wrap">
+            <button class="btn btn-gold" onclick="manualDailyFee()">💰 Taxa Diária Agora</button>
+            <button class="btn btn-r" onclick="manualWealthTax()">🏛️ Imposto Patrimonial Agora</button>
+          </div>
+          <div id="econ-manual-msg" style="margin-top:8px"></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">📋 Últimas Taxas Diárias</div>
+          <div id="econ-daily-history" style="max-height:300px;overflow-y:auto"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">🏛️ Últimos Impostos Patrimoniais</div>
+          <div id="econ-tax-history" style="max-height:300px;overflow-y:auto"></div>
+        </div>
       </div>
     </div>
 
@@ -890,6 +921,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <button type="button" class="bottom-nav-btn" data-page="portfolio" onclick="showPage('portfolio')"><span class="bn-icon">💼</span><span>Carteira</span></button>
     <button type="button" class="bottom-nav-btn" data-page="ranking" onclick="showPage('ranking')"><span class="bn-icon">🏆</span><span>Ranking</span></button>
     <button type="button" class="bottom-nav-btn" data-page="profile" onclick="showPage('profile')"><span class="bn-icon">👤</span><span>Perfil</span></button>
+    <button type="button" class="bottom-nav-btn admin-only" data-page="economic" style="display:none" onclick="showPage('economic')"><span class="bn-icon">📋</span><span>Econômico</span></button>
     <button type="button" class="bottom-nav-btn admin-only" data-page="admin" style="display:none" onclick="showPage('admin')"><span class="bn-icon">⚙️</span><span>Admin</span></button>
     <button type="button" class="bottom-nav-btn dev-only" data-page="dev" style="display:none" onclick="showPage('dev')"><span class="bn-icon">🛠</span><span>Dev</span></button>
   </nav>

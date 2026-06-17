@@ -555,6 +555,7 @@ function showPage(pg) {
   if (pg === 'portfolio') renderPortfolio();
   if (pg === 'ranking')   renderRanking();
   if (pg === 'profile')   renderProfile();
+  if (pg === 'economic')  renderEconomic();
   if (pg === 'admin')     renderAdmin();
   if (pg === 'dev')       renderDev();
 }
@@ -639,10 +640,32 @@ function updateTradeInfo() {
 }
 
 function updateTradeTotal() {
-  const sym = document.getElementById('trade-sym')?.value;
-  const s   = stocks.find(x => x.sym === sym);
-  const qty = parseInt(document.getElementById('trade-qty')?.value) || 0;
-  document.getElementById('td-total').textContent = (s && qty) ? 'R$' + (s.price * qty).toFixed(2) : '—';
+  const sym   = document.getElementById('trade-sym')?.value;
+  const s     = stocks.find(x => x.sym === sym);
+  const qty   = parseInt(document.getElementById('trade-qty')?.value) || 0;
+  const raw   = (s && qty) ? s.price * qty : 0;
+
+  // Show fee breakdown
+  const feeRow    = document.getElementById('td-fee-row');
+  const feeRateEl = document.getElementById('td-fee-rate');
+  const feeEl     = document.getElementById('td-fee');
+  const totalEl   = document.getElementById('td-total');
+
+  if (qty > 0 && sym) {
+    const isBuy = orderType === 'buy';
+    const ratePct = isBuy ? 2 : 3;
+    const feeVal  = Math.round(raw * (isBuy ? 0.02 : 0.03) * 100) / 100;
+    const displayTotal = isBuy ? raw + feeVal : raw - feeVal;
+
+    feeRow.style.display = 'flex';
+    feeRateEl.textContent = ratePct;
+    feeEl.textContent = 'R$' + feeVal.toFixed(2);
+    totalEl.textContent = 'R$' + displayTotal.toFixed(2);
+    totalEl.title = (isBuy ? 'Valor + Taxa de ' + ratePct + '% = R$' : 'Valor - Taxa de ' + ratePct + '% = R$') + raw.toFixed(2);
+  } else {
+    feeRow.style.display = 'none';
+    totalEl.textContent = '—';
+  }
 }
 
 async function executeOrder() {
@@ -654,8 +677,9 @@ async function executeOrder() {
     try {
       const data = await POST('market/order', { sym, type: orderType, qty });
       CU.balance = data.user.balance;
+      const feeLabel = data.fee > 0 ? ` | Taxa: R$${data.fee.toFixed(2)}` : '';
       document.getElementById('td-bal').textContent = 'R$' + CU.balance.toFixed(2);
-      showMsg('trade-msg', `✓ ${orderType==='buy'?'Compra':'Venda'}: ${qty}× ${sym} — R$${data.tx.total.toFixed(2)}`, 'ok');
+      showMsg('trade-msg', `✓ ${orderType==='buy'?'Compra':'Venda'}: ${qty}× ${sym} — R$${data.tx.total.toFixed(2)}${feeLabel}`, 'ok');
       renderTradeHist();
       updateTradeInfo();
     } catch(e) { showMsg('trade-msg', e.message, 'err'); }
@@ -669,14 +693,20 @@ async function renderTradeHist() {
     const txs = (transactions || []).reverse().slice(0, 30);
     document.getElementById('orders-ct').textContent = txs.length;
     document.getElementById('trade-hist').innerHTML = txs.length
-      ? txs.map(t => `<div class="hist-item">
-          <span class="hist-badge ${t.type}">${t.type==='buy'?'COMPRA':'VENDA'}</span>
-          <span style="font-weight:600">${t.sym}</span>
-          <span style="color:var(--text3)">${t.qty}×</span>
-          <span class="mono" style="font-size:10px">R$${t.price.toFixed(2)}</span>
-          <span class="mono ${t.type==='buy'?'price-dn':'price-up'}" style="margin-left:auto;font-size:11px">R$${t.total.toFixed(2)}</span>
-          <span style="color:var(--text3);font-size:9px">${t.time}</span>
-        </div>`).join('')
+      ? txs.map(t => {
+          const feeHtml = (t.fee > 0)
+            ? `<span class="mono" style="color:var(--red2);margin-left:6px;font-size:10px">-R$${t.fee.toFixed(2)}</span>`
+            : '';
+          return `<div class="hist-item">
+            <span class="hist-badge ${t.type}">${t.type==='buy'?'COMPRA':'VENDA'}</span>
+            <span style="font-weight:600">${t.sym}</span>
+            <span style="color:var(--text3)">${t.qty}×</span>
+            <span class="mono" style="font-size:10px">R$${t.price.toFixed(2)}</span>
+            <span class="mono ${t.type==='buy'?'price-dn':'price-up'}" style="margin-left:auto;font-size:11px">R$${t.total.toFixed(2)}</span>
+            ${feeHtml}
+            <span style="color:var(--text3);font-size:9px">${t.time}</span>
+          </div>`;
+        }).join('')
       : '<p style="color:var(--text3);font-size:12px;padding:10px 0">Sem ordens.</p>';
   } catch(e) {}
 }
@@ -719,16 +749,34 @@ async function renderPortfolio() {
           </div>`;
         }).join('')
       : '<p style="color:var(--text3);font-size:12px;padding:10px 0">Nenhum ativo.</p>';
+    // Compute fee totals for summary
+    const totalBuyFees = txs.filter(t => t.fee_type === 'buy_fee').reduce((a, t) => a + (t.fee || 0), 0);
+    const totalSellFees = txs.filter(t => t.fee_type === 'sell_fee').reduce((a, t) => a + (t.fee || 0), 0);
+
     const allTx = [...txs].reverse();
     document.getElementById('pf-hist').innerHTML = allTx.length
-      ? allTx.map(t => `<div class="hist-item">
-          <span class="hist-badge ${t.type}">${t.type==='buy'?'C':'V'}</span>
-          <span style="font-weight:600;font-size:11px">${t.sym}</span>
-          <span style="color:var(--text3);font-size:10px">${t.qty}× R$${t.price.toFixed(2)}</span>
-          <span class="mono ${t.type==='buy'?'price-dn':'price-up'}" style="margin-left:auto;font-size:10px">R$${t.total.toFixed(2)}</span>
-          <span style="color:var(--text3);font-size:9px">${t.time}</span>
-        </div>`).join('')
+      ? allTx.map(t => {
+          const feeHtml = (t.fee > 0)
+            ? `<span class="mono" style="color:var(--red2);margin-left:6px;font-size:10px">-R$${t.fee.toFixed(2)}</span>`
+            : '';
+          return `<div class="hist-item">
+            <span class="hist-badge ${t.type}">${t.type==='buy'?'C':'V'}</span>
+            <span style="font-weight:600;font-size:11px">${t.sym}</span>
+            <span style="color:var(--text3);font-size:10px">${t.qty}× R$${t.price.toFixed(2)}</span>
+            <span class="mono ${t.type==='buy'?'price-dn':'price-up'}" style="margin-left:auto;font-size:10px">R$${t.total.toFixed(2)}</span>
+            ${feeHtml}
+            <span style="color:var(--text3);font-size:9px">${t.time}</span>
+          </div>`;
+        }).join('')
       : '<p style="color:var(--text3);font-size:12px;padding:10px 0">Sem histórico.</p>';
+
+    // Add fee summary below the stats
+    const totalFeesAll = totalBuyFees + totalSellFees;
+    if (totalFeesAll > 0) {
+      document.getElementById('pf-stats').innerHTML += `
+        <div class="stat"><div class="stat-label">Total em Taxas</div><div class="stat-val serif" style="color:var(--red2)">R$${fmtN(totalFeesAll)}</div></div>
+      `;
+    }
   } catch(e) { console.error(e); }
   finally { if (gen === _pageLoadGen) setPageLoading('portfolio', false); }
 }
@@ -1900,6 +1948,99 @@ async function openProfileModal(uid) {
     `;
     document.getElementById('modal-bg').classList.add('open');
   } catch(e) { console.error(e); }
+}
+
+// ── ECONOMIC DASHBOARD ──
+
+async function renderEconomic() {
+  if (!canAccessAdmin()) return showPage('market');
+  try {
+    const [config, dailyReport, taxReport, summary] = await Promise.all([
+      GET('economic/config').catch(() => null),
+      GET('economic/reports/daily').catch(() => []),
+      GET('economic/reports/wealth').catch(() => []),
+      GET('economic/reports/summary').catch(() => ({})),
+    ]);
+
+    // Stats cards
+    const dailyTotal = summary.dailyMaintenance?.totalCollected || 0;
+    const taxTotal = summary.wealthTax?.totalCollected || 0;
+    document.getElementById('econ-stats').innerHTML = `
+      <div class="stat"><div class="stat-label">Compras (taxa 2%)</div><div class="stat-val serif">${summary.tradingFeesActive ? 'Ativo' : 'Inativo'}</div></div>
+      <div class="stat"><div class="stat-label">Vendas (taxa 3%)</div><div class="stat-val serif">${summary.tradingFeesActive ? 'Ativo' : 'Inativo'}</div></div>
+      <div class="stat"><div class="stat-label">Taxas Diárias Cobradas</div><div class="stat-val gold serif">R$${fmtN(dailyTotal)}</div><div class="stat-sub">${(summary.dailyMaintenance?.totalCharges || 0)} cobranças</div></div>
+      <div class="stat"><div class="stat-label">Imposto Patrimonial Cobrado</div><div class="stat-val gold serif">R$${fmtN(taxTotal)}</div><div class="stat-sub">${(summary.wealthTax?.totalCharges || 0)} cobranças</div></div>
+    `;
+
+    // Config display
+    if (config) {
+      document.getElementById('econ-config').innerHTML = `
+        <div><strong>Taxa de Compra:</strong> 2% do valor da operação</div>
+        <div><strong>Taxa de Venda:</strong> 3% do valor da operação</div>
+        <hr style="border-color:var(--border);margin:8px 0">
+        <div><strong>Taxas Diárias de Manutenção (patrimônio total):</strong></div>
+        ${config.dailyMaintenanceBrackets.map(b => `
+          <div style="padding-left:12px;font-size:11px;color:var(--text3)">
+            R$${b.min === 0 ? '0' : b.min.toLocaleString('pt-BR')} — ${b.max ? b.max.toLocaleString('pt-BR') : '∞'} → ${(b.rate * 100).toFixed(2)}%
+          </div>
+        `).join('')}
+        <hr style="border-color:var(--border);margin:8px 0">
+        <div><strong>Imposto Patrimonial (a cada ${config.wealthTaxCycleDays} dias):</strong></div>
+        ${config.wealthTaxBrackets.map(b => `
+          <div style="padding-left:12px;font-size:11px;color:var(--text3)">
+            R$${b.min === 0 ? '0' : b.min.toLocaleString('pt-BR')} — ${b.max ? b.max.toLocaleString('pt-BR') : '∞'} → ${(b.rate * 100).toFixed(2)}%
+          </div>
+        `).join('')}
+      `;
+    } else {
+      document.getElementById('econ-config').innerHTML = '<p style="color:var(--text3)">Configuração não disponível (sistema ainda não inicializado).</p>';
+    }
+
+    // Daily maintenance history
+    const dailyList = document.getElementById('econ-daily-history');
+    if (dailyList) {
+      dailyList.innerHTML = dailyReport.length
+        ? dailyReport.map(r => `<div class="hist-item">
+            <span class="sym-tag" style="font-size:10px">${r.fee_type}</span>
+            <span style="font-weight:600">${(r.nick || r.user_id || '?').substring(0, 20)}</span>
+            <span class="mono gold" style="margin-left:auto;font-size:11px">-R$${(r.amount||0).toFixed(2)}</span>
+            <span style="color:var(--text3);font-size:9px">${new Date(r.created_at).toLocaleDateString('pt-BR')}</span>
+          </div>`).join('')
+        : '<p style="color:var(--text3);font-size:12px;padding:8px 0">Sem cobranças registradas.</p>';
+    }
+
+    // Wealth tax history
+    const taxList = document.getElementById('econ-tax-history');
+    if (taxList) {
+      const wealthTaxes = dailyReport.filter(r => r.fee_type && r.fee_type.includes('wealth'));
+      taxList.innerHTML = wealthTaxes.length
+        ? wealthTaxes.map(r => `<div class="hist-item">
+            <span class="sym-tag" style="font-size:10px">${r.fee_type}</span>
+            <span style="font-weight:600">${(r.nick || r.user_id || '?').substring(0, 20)}</span>
+            <span class="mono gold" style="margin-left:auto;font-size:11px">-R$${(r.amount||0).toFixed(2)}</span>
+            <span style="color:var(--text3);font-size:9px">${new Date(r.created_at).toLocaleDateString('pt-BR')}</span>
+          </div>`).join('')
+        : '<p style="color:var(--text3);font-size:12px;padding:8px 0">Sem impostos registrados.</p>';
+    }
+  } catch(e) { console.error('Economic dashboard error:', e); }
+}
+
+async function manualDailyFee() {
+  if (!confirm('Aplicar taxa de manutenção diária para TODOS os usuários agora?')) return;
+  try {
+    await POST('economic/manual/maintenance');
+    showMsg('econ-manual-msg', '✓ Taxa diária aplicada a todos!', 'ok');
+    renderEconomic();
+  } catch(e) { showMsg('econ-manual-msg', e.message, 'err'); }
+}
+
+async function manualWealthTax() {
+  if (!confirm('Aplicar imposto patrimonial para TODOS os usuários agora?')) return;
+  try {
+    await POST('economic/manual/wealth-tax');
+    showMsg('econ-manual-msg', '✓ Imposto patrimonial aplicado!', 'ok');
+    renderEconomic();
+  } catch(e) { showMsg('econ-manual-msg', e.message, 'err'); }
 }
 
 // ── HELPERS ──

@@ -1,12 +1,18 @@
 // ── MARKET SIMULATOR ──
 const db = require('./db');
+const econEngine = require('./economic-engine');
+const econConfig = require('./economic-config');
 
 const TICK_MS = 2500;
 const DAY_RESET_CHECK_MS = 60000;   // check for new day once a minute
-let tickTimer  = null;
-let eventTimer = null;
-let dayCheckTimer = null;
-let lastDayReset = null;            // 'Mon Jun 09 2026' style — toDateString() of last reset
+let tickTimer      = null;
+let eventTimer     = null;
+let dayCheckTimer  = null;
+let dailyFeeTimer  = null;          // setTimeout → daily maintenance fire timer
+let dailyFeeInterval = null;        // setInterval for recurring daily charges
+let wealthTaxTimer   = null;       // setTimeout → wealth tax fire timer
+let wealthTaxInterval  = null;     // setInterval for recurring wealth tax
+let lastDayReset   = null;         // 'Mon Jun 09 2026' style — toDateString() of last reset
 
 // ── Random market events (fire occasionally, not every tick) ──
 const EVENTS = [
@@ -191,13 +197,49 @@ function start() {
   // Day-rollover check
   dayCheckTimer = setInterval(maybeResetDay, DAY_RESET_CHECK_MS);
 
+  // ── Economic scheduled jobs ────────────────────────────────
+  // Check for missed events on startup (catch up on downtime)
+  econEngine.checkMissedEconomicEvents().catch(e => console.error('Economic check:', e.message));
+
+  // Daily maintenance: fire at ~03:00 local time every day
+  const now = new Date();
+  let msUntilThreeAM = (3 * 3600000) - now.getHours() * 3600000 - now.getMinutes() * 60000;
+  if (msUntilThreeAM <= 0) msUntilThreeAM += 86400000; // next day if passed
+
+  dailyFeeTimer = setTimeout(async () => {
+    econEngine.chargeDailyMaintenance().catch(e => console.error('Daily maintenance error:', e.message));
+
+    dailyFeeInterval = setInterval(async () => {
+      await econEngine.chargeDailyMaintenance().catch(e => console.error('Daily maintenance error:', e.message));
+    }, 86400000); // every 24 hours
+  }, msUntilThreeAM);
+
+  // Wealth tax: fire every wealthTaxCycleDays at ~03:00
+  const cycleMs = econConfig.wealthTaxCycleDays * 86400000;
+  const daysSinceJan1 = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
+  const dayInCycle = daysSinceJan1 % econConfig.wealthTaxCycleDays;
+  let msUntilNextCycle = (cycleMs - dayInCycle * 86400000) + (3 * 3600000) - now.getHours() * 3600000 - now.getMinutes() * 60000;
+  if (msUntilNextCycle <= 0) msUntilNextCycle += cycleMs;
+
+  wealthTaxTimer = setTimeout(() => {
+    econEngine.chargeWealthTax().catch(e => console.error('Wealth tax error:', e.message));
+
+    wealthTaxInterval = setInterval(async () => {
+      await econEngine.chargeWealthTax().catch(e => console.error('Wealth tax error:', e.message));
+    }, cycleMs);
+  }, msUntilNextCycle);
+
   console.log(`📈 Simulador iniciado (tick ${TICK_MS}ms | eventos ~90s | reset diário ${DAY_RESET_CHECK_MS}ms)`);
 }
 
 function stop() {
-  if (tickTimer)     { clearInterval(tickTimer);     tickTimer     = null; }
-  if (eventTimer)    { clearInterval(eventTimer);    eventTimer    = null; }
-  if (dayCheckTimer) { clearInterval(dayCheckTimer); dayCheckTimer = null; }
+  if (tickTimer)          { clearInterval(tickTimer);     tickTimer      = null; }
+  if (eventTimer)         { clearInterval(eventTimer);    eventTimer     = null; }
+  if (dayCheckTimer)      { clearInterval(dayCheckTimer); dayCheckTimer  = null; }
+  if (dailyFeeTimer)      { clearTimeout(dailyFeeTimer);  dailyFeeTimer  = null; }
+  if (dailyFeeInterval)   { clearInterval(dailyFeeInterval); dailyFeeInterval = null; }
+  if (wealthTaxTimer)     { clearTimeout(wealthTaxTimer); wealthTaxTimer = null; }
+  if (wealthTaxInterval)  { clearInterval(wealthTaxInterval); wealthTaxInterval = null; }
 }
 
 module.exports = { start, stop, tick, resetDayCounters, maybeResetDay };
