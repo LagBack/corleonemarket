@@ -2130,12 +2130,26 @@ async function saveRatesConfig() {
     const dailyBrackets = collectBrackets('dm', 7);
     const wealthBrackets = collectBrackets('wt', 4);
 
+    // Fix: ensure last bracket always has Infinity max (handle NaN/null/corrupted data)
+    if (dailyBrackets.length > 0) {
+      const lastDailyMax = parseFloat(dailyBrackets[dailyBrackets.length - 1].max);
+      if (isNaN(lastDailyMax) || lastDailyMax <= dailyBrackets[dailyBrackets.length - 1].min) {
+        dailyBrackets[dailyBrackets.length - 1].max = Infinity;
+      }
+    }
+    if (wealthBrackets.length > 0) {
+      const lastWealthMax = parseFloat(wealthBrackets[wealthBrackets.length - 1].max);
+      if (isNaN(lastWealthMax) || lastWealthMax <= wealthBrackets[wealthBrackets.length - 1].min) {
+        wealthBrackets[wealthBrackets.length - 1].max = Infinity;
+      }
+    }
+
     // Validate bracket ordering
     function validateOrder(brackets) {
       for (let i = 1; i < brackets.length; i++) {
         const prevMax = brackets[i - 1].max === Infinity ? Infinity : brackets[i - 1].max;
         if (brackets[i].min <= prevMax && prevMax !== Infinity) {
-          throw new Error(`Ordenação inválida na taxa diária ${i + 1}: min deve ser maior que o max anterior`);
+          throw new Error(`Ordenação inválida na alíquota ${i + 1}: min deve ser maior que o max anterior`);
         }
       }
     }

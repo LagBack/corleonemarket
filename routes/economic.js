@@ -66,13 +66,28 @@ router.put('/config', requireAuth, async (req, res) => {
 
     // Convert display-percent to decimal for storage in JSON
     const _toDec = r => Math.round(r / 100 * 10000) / 10000; // safe percent→decimal
+
+    // Sanitize: last bracket must always have max=Infinity (guard against corrupted data like max=0/NaN)
+    function sanitizeLastBracket(arr) {
+      if (!arr || arr.length === 0) return arr;
+      const last = arr[arr.length - 1];
+      if (last.min >= Infinity || !isFinite(last.max) || Number(last.max) !== Number(last.max)) {
+        // NaN or non-finite → Infinity
+        arr[arr.length - 1] = { ...last, max: Infinity };
+      } else if (Number(last.max) === 0 && last.min > 0) {
+        // Corrupted zero where it should be Infinity
+        arr[arr.length - 1] = { ...last, max: Infinity };
+      }
+      return arr;
+    }
+
     econConfig.saveConfig({
       buyFeeRate:         _toDec(body.buyFeeRate),
       sellFeeRate:        _toDec(body.sellFeeRate),
-      dailyMaintenanceBrackets: body.dailyMaintenanceBrackets.map(b => ({
+      dailyMaintenanceBrackets: sanitizeLastBracket(body.dailyMaintenanceBrackets).map(b => ({
         min: Number(b.min), max: b.max === null ? Infinity : Number(b.max), rate: _toDec(Number(b.rate))
       })),
-      wealthTaxBrackets:  body.wealthTaxBrackets.map(b => ({
+      wealthTaxBrackets:  sanitizeLastBracket(body.wealthTaxBrackets).map(b => ({
         min: Number(b.min), max: b.max === null ? Infinity : Number(b.max), rate: _toDec(Number(b.rate))
       })),
       wealthTaxCycleDays: Number(body.wealthTaxCycleDays),

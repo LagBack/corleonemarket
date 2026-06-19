@@ -32,19 +32,20 @@ function loadConfig() {
   try {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
     const c = JSON.parse(raw);
+
     return {
       buyFeeRate:         Number(c.buyFeeRate)     || FALLBACK.buyFeeRate,
       sellFeeRate:        Number(c.sellFeeRate)     || FALLBACK.sellFeeRate,
-      dailyMaintenanceBrackets: (c.dailyMaintenanceBrackets || FALLBACK.dailyMaintenanceBrackets).map(b => ({
-        min: Number(b.min),
-        max: b.max === null ? Infinity : Number(b.max),
-        rate: Number(b.rate),
-      })),
-      wealthTaxBrackets:  (c.wealthTaxBrackets || FALLBACK.wealthTaxBrackets).map(b => ({
-        min: Number(b.min),
-        max: b.max === null ? Infinity : Number(b.max),
-        rate: Number(b.rate),
-      })),
+      dailyMaintenanceBrackets: (c.dailyMaintenanceBrackets || FALLBACK.dailyMaintenanceBrackets).map(b => {
+        let max = b.max === null ? Infinity : Number(b.max);
+        if (max === 0 && b.min > 0) max = Infinity; // corrupted → fix
+        return { min: Number(b.min), max, rate: Number(b.rate) };
+      }),
+      wealthTaxBrackets:  (c.wealthTaxBrackets || FALLBACK.wealthTaxBrackets).map(b => {
+        let max = b.max === null ? Infinity : Number(b.max);
+        if (max === 0 && b.min > 0) max = Infinity; // corrupted → fix
+        return { min: Number(b.min), max, rate: Number(b.rate) };
+      }),
       wealthTaxCycleDays: Number(c.wealthTaxCycleDays) || FALLBACK.wealthTaxCycleDays,
     };
   } catch {
@@ -53,19 +54,25 @@ function loadConfig() {
 }
 
 function saveConfig(cfg) {
+  // Normalize brackets: last bracket with max<=0 or corrupted values → Infinity/null
+  function normBrackets(arr) {
+    if (!arr || arr.length === 0) return [];
+    const len = arr.length;
+    return arr.map((b, i) => {
+      let max = b.max;
+      if (i === len - 1 && (max === Infinity || Number(max) <= 0 || isNaN(Number(max)))) {
+        max = Infinity; // last bracket always Infinity
+      } else if (Number(max) === 0 && Number(b.min) > 0) {
+        max = Infinity; // corrupted zero → fix
+      }
+      return { min: Number(b.min), max: max === Infinity ? null : Number(max), rate: Number(b.rate) };
+    });
+  }
   const payload = {
     buyFeeRate:         Number(cfg.buyFeeRate)     || FALLBACK.buyFeeRate,
     sellFeeRate:        Number(cfg.sellFeeRate)     || FALLBACK.sellFeeRate,
-    dailyMaintenanceBrackets: cfg.dailyMaintenanceBrackets.map(b => ({
-      min: Number(b.min),
-      max: b.max === Infinity ? null : Number(b.max),
-      rate: Number(b.rate),
-    })),
-    wealthTaxBrackets:  cfg.wealthTaxBrackets.map(b => ({
-      min: Number(b.min),
-      max: b.max === Infinity ? null : Number(b.max),
-      rate: Number(b.rate),
-    })),
+    dailyMaintenanceBrackets: normBrackets(cfg.dailyMaintenanceBrackets),
+    wealthTaxBrackets:  normBrackets(cfg.wealthTaxBrackets),
     wealthTaxCycleDays: Number(cfg.wealthTaxCycleDays) || FALLBACK.wealthTaxCycleDays,
   };
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(payload, null, 2), 'utf8');
