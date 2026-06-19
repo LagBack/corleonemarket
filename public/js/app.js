@@ -2144,12 +2144,14 @@ async function saveRatesConfig() {
       }
     }
 
-    // Validate bracket ordering
+    // Validate bracket ordering: each bracket's min must be > previous bracket's min (ascending)
+    // Allow next.min === prev.max (adjacent boundaries work with the >=/< logic in findBracket)
+    // Only reject if next.min < prev.min (inverted order) or same min as prev (duplicate start)
     function validateOrder(brackets) {
       for (let i = 1; i < brackets.length; i++) {
-        const prevMax = brackets[i - 1].max === Infinity ? Infinity : brackets[i - 1].max;
-        if (brackets[i].min <= prevMax && prevMax !== Infinity) {
-          throw new Error(`Ordenação inválida na alíquota ${i + 1}: min deve ser maior que o max anterior`);
+        const prevMin = brackets[i - 1].min;
+        if (brackets[i].min <= prevMin) {
+          throw new Error(`Ordenação inválida na alíquota ${i + 1}: min deve ser maior que o min anterior`);
         }
       }
     }

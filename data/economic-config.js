@@ -11,19 +11,19 @@ const FALLBACK = {
   buyFeeRate:         0.02,
   sellFeeRate:        0.03,
   dailyMaintenanceBrackets: [
-    { min: 0,           max: 1_000_000,     rate: 0.0020 },
-    { min: 1_000_000,   max: 5_000_000,     rate: 0.0035 },
-    { min: 5_000_000,   max: 10_000_000,    rate: 0.0050 },
-    { min: 10_000_000,  max: 25_000_000,    rate: 0.0075 },
-    { min: 25_000_000,  max: 50_000_000,    rate: 0.0100 },
-    { min: 50_000_000,  max: 100_000_000,   rate: 0.0125 },
-    { min: 100_000_000, max: Infinity,       rate: 0.0150 },
+    { min: 0,              max: 1_000_000,     rate: 0.0020 },
+    { min: 1_000_001,     max: 5_000_000,     rate: 0.0035 },
+    { min: 5_000_001,     max: 10_000_000,    rate: 0.0050 },
+    { min: 10_000_001,    max: 25_000_000,    rate: 0.0075 },
+    { min: 25_000_001,    max: 50_000_000,    rate: 0.0100 },
+    { min: 50_000_001,    max: 100_000_000,   rate: 0.0125 },
+    { min: 100_000_001,   max: Infinity,       rate: 0.0150 },
   ],
   wealthTaxBrackets: [
-    { min: 0,            max: 5_000_000,     rate: 0.02 },
-    { min: 5_000_000,   max: 25_000_000,    rate: 0.04 },
-    { min: 25_000_000,  max: 100_000_000,   rate: 0.06 },
-    { min: 100_000_000, max: Infinity,       rate: 0.08 },
+    { min: 0,             max: 5_000_000,   rate: 0.02 },
+    { min: 5_000_001,    max: 25_000_000,  rate: 0.04 },
+    { min: 25_000_001,   max: 100_000_000, rate: 0.06 },
+    { min: 100_000_001,  max: Infinity,     rate: 0.08 },
   ],
   wealthTaxCycleDays: 15,
 };
@@ -38,12 +38,12 @@ function loadConfig() {
       sellFeeRate:        Number(c.sellFeeRate)     || FALLBACK.sellFeeRate,
       dailyMaintenanceBrackets: (c.dailyMaintenanceBrackets || FALLBACK.dailyMaintenanceBrackets).map(b => {
         let max = b.max === null ? Infinity : Number(b.max);
-        if (max === 0 && b.min > 0) max = Infinity; // corrupted → fix
+        if (max === 0 && Number(b.min) > 0) max = Infinity; // corrupted null→0 on non-first bracket → fix
         return { min: Number(b.min), max, rate: Number(b.rate) };
       }),
       wealthTaxBrackets:  (c.wealthTaxBrackets || FALLBACK.wealthTaxBrackets).map(b => {
         let max = b.max === null ? Infinity : Number(b.max);
-        if (max === 0 && b.min > 0) max = Infinity; // corrupted → fix
+        if (max === 0 && Number(b.min) > 0) max = Infinity; // corrupted null→0 on non-first bracket → fix
         return { min: Number(b.min), max, rate: Number(b.rate) };
       }),
       wealthTaxCycleDays: Number(c.wealthTaxCycleDays) || FALLBACK.wealthTaxCycleDays,
@@ -98,7 +98,7 @@ module.exports = {
   /** Find the applicable rate bracket for a given net worth */
   findBracket(netWorth, brackets) {
     for (const b of brackets) {
-      if (netWorth >= b.min && netWorth < b.max) return b;
+      if (netWorth >= b.min && netWorth <= b.max) return b;
     }
     return brackets[brackets.length - 1];
   },

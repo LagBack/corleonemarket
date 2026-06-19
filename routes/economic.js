@@ -51,9 +51,10 @@ router.put('/config', requireAuth, async (req, res) => {
         if (b.rate < 0 || b.rate > 100)
           return `${name}[${i}]: rate fora do intervalo (0-100)`;
       }
+      // With findBracket using >=/<, adjacent boundaries are valid.
+      // Reject only inverted order (brackets not sorted ascending by min).
       for (let i = 1; i < brackets.length; i++) {
-        const prevMax = brackets[i - 1].max === Infinity ? Infinity : brackets[i - 1].max;
-        if (brackets[i].min <= prevMax && prevMax !== Infinity)
+        if (brackets[i].min <= brackets[i - 1].min)
           return `${name}: ordenação inválida em índice ${i}`;
       }
       return null;
