@@ -451,6 +451,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         </div>
       </div>
       <div class="auth-err" id="auth-err"></div>
+      <div style="text-align:center;margin-top:14px;font-size:10px;color:var(--text3);line-height:1.8">
+        Ao criar uma conta, você concorda com nossa
+        <a href="/privacy.html" target="_blank" style="color:var(--text2);text-decoration:underline">Política de Privacidade</a>.<br>
+        Código-fonte aberto no <a href="https://github.com/LagBack/corleonemarket" target="_blank" style="color:var(--text2);text-decoration:underline">GitHub ↗</a>.
+      </div>
     </div>
   </div>
 </div>
@@ -540,7 +545,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
               <div class="tib-row"><span style="color:var(--text3)">Preço atual</span><span class="mono" id="td-price">—</span></div>
               <div class="tib-row"><span style="color:var(--text3)">Saldo cash</span><span class="mono" id="td-bal">—</span></div>
               <div class="tib-row" id="td-fee-row" style="display:none;border-top:1px solid var(--border);padding-top:6px;margin-top:4px"><span style="color:var(--text3)">Taxa operacional (<span id="td-fee-rate">0</span>%)</span><span class="mono" id="td-fee" style="color:var(--red2)">R$0,00</span></div>
-              <div class="tib-row" id="td-total-label-row"><span>Total ${orderType==='buy'?'a pagar':'a receber'}</span><span class="mono" id="td-total">—</span></div>
+              <div class="tib-row" id="td-total-label-row"><span id="td-total-label-text" style="color:var(--text3)">Total a pagar</span><span class="mono" id="td-total">—</span></div>
             </div>
             <button class="btn btn-gold" style="width:100%" id="exec-btn" onclick="executeOrder()">Executar Ordem</button>
             <div id="trade-msg" style="margin-top:8px"></div>
@@ -914,6 +919,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     </div>
 
   </div><!-- /app-body -->
+
+  <div style="text-align:center;padding:12px 0 8px;font-size:10px;color:var(--text3);border-top:1px solid var(--border)">
+    Corleone Market &mdash; Simulador de Mercado de Capitais &bull;
+    <a href="/privacy.html" target="_blank" style="color:var(--text2);text-decoration:underline">Política de Privacidade</a> &bull;
+    <a href="https://github.com/LagBack/corleonemarket" target="_blank" style="color:var(--text2);text-decoration:underline">Código-fonte (GitHub)</a>
+  </div>
 
   <nav class="bottom-nav" id="bottom-nav" aria-label="Navegação principal">
     <button type="button" class="bottom-nav-btn active" data-page="market" onclick="showPage('market')"><span class="bn-icon">📊</span><span>Mercado</span></button>
