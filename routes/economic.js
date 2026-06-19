@@ -1,5 +1,5 @@
 // ── Economic System Admin API ────────────────────────────────────────
-// Endpoints for admin/mod to inspect and manually trigger economic events.
+// Endpoints for admin/mod to inspect, edit, and manually trigger economic events.
 
 const router       = require('express').Router();
 const pool         = require('../data/mysql');
@@ -9,19 +9,88 @@ const econEngine   = require('../data/economic-engine');
 const usersStore   = require('../data/users-store');
 const { requireAuth } = require('../middleware/auth');
 
-// GET /api/economic/config — view current configuration
+// GET /api/economic/config — view current configuration (rates as display-percents)
 router.get('/config', requireAuth, (req, res) => {
+  const c = econConfig.getConfig();
+  // All rates are stored as decimals internally; convert to display-percent for frontend.
+  const _toPct = r => Math.round(r * 10000) / 100; // handle floating point imprecision
   res.json({
-    buyFeeRate: econConfig.buyFeeRate * 100,        // display as percent
-    sellFeeRate: econConfig.sellFeeRate * 100,
-    dailyMaintenanceBrackets: econConfig.dailyMaintenanceBrackets.map(b => ({
-      min: b.min, max: b.max === Infinity ? null : b.max, rate: b.rate * 100
+    buyFeeRate:         _toPct(c.buyFeeRate),
+    sellFeeRate:        _toPct(c.sellFeeRate),
+    dailyMaintenanceBrackets: c.dailyMaintenanceBrackets.map(b => ({
+      min: b.min, max: b.max === Infinity ? null : b.max, rate: _toPct(b.rate)
     })),
-    wealthTaxBrackets: econConfig.wealthTaxBrackets.map(b => ({
-      min: b.min, max: b.max === Infinity ? null : b.max, rate: b.rate * 100
+    wealthTaxBrackets: c.wealthTaxBrackets.map(b => ({
+      min: b.min, max: b.max === Infinity ? null : b.max, rate: _toPct(b.rate)
     })),
-    wealthTaxCycleDays: econConfig.wealthTaxCycleDays,
+    wealthTaxCycleDays: c.wealthTaxCycleDays,
   });
+});
+
+// PUT /api/economic/config — update configuration (admin/dev only)
+router.put('/config', requireAuth, async (req, res) => {
+  try {
+    const body = req.body;
+
+    // Validate basic fields
+    if (body.buyFeeRate === undefined || body.sellFeeRate === undefined)
+      return res.status(400).json({ error: 'buyFeeRate e sellFeeRate obrigatórios.' });
+    if (!Array.isArray(body.dailyMaintenanceBrackets) || !Array.isArray(body.wealthTaxBrackets))
+      return res.status(400).json({ error: 'Bracket arrays inválidos.' });
+    if (body.wealthTaxCycleDays === undefined)
+      return res.status(400).json({ error: 'wealthTaxCycleDays é obrigatório.' });
+
+    // Validate bracket structure and ordering
+    function validateBrackets(brackets, name) {
+      for (let i = 0; i < brackets.length; i++) {
+        const b = brackets[i];
+        if (typeof b.min !== 'number' || typeof b.rate !== 'number')
+          return `${name}[${i}]: min e rate devem ser números`;
+        if (b.max !== null && typeof b.max !== 'number')
+          return `${name}[${i}]: max deve ser número ou null`;
+        if (b.rate < 0 || b.rate > 100)
+          return `${name}[${i}]: rate fora do intervalo (0-100)`;
+      }
+      for (let i = 1; i < brackets.length; i++) {
+        const prevMax = brackets[i - 1].max === Infinity ? Infinity : brackets[i - 1].max;
+        if (brackets[i].min <= prevMax && prevMax !== Infinity)
+          return `${name}: ordenação inválida em índice ${i}`;
+      }
+      return null;
+    }
+
+    const dailyErr = validateBrackets(body.dailyMaintenanceBrackets, 'dailyMaintenanceBrackets');
+    const wealthErr = validateBrackets(body.wealthTaxBrackets, 'wealthTaxBrackets');
+    if (dailyErr) return res.status(400).json({ error: dailyErr });
+    if (wealthErr) return res.status(400).json({ error: wealthErr });
+
+    // Convert display-percent to decimal for storage in JSON
+    const _toDec = r => Math.round(r / 100 * 10000) / 10000; // safe percent→decimal
+    econConfig.saveConfig({
+      buyFeeRate:         _toDec(body.buyFeeRate),
+      sellFeeRate:        _toDec(body.sellFeeRate),
+      dailyMaintenanceBrackets: body.dailyMaintenanceBrackets.map(b => ({
+        min: Number(b.min), max: b.max === null ? Infinity : Number(b.max), rate: _toDec(Number(b.rate))
+      })),
+      wealthTaxBrackets:  body.wealthTaxBrackets.map(b => ({
+        min: Number(b.min), max: b.max === null ? Infinity : Number(b.max), rate: _toDec(Number(b.rate))
+      })),
+      wealthTaxCycleDays: Number(body.wealthTaxCycleDays),
+    });
+
+    // Log to admin log
+    try {
+      db.get('adminLog').push({
+        t: new Date().toLocaleTimeString('pt-BR'),
+        msg: `⚙️ Configuração econômica atualizada por ${req.user?.nick || req.user?.name || 'unknown'}`
+      }).write();
+    } catch (_) { /* non-critical */ }
+
+    res.json({ ok: true, message: 'Configuração econômica salva com sucesso.' });
+  } catch (e) {
+    console.error('Error saving economic config:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // GET /api/economic/reports/daily — recent daily maintenance fees

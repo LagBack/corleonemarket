@@ -578,7 +578,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div class="grid4" style="margin-bottom:14px" id="econ-stats"></div>
       <div class="grid2">
         <div class="card">
-          <div class="card-title">📊 Configuração Atual</div>
+          <div class="card-title" style="justify-content:space-between">
+            <span>📊 Configuração Atual</span>
+            <button class="btn btn-ghost btn-sm" onclick="openRatesEditor()" style="font-size:10px;padding:3px 8px;line-height:1.4" title="Editar taxas de imposto">✏️ Editar Taxas</button>
+          </div>
           <div id="econ-config" style="font-size:12px;line-height:2"></div>
         </div>
         <div class="card">

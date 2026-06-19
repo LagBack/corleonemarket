@@ -2043,6 +2043,131 @@ async function manualWealthTax() {
   } catch(e) { showMsg('econ-manual-msg', e.message, 'err'); }
 }
 
+// ── ECONOMIC RATES EDITOR (MODAL) ──
+
+async function openRatesEditor() {
+  const c = await GET('economic/config').catch(() => null);
+  if (!c) { showMsg('econ-manual-msg', 'Configuração não disponível.', 'err'); return; }
+
+  const mkField = (label, val, idSuffix, step = '0.01') => `
+    <div style="margin-bottom:8px">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:2px">${label}</label>
+      <input type="number" step="${step}" min="0" value="${val}" id="rate-${idSuffix}"
+        style="width:100%;padding:5px 8px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:inherit;font-size:13px;box-sizing:border-box">
+    </div>`;
+
+  const mkBracketField = (prefix, b, i) => `
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <span style="font-size:9px;color:var(--text3);width:14px;text-align:right">${i+1}</span>
+      <input type="number" value="${b.min}" id="${prefix}-${i}-min" placeholder="min" step="100000" style="width:70px;padding:4px;background:var(--s2);border:1px solid var(--border);border-radius:3px;color:inherit;font-size:12px">
+      <span style="font-size:11px;color:var(--text3)">—</span>
+      <input type="number" value="${b.max === null ? '' : b.max}" id="${prefix}-${i}-max" placeholder="∞" step="100000" style="width:70px;padding:4px;background:var(--s2);border:1px solid var(--border);border-radius:3px;color:inherit;font-size:12px">
+      <span style="font-size:11px;color:var(--text3)">→</span>
+      <input type="number" value="${b.rate}" id="${prefix}-${i}-rate" placeholder="%" step="0.05" min="0" max="100" style="width:60px;padding:4px;background:var(--s2);border:1px solid var(--border);border-radius:3px;color:inherit;font-size:12px">
+      <span style="font-size:10px;color:var(--text3)">%</span>
+    </div>`;
+
+  const content = `
+    <h2 style="font-family:'Playfair Display',serif;font-size:18px;font-style:italic;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border);color:var(--gold2)">
+      ✏️ Editar Taxas Econômicas
+    </h2>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:14px">
+      Altera as taxas em tempo real — sem precisar reiniciar o servidor.
+    </div>
+
+    <div style="margin-bottom:16px;padding:10px;background:var(--s2);border-radius:6px">
+      <strong style="font-size:11px;display:block;margin-bottom:8px;color:var(--text3)">Taxas de Negociação</strong>
+      ${mkField('Taxa de Compra (%)', c.buyFeeRate, 'buy')}
+      ${mkField('Taxa de Venda (%)', c.sellFeeRate, 'sell')}
+    </div>
+
+    <div style="margin-bottom:16px;padding:10px;background:var(--s2);border-radius:6px">
+      <strong style="font-size:11px;display:block;margin-bottom:8px;color:var(--text3)">Taxas Diárias de Manutenção</strong>
+      ${c.dailyMaintenanceBrackets.map((b, i) => mkBracketField('dm', b, i)).join('')}
+    </div>
+
+    <div style="margin-bottom:16px;padding:10px;background:var(--s2);border-radius:6px">
+      <strong style="font-size:11px;display:block;margin-bottom:8px;color:var(--text3)">Imposto Patrimonial (a cada ${c.wealthTaxCycleDays} dias)</strong>
+      ${c.wealthTaxBrackets.map((b, i) => mkBracketField('wt', b, i)).join('')}
+    </div>
+
+    <div style="margin-bottom:14px;padding:10px;background:var(--s2);border-radius:6px">
+      <strong style="font-size:11px;display:block;margin-bottom:8px;color:var(--text3)">Ciclo do Imposto Patrimonial</strong>
+      ${mkField('Dias entre ciclos', c.wealthTaxCycleDays, 'cycle', '1')}
+    </div>
+
+    <div id="rate-editor-msg"></div>
+    <div class="btns-row" style="margin-top:14px">
+      <button class="btn btn-gold" onclick="saveRatesConfig()" id="rates-save-btn">💾 Salvar Alterações</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+    </div>`;
+
+  document.getElementById('modal-content').innerHTML = content;
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+async function saveRatesConfig() {
+  const btn = document.getElementById('rates-save-btn');
+  setBtnBusy(btn, true, 'Salvando...');
+
+  try {
+    // Collect bracket values
+    function collectBrackets(prefix, count) {
+      const brackets = [];
+      for (let i = 0; i < count; i++) {
+        const minEl = document.getElementById(`${prefix}-${i}-min`);
+        const maxEl = document.getElementById(`${prefix}-${i}-max`);
+        const rateEl = document.getElementById(`${prefix}-${i}-rate`);
+        const min = parseFloat(minEl?.value) || 0;
+        const maxStr = maxEl?.value?.trim();
+        const max = maxStr === '' ? Infinity : (parseFloat(maxStr) || Infinity);
+        const rate = parseFloat(rateEl?.value) || 0;
+        brackets.push({ min, max, rate });
+      }
+      return brackets;
+    }
+
+    const dailyBrackets = collectBrackets('dm', 7);
+    const wealthBrackets = collectBrackets('wt', 4);
+
+    // Validate bracket ordering
+    function validateOrder(brackets) {
+      for (let i = 1; i < brackets.length; i++) {
+        const prevMax = brackets[i - 1].max === Infinity ? Infinity : brackets[i - 1].max;
+        if (brackets[i].min <= prevMax && prevMax !== Infinity) {
+          throw new Error(`Ordenação inválida na taxa diária ${i + 1}: min deve ser maior que o max anterior`);
+        }
+      }
+    }
+    validateOrder(dailyBrackets);
+    validateOrder(wealthBrackets);
+
+    // Validate rate ranges
+    for (const b of dailyBrackets.concat(wealthBrackets)) {
+      if (b.rate < 0 || b.rate > 100) throw new Error(`Taxa inválida (${b.rate}%): deve ser entre 0 e 100`);
+    }
+
+    const payload = {
+      buyFeeRate:         parseFloat(document.getElementById('rate-buy')?.value) || 2,
+      sellFeeRate:        parseFloat(document.getElementById('rate-sell')?.value) || 3,
+      dailyMaintenanceBrackets: dailyBrackets,
+      wealthTaxBrackets:  wealthBrackets,
+      wealthTaxCycleDays: parseFloat(document.getElementById('rate-cycle')?.value) || 15,
+    };
+
+    await PUT('economic/config', payload);
+
+    // Close modal and refresh dashboard
+    closeModal();
+    showMsg('econ-manual-msg', '✓ Taxas econômicas atualizadas com sucesso!', 'ok');
+    renderEconomic();
+  } catch(e) {
+    document.getElementById('rate-editor-msg').innerHTML = `<div class="alert err" style="margin-top:10px;padding:8px;font-size:11px">${e.message}</div>`;
+  } finally {
+    setBtnBusy(btn, false);
+  }
+}
+
 // ── HELPERS ──
 function fmtN(n) {
   if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
