@@ -470,6 +470,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <button class="hn-btn" data-page="portfolio" onclick="showPage('portfolio')">Portfólio</button>
       <button class="hn-btn" data-page="ranking" onclick="showPage('ranking')">Ranking</button>
       <button class="hn-btn" data-page="profile" onclick="showPage('profile')">Perfil</button>
+      <button class="hn-btn" data-page="social" onclick="showPage('social')">Social</button>
       <button class="hn-btn admin-only" data-page="economic" style="display:none" onclick="showPage('economic')">📋 Econômico</button>
       <button class="hn-btn admin-only" data-page="admin" style="display:none" onclick="showPage('admin')">⚙ Admin</button>
       <button class="hn-btn dev-only" data-page="dev" style="display:none" onclick="showPage('dev')">Dev</button>
@@ -486,6 +487,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         </div>
       </div>
       <!-- /THEME SELECTOR -->
+      <!-- NOTIFICATION BELL -->
+      <div style="position:relative;display:inline-block" id="notif-wrap">
+        <button class="btn btn-ghost" id="notif-btn" onclick="toggleNotifMenu()" title="Notificações" style="padding:4px 8px;font-size:14px;line-height:1;position:relative">🔔<span id="notif-badge" style="display:none;position:absolute;top:0;right:2px;background:#e74c3c;color:#fff;font-size:9px;font-weight:700;border-radius:6px;padding:0 4px;min-width:14px;text-align:center;line-height:1.2">0</span></button>
+        <div class="notif-menu" id="notif-menu" style="display:none;position:absolute;top:100%;right:0;width:360px;max-height:420px;background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 30px rgba(0,0,0,.45);z-index:70;flex-direction:column;overflow:hidden;">
+          <div style='display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)'>
+            <span style="font-size:13px;font-weight:600">Notificações</span>
+            <button class="btn btn-ghost btn-sm" onclick="markAllRead()" style="font-size:10px;padding:2px 8px;">Marcar todas como lidas</button>
+          </div>
+          <div id="notif-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;"></div>
+          <div id="notif-empty" style="display:none;text-align:center;padding:30px 20px;color:var(--text3);font-size:12px;">Nenhuma notificação</div>
+        </div>
+      </div>
+      <!-- /NOTIFICATION BELL -->
+
       <div class="user-chip" onclick="showPage('profile')">
         <div class="uav" id="hdr-av">🦁</div>
         <span class="uname" id="hdr-name">—</span>
@@ -922,6 +937,58 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     </div>
 
   </div><!-- /app-body -->
+    <!-- SOCIAL -->
+    <div class="page" id="p-social">
+      <div class="card" style="margin-bottom:14px">
+        <div class="social-tabs" style="display:flex;border-bottom:1px solid var(--border);gap:2px">
+          <button class="social-tab active" data-tab="updates" onclick="showSocialTab('updates')">📢 Atualizações</button>
+          <button class="social-tab" data-tab="forum" onclick="showSocialTab('forum')">💬 Fórum</button>
+        </div>
+      </div>
+
+      <!-- POST CREATION AREA -->
+      <div id="social-composer" class="card" style="margin-bottom:14px;display:none">
+        <input type="text" id="social-title-input" placeholder="Título do post (fórum)" style="width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none;margin-bottom:8px">
+        <textarea id="social-content-input" placeholder="Escreva seu post..." style="width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none;min-height:100px;resize:vertical;margin-bottom:8px"></textarea>
+        <div class="btns-row">
+          <button id="social-publish-btn" class="btn btn-gold" onclick="publishSocialPost()">Publicar</button>
+          <button class="btn btn-ghost" onclick="closeSocialComposer()">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- POSTS LIST -->
+      <div id="social-posts-list"></div>
+
+      <!-- PAGINATION -->
+      <div id="social-pagination" class="btns-row" style="justify-content:center;padding:12px 0;display:none">
+        <button class="btn btn-ghost" onclick="loadSocialPage(currentPage - 1)">← Anterior</button>
+        <span id="social-page-info" style="font-size:12px;color:var(--text3);padding:0 8px"></span>
+        <button class="btn btn-ghost" onclick="loadSocialPage(currentPage + 1)">Próximo →</button>
+      </div>
+
+      <!-- POST DETAIL MODAL -->
+      <div id="social-post-modal" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.6);overflow-y:auto;padding:20px">
+        <div style="max-width:720px;margin:40px auto;background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:0">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid var(--border)">
+            <button class="btn btn-ghost" onclick="closeSocialModal()" style="padding:4px 8px">← Voltar</button>
+          </div>
+          <div id="social-post-detail" style="padding:20px"></div>
+          <div id="social-comments-section" style="padding:0 20px 20px;border-top:1px solid var(--border)">
+            <h4 style="font-size:13px;font-weight:600;padding:12px 0;color:var(--text2)">Comentários</h4>
+            <div id="social-comment-input-area" class="card" style="margin-bottom:12px;display:none">
+              <textarea id="social-comment-text" placeholder="Escreva um comentário..." style="width:100%;padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none;min-height:60px;resize:vertical"></textarea>
+              <div class="btns-row" style="margin-top:8px">
+                <button id="social-comment-submit-btn" class="btn btn-gold btn-sm" onclick="submitComment()">Comentar</button>
+                <button class="btn btn-ghost btn-sm" onclick="closeCommentArea()">Cancelar</button>
+              </div>
+            </div>
+            <div id="social-comments-list" style="max-height:400px;overflow-y:auto"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /SOCIAL -->
+
 
   <div style="text-align:center;padding:12px 0 8px;font-size:10px;color:var(--text3);border-top:1px solid var(--border)">
     Corleone Market &mdash; Simulador de Mercado de Capitais &bull;
@@ -935,6 +1002,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <button type="button" class="bottom-nav-btn" data-page="portfolio" onclick="showPage('portfolio')"><span class="bn-icon">💼</span><span>Carteira</span></button>
     <button type="button" class="bottom-nav-btn" data-page="ranking" onclick="showPage('ranking')"><span class="bn-icon">🏆</span><span>Ranking</span></button>
     <button type="button" class="bottom-nav-btn" data-page="profile" onclick="showPage('profile')"><span class="bn-icon">👤</span><span>Perfil</span></button>
+      <button type="button" class="bottom-nav-btn" data-page="social" onclick="showPage('social')"><span class="bn-icon">💬</span><span>Social</span></button>
     <button type="button" class="bottom-nav-btn admin-only" data-page="economic" style="display:none" onclick="showPage('economic')"><span class="bn-icon">📋</span><span>Econômico</span></button>
     <button type="button" class="bottom-nav-btn admin-only" data-page="admin" style="display:none" onclick="showPage('admin')"><span class="bn-icon">⚙️</span><span>Admin</span></button>
     <button type="button" class="bottom-nav-btn dev-only" data-page="dev" style="display:none" onclick="showPage('dev')"><span class="bn-icon">🛠</span><span>Dev</span></button>
@@ -947,5 +1015,54 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 </div>
 
 <script src="/js/app.js"></script>
+<script src="/js/social-notifications.js"></script>
 </body>
 </html>
+/* ════════════ SOCIAL SYSTEM STYLES ════════════ */
+.social-tab{padding:8px 16px;border:none;background:transparent;color:var(--text3);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border-radius:4px;transition:all .15s}
+.social-tab.active{background:var(--gold-dim);color:var(--gold2)}
+.social-post-card{margin-bottom:10px;border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:var(--s2);transition:border-color .15s}
+.social-post-card:hover{border-color:var(--border2)}
+.social-post-card.pinned{border-left:3px solid var(--gold)}
+.social-post-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.social-post-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--s3)}
+.social-post-author{font-size:11px;font-weight:600;color:var(--text);cursor:pointer}
+.social-post-date{font-size:10px;color:var(--text3);margin-left:auto}
+.social-post-title{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;margin-bottom:4px;cursor:pointer;line-height:1.3}
+.social-post-title:hover{color:var(--gold2)}
+.social-post-preview{font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.social-post-actions{display:flex;gap:14px;padding-top:8px;border-top:1px solid var(--s3)}
+.social-action-btn{display:flex;align-items:center;gap:4px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px;transition:all .15s;font-family:'DM Sans',sans-serif}
+.social-action-btn:hover{background:var(--s3);color:var(--text)}
+.social-action-btn.liked{color:var(--red2)}
+.social-post-admin-bar{display:flex;gap:6px;margin-left:auto;flex-shrink:0}
+.social-badge{font-size:9px;padding:1px 6px;border-radius:8px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.social-badge.pinned{background:var(--gold-dim);color:var(--gold2)}
+.social-badge.locked{background:var(--red-dim);color:var(--red2)}
+/* Comment styles */
+.comment-thread{margin-top:6px;padding-left:4px}
+.comment-item{padding:10px 12px;background:var(--s3);border-radius:4px;margin-bottom:6px;border-left:2px solid var(--border)}
+.comment-header{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.comment-avatar{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;background:var(--s4);flex-shrink:0}
+.comment-author{font-size:11px;font-weight:600;color:var(--text)}
+.comment-date{font-size:9px;color:var(--text3)}
+.comment-body{font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:6px;word-wrap:break-word}
+.comment-actions{display:flex;gap:8px}
+.comment-edit-area{width:100%;padding:8px;background:var(--s2);border:1px solid var(--gold);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none;margin-bottom:6px}
+.comment-replies{margin-left:20px;margin-top:6px}
+/* Social modal */
+#social-post-modal .modal-content-inner{padding:0}
+/* Notification menu */
+.notif-menu{display:flex!important}
+.notif-item{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;align-items:flex-start}
+.notif-item:hover{background:var(--s3)}
+.notif-item.unread{background:var(--gold-dim)}
+.notif-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;background:var(--s4);flex-shrink:0}
+.notif-body{flex:1;min-width:0}
+.notif-text{font-size:12px;color:var(--text);line-height:1.4;margin-bottom:3px}
+.notif-text strong{color:var(--text)}
+.notif-time{font-size:10px;color:var(--text3)}
+.notif-icon{font-size:16px;flex-shrink:0;margin-top:2px}
+/* Social page empty state */
+.social-empty{text-align:center;padding:40px 20px;color:var(--text3)}
+.social-empty .empty-icon{font-size:36px;margin-bottom:12px}

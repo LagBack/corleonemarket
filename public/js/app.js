@@ -558,6 +558,7 @@ function showPage(pg) {
   if (pg === 'economic')  renderEconomic();
   if (pg === 'admin')     renderAdmin();
   if (pg === 'dev')       renderDev();
+  if (pg === 'social')   loadSocialPage(1);
 }
 
 function roleSelectOptions(currentRole) {

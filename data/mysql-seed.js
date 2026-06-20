@@ -123,7 +123,26 @@ async function seedMySQL() {
       );
     }
 
-    console.log('✅ MySQL users seeded!');
+    
+  // --- Initial social content (seedSocial) ---
+  try {
+    const [existingPosts] = await pool.query(`SELECT COUNT(*) AS cnt FROM social_posts`);
+    if (existingPosts[0].cnt === 0) {
+      const now = Date.now();
+      await pool.query(
+        `INSERT INTO social_posts (author_id, title, content, type, is_pinned, like_count, comment_count, created_at, updated_at)
+         VALUES ('adm1', 'Bem-vindo ao forum do Corleone Market!', 'Bem-vindo ao novo sistema de discusses no jogo.
+
+Aqui você pode:
+- Discutir estrategias de mercado
+- Compartilhar experiencias
+- Interagir com outros jogadores
+- Receber atualizacoes oficiais da equipe
+---
+Boas negociacoes! 📈', 'forum', 1, 0, 0, now, now)
+      );
+    }
+  } catch (e) { console.warn('Could not seed social content:', e.message); }console.log('✅ MySQL users seeded!');
     console.log('  👑 Admin:   corleoneadmin@email.com   / admin123');
     console.log('  🦁 Usuário: usuarioteste@corleone.com / 123456');
   } catch (err) {

@@ -75,6 +75,101 @@ async function migrateUsersTable() {
     `);
     console.log('📦 MySQL: tabela economic_fees criada.');
   }
+
+  // ── Social system tables (new in v6.0) ────────────────────
+  if (!(await columnExists('social_posts', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS social_posts (
+        id          BIGINT       NOT NULL AUTO_INCREMENT,
+        author_id   VARCHAR(36)  NOT NULL,
+        title       VARCHAR(500) NOT NULL,
+        content     TEXT         NOT NULL,
+        type        VARCHAR(20)  NOT NULL DEFAULT 'forum' COMMENT 'forum OR update',
+        is_pinned   TINYINT(1)   NOT NULL DEFAULT 0,
+        is_locked   TINYINT(1)   NOT NULL DEFAULT 0,
+        like_count  INT          NOT NULL DEFAULT 0,
+        comment_count INT        NOT NULL DEFAULT 0,
+        created_at  BIGINT       NOT NULL,
+        updated_at  BIGINT       NOT NULL,
+        PRIMARY KEY (id),
+        KEY idx_type (type),
+        KEY idx_is_pinned (is_pinned),
+        KEY idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela social_posts criada.');
+  }
+
+  if (!(await columnExists('social_comments', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS social_comments (
+        id              BIGINT       NOT NULL AUTO_INCREMENT,
+        post_id         BIGINT       NOT NULL,
+        author_id       VARCHAR(36)  NOT NULL,
+        parent_comment_id BIGINT     DEFAULT NULL,
+        content         TEXT         NOT NULL,
+        created_at      BIGINT       NOT NULL,
+        updated_at      BIGINT       NOT NULL,
+        PRIMARY KEY (id),
+        KEY idx_post_id (post_id),
+        KEY idx_author_id (author_id),
+        KEY idx_parent_comment_id (parent_comment_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela social_comments criada.');
+  }
+
+  if (!(await columnExists('social_post_likes', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS social_post_likes (
+        id          BIGINT       NOT NULL AUTO_INCREMENT,
+        user_id     VARCHAR(36)  NOT NULL,
+        post_id     BIGINT       NOT NULL,
+        created_at  BIGINT       NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_user_post (user_id, post_id),
+        KEY idx_post_id (post_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela social_post_likes criada.');
+  }
+
+  if (!(await columnExists('social_comment_likes', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS social_comment_likes (
+        id           BIGINT       NOT NULL AUTO_INCREMENT,
+        user_id      VARCHAR(36)  NOT NULL,
+        comment_id   BIGINT       NOT NULL,
+        created_at   BIGINT       NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_user_comment (user_id, comment_id),
+        KEY idx_comment_id (comment_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela social_comment_likes criada.');
+  }
+
+  if (!(await columnExists('notifications', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id              BIGINT       NOT NULL AUTO_INCREMENT,
+        recipient_user_id VARCHAR(36)  NOT NULL,
+        actor_user_id   VARCHAR(36)  NOT NULL,
+        type            VARCHAR(30)  NOT NULL COMMENT 'POST_LIKE|COMMENT_LIKE|POST_COMMENT|COMMENT_REPLY|NEW_UPDATE|TOPIC_LOCKED|TOPIC_PINNED',
+        reference_type  VARCHAR(20)  DEFAULT NULL COMMENT 'forum OR update',
+        reference_id    BIGINT       DEFAULT NULL,
+        message         VARCHAR(500) NOT NULL,
+        is_read         TINYINT(1)   NOT NULL DEFAULT 0,
+        created_at      BIGINT       NOT NULL,
+        PRIMARY KEY (id),
+        KEY idx_recipient (recipient_user_id, is_read),
+        KEY idx_actor_id (actor_user_id),
+        KEY idx_reference (reference_type, reference_id),
+        KEY idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela notifications criada.');
+  }
 }
 
 module.exports = migrateUsersTable;
