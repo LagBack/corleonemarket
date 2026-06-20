@@ -1966,8 +1966,8 @@ async function renderEconomic() {
     const dailyTotal = summary.dailyMaintenance?.totalCollected || 0;
     const taxTotal = summary.wealthTax?.totalCollected || 0;
     document.getElementById('econ-stats').innerHTML = `
-      <div class="stat"><div class="stat-label">Compras (taxa 2%)</div><div class="stat-val serif">${summary.tradingFeesActive ? 'Ativo' : 'Inativo'}</div></div>
-      <div class="stat"><div class="stat-label">Vendas (taxa 3%)</div><div class="stat-val serif">${summary.tradingFeesActive ? 'Ativo' : 'Inativo'}</div></div>
+      <div class="stat"><div class="stat-label">Compras (taxa ${config.buyFeeRate?.toFixed(2) || 2}%)</div><div class="stat-val serif">${summary.tradingFeesActive ? 'Ativo' : 'Inativo'}</div></div>
+      <div class="stat"><div class="stat-label">Vendas (taxa ${config.sellFeeRate?.toFixed(2) || 3}%)</div><div class="stat-val serif">${summary.tradingFeesActive ? 'Ativo' : 'Inativo'}</div></div>
       <div class="stat"><div class="stat-label">Taxas Diárias Cobradas</div><div class="stat-val gold serif">R$${fmtN(dailyTotal)}</div><div class="stat-sub">${(summary.dailyMaintenance?.totalCharges || 0)} cobranças</div></div>
       <div class="stat"><div class="stat-label">Imposto Patrimonial Cobrado</div><div class="stat-val gold serif">R$${fmtN(taxTotal)}</div><div class="stat-sub">${(summary.wealthTax?.totalCharges || 0)} cobranças</div></div>
     `;
@@ -1975,8 +1975,8 @@ async function renderEconomic() {
     // Config display
     if (config) {
       document.getElementById('econ-config').innerHTML = `
-        <div><strong>Taxa de Compra:</strong> 2% do valor da operação</div>
-        <div><strong>Taxa de Venda:</strong> 3% do valor da operação</div>
+        <div><strong>Taxa de Compra:</strong> ${(config.buyFeeRate || 2).toFixed(2)}% do valor da operação</div>
+        <div><strong>Taxa de Venda:</strong> ${(config.sellFeeRate || 3).toFixed(2)}% do valor da operação</div>
         <hr style="border-color:var(--border);margin:8px 0">
         <div><strong>Taxas Diárias de Manutenção (patrimônio total):</strong></div>
         ${config.dailyMaintenanceBrackets.map(b => `
@@ -2111,7 +2111,7 @@ async function saveRatesConfig() {
   setBtnBusy(btn, true, 'Salvando...');
 
   try {
-    // Collect bracket values
+    // Collect bracket values (these are display-percents from the form)
     function collectBrackets(prefix, count) {
       const brackets = [];
       for (let i = 0; i < count; i++) {
@@ -2163,17 +2163,20 @@ async function saveRatesConfig() {
       if (b.rate < 0 || b.rate > 100) throw new Error(`Taxa inválida (${b.rate}%): deve ser entre 0 e 100`);
     }
 
+    // Build payload from form values directly — these are display-percents (0.2 = 0.2%)
+    // The server's _toDec() converts them to decimals for storage in JSON.
     const payload = {
       buyFeeRate:         parseFloat(document.getElementById('rate-buy')?.value) || 2,
       sellFeeRate:        parseFloat(document.getElementById('rate-sell')?.value) || 3,
-      dailyMaintenanceBrackets: dailyBrackets,
-      wealthTaxBrackets:  wealthBrackets,
+      dailyMaintenanceBrackets: dailyBrackets.map(b => ({ min: b.min, max: b.max === Infinity ? null : b.max, rate: Number(b.rate) })),
+      wealthTaxBrackets:  wealthBrackets.map(b => ({ min: b.min, max: b.max === Infinity ? null : b.max, rate: Number(b.rate) })),
       wealthTaxCycleDays: parseFloat(document.getElementById('rate-cycle')?.value) || 15,
     };
 
-    await PUT('economic/config', payload);
+    const resp = await PUT('economic/config', payload);
+    if (resp.error) throw new Error(resp.error);
 
-    // Close modal and refresh dashboard
+    // Close modal and refresh dashboard — renderEconomic fetches FRESH config via GET
     closeModal();
     showMsg('econ-manual-msg', '✓ Taxas econômicas atualizadas com sucesso!', 'ok');
     renderEconomic();
