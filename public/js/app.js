@@ -543,6 +543,10 @@ function showPage(pg) {
     showPage('market');
     return;
   }
+  // If navigating away from Social, clear any lingering social hash to avoid stale sub-tab state
+  if (pg !== 'social' && window.location && String(window.location.hash || '').startsWith('#/social')) {
+    try { history.replaceState(null, '', '#/'); } catch(e) { window.location.hash = '#/'; }
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.hn-btn,.bottom-nav-btn').forEach(b => b.classList.remove('active'));
   const page = document.getElementById('p-' + pg);

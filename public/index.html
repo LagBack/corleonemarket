@@ -961,7 +961,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             <input type="text" id="social-title-input" placeholder="Título do post" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;outline:none">
             <textarea id="social-content-input" placeholder="Escreva seu post..." style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;outline:none;min-height:220px;resize:vertical"></textarea>
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-              <span style="font-size:11px;color:var(--text3)">Máx 900 caracteres. Use **negrito**, *itálico*, ~~tachado~~ e quebras de linha.</span>
+              <span style="font-size:11px;color:var(--text3)">Máx 3000 caracteres. Use **negrito**, *itálico*, ~~tachado~~ e quebras de linha. <span id="social-char-count" style="font-weight:700;margin-left:8px;color:var(--text3)">0/3000</span></span>
               <div class="btns-row">
                 <button id="social-publish-btn" class="btn btn-gold" onclick="publishSocialPost()">Publicar</button>
                 <button class="btn btn-ghost" onclick="closeSocialComposer()">Cancelar</button>

@@ -10,7 +10,7 @@ let currentSocialType = 'forum';
 let openPostId = null;
 let notificationsLoaded = false;
 
-const SOCIAL_POST_CHAR_LIMIT = 900;
+const SOCIAL_POST_CHAR_LIMIT = 3000;
 const SOCIAL_COMMENT_CHAR_LIMIT = 300;
 const SOCIAL_BAD_WORDS = [
   'merda','porra','caralho','foda','puta','piranha','buceta','viado','viado','otario','otário','arrombado','burra','burro','idiota','estupido','estúpido','babaca','filhoda','filho da puta','puta que pariu','desgraça','vaca'
@@ -70,6 +70,8 @@ function openSocialComposer() {
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   setTimeout(() => contentInput.focus(), 50);
+  // update char counter immediately
+  updateComposeCharCount();
 }
 
 // ─── SOCIAL TAB SWITCHING ───
@@ -84,7 +86,8 @@ function showSocialTab(tab) {
   const newPostBtn = document.getElementById('social-new-post-btn');
   const canPost = CU && (tab === 'forum' || ['admin', 'dev'].includes(CU.role));
   newPostBtn.style.display = canPost ? '' : 'none';
-  
+  // Update friendly URL to reflect current social sub-tab
+  window.location.hash = `#/social/${tab === 'updates' ? 'updates' : 'forum'}`;
   loadSocialPage(1);
 }
 
@@ -557,12 +560,61 @@ window.addEventListener('hashchange', () => {
   }
 });
 
+// Close compose modal when clicking on backdrop
 document.addEventListener('click', (e) => {
   const composeModal = document.getElementById('social-compose-modal');
   if (composeModal && composeModal.style.display === 'flex' && e.target === composeModal) {
     closeSocialComposer();
   }
 });
+
+// Close notif menu if clicking outside (capturing to run before other handlers)
+document.addEventListener('click', (e) => {
+  const notifMenu = document.getElementById('notif-menu');
+  const notifBtn = document.getElementById('notif-btn');
+  if (!notifMenu) return;
+  const isOpen = notifMenu.style.display !== 'none' && notifMenu.style.display !== '';
+  if (isOpen && !notifMenu.contains(e.target) && (!notifBtn || !notifBtn.contains(e.target))) {
+    notifMenu.style.display = 'none';
+  }
+}, true);
+
+// dblclick on notif button closes menu immediately (also supports toggling)
+const _notifBtnAttach = () => {
+  const nb = document.getElementById('notif-btn');
+  if (!nb) return;
+  nb.addEventListener('dblclick', (ev) => {
+    ev.stopPropagation();
+    const menu = document.getElementById('notif-menu');
+    if (!menu) return;
+    if (menu.style.display !== 'none' && menu.style.display !== '') {
+      menu.style.display = 'none';
+    } else {
+      toggleNotifMenu();
+    }
+  });
+};
+_notifBtnAttach();
+
+// --- Compose char counter ---
+function updateComposeCharCount() {
+  const contentEl = document.getElementById('social-content-input');
+  const countEl = document.getElementById('social-char-count');
+  if (!countEl || !contentEl) return;
+  const len = contentEl.value.length;
+  countEl.textContent = `${len}/${SOCIAL_POST_CHAR_LIMIT}`;
+  countEl.style.color = len > SOCIAL_POST_CHAR_LIMIT ? 'var(--red2)' : 'var(--text3)';
+}
+
+// Attach input listener if element exists
+const _composeAttach = () => {
+  const contentEl = document.getElementById('social-content-input');
+  if (!contentEl) return;
+  contentEl.removeEventListener('input', updateComposeCharCount);
+  contentEl.addEventListener('input', updateComposeCharCount);
+  updateComposeCharCount();
+};
+_composeAttach();
 
 // Close notification menu on outside click
 document.addEventListener('click', (e) => {

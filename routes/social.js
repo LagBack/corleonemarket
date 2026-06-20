@@ -17,7 +17,7 @@ function sanitizeContent(text) {
     .trim();
 }
 
-const SOCIAL_POST_CHAR_LIMIT = 900;
+const SOCIAL_POST_CHAR_LIMIT = 3000;
 const SOCIAL_COMMENT_CHAR_LIMIT = 300;
 const SOCIAL_TITLE_CHAR_LIMIT = 200;
 const SOCIAL_BAD_WORDS = [
