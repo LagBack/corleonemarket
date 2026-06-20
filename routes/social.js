@@ -17,6 +17,34 @@ function sanitizeContent(text) {
     .trim();
 }
 
+const SOCIAL_POST_CHAR_LIMIT = 900;
+const SOCIAL_COMMENT_CHAR_LIMIT = 300;
+const SOCIAL_TITLE_CHAR_LIMIT = 200;
+const SOCIAL_BAD_WORDS = [
+  'merda','porra','caralho','foda','puta','piranha','buceta','viado','otario','otário','arrombado','burra','burro','idiota','estupido','estúpido','babaca','filhoda','filho da puta','puta que pariu','desgraça','vaca'
+];
+
+function normalizeText(text) {
+  return String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function containsBadWords(text) {
+  const normalized = normalizeText(text);
+  return SOCIAL_BAD_WORDS.some(word => {
+    const safeWord = normalizeText(word);
+    return new RegExp(`\\b${safeWord}\\b`, 'i').test(normalized);
+  });
+}
+
+function validateSocialContent(title, content) {
+  if (!title || !title.trim()) return 'Título é obrigatório';
+  if (!content || !content.trim()) return 'Conteúdo é obrigatório';
+  if (title.trim().length > SOCIAL_TITLE_CHAR_LIMIT) return `Título deve ter até ${SOCIAL_TITLE_CHAR_LIMIT} caracteres`;
+  if (content.trim().length > SOCIAL_POST_CHAR_LIMIT) return `Conteúdo deve ter até ${SOCIAL_POST_CHAR_LIMIT} caracteres`;
+  if (containsBadWords(title) || containsBadWords(content)) return 'Conteúdo não permitido';
+  return null;
+}
+
 // Helper: Check if user can edit/delete post
 async function canModifyPost(req, postId) {
   const [rows] = await pool.query('SELECT author_id FROM social_posts WHERE id = ?', [postId]);
@@ -115,8 +143,8 @@ router.post('/posts', requireAuth, async (req, res) => {
     const { title, content, type } = req.body;
     
     // Validate input
-    if (!title || !title.trim()) return res.status(400).json({ error: 'Título é obrigatório' });
-    if (!content || !content.trim()) return res.status(400).json({ error: 'Conteúdo é obrigatório' });
+    const validationError = validateSocialContent(title, content);
+    if (validationError) return res.status(400).json({ error: validationError });
     if (!['forum', 'update'].includes(type)) return res.status(400).json({ error: 'Tipo inválido' });
 
     // Permission check: only admin/dev can create updates
@@ -125,12 +153,13 @@ router.post('/posts', requireAuth, async (req, res) => {
     }
 
     const now = Date.now();
+    const sanitizedTitle = sanitizeContent(title).substring(0, SOCIAL_TITLE_CHAR_LIMIT);
     const sanitized = sanitizeContent(content);
     
     const [result] = await pool.query(
       `INSERT INTO social_posts (author_id, title, content, type, is_pinned, is_locked, like_count, comment_count, created_at, updated_at)
        VALUES (?, ?, ?, ?, 0, 0, 0, 0, ?, ?)`,
-      [req.session.userId, title.substring(0, 500), sanitized, type, now, now]
+      [req.session.userId, sanitizedTitle, sanitized, type, now, now]
     );
 
     const postId = result.insertId;
@@ -181,10 +210,22 @@ router.put('/posts/:id', requireAuth, async (req, res) => {
     const values = [];
 
     if (title !== undefined && title.trim()) {
+      if (title.trim().length > SOCIAL_TITLE_CHAR_LIMIT) {
+        return res.status(400).json({ error: `Título deve ter até ${SOCIAL_TITLE_CHAR_LIMIT} caracteres` });
+      }
+      if (containsBadWords(title)) {
+        return res.status(400).json({ error: 'Conteúdo não permitido' });
+      }
       updates.push('title = ?');
-      values.push(title.substring(0, 500));
+      values.push(sanitizeContent(title).substring(0, SOCIAL_TITLE_CHAR_LIMIT));
     }
     if (content !== undefined && content.trim()) {
+      if (content.trim().length > SOCIAL_POST_CHAR_LIMIT) {
+        return res.status(400).json({ error: `Conteúdo deve ter até ${SOCIAL_POST_CHAR_LIMIT} caracteres` });
+      }
+      if (containsBadWords(content)) {
+        return res.status(400).json({ error: 'Conteúdo não permitido' });
+      }
       updates.push('content = ?');
       values.push(sanitizeContent(content));
     }
@@ -399,6 +440,12 @@ router.post('/posts/:id/comments', requireAuth, async (req, res) => {
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Conteúdo do comentário é obrigatório' });
     }
+    if (content.trim().length > SOCIAL_COMMENT_CHAR_LIMIT) {
+      return res.status(400).json({ error: `Comentário deve ter até ${SOCIAL_COMMENT_CHAR_LIMIT} caracteres` });
+    }
+    if (containsBadWords(content)) {
+      return res.status(400).json({ error: 'Conteúdo não permitido' });
+    }
 
     // Check if post exists and is not locked
     const [posts] = await pool.query('SELECT is_locked, author_id FROM social_posts WHERE id = ?', [postId]);
@@ -467,6 +514,12 @@ router.put('/comments/:id', requireAuth, async (req, res) => {
 
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Conteúdo é obrigatório' });
+    }
+    if (content.trim().length > SOCIAL_COMMENT_CHAR_LIMIT) {
+      return res.status(400).json({ error: `Comentário deve ter até ${SOCIAL_COMMENT_CHAR_LIMIT} caracteres` });
+    }
+    if (containsBadWords(content)) {
+      return res.status(400).json({ error: 'Conteúdo não permitido' });
     }
 
     const now = Date.now();

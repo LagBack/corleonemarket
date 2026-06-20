@@ -939,19 +939,35 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <!-- SOCIAL -->
     <div class="page" id="p-social">
       <div class="card" style="margin-bottom:14px">
-        <div class="social-tabs" style="display:flex;border-bottom:1px solid var(--border);gap:2px">
-          <button class="social-tab active" data-tab="updates" onclick="showSocialTab('updates')">📢 Atualizações</button>
-          <button class="social-tab" data-tab="forum" onclick="showSocialTab('forum')">💬 Fórum</button>
+        <div class="social-tabs" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;gap:2px">
+            <button class="social-tab active" data-tab="updates" onclick="showSocialTab('updates')">📢 Atualizações</button>
+            <button class="social-tab" data-tab="forum" onclick="showSocialTab('forum')">💬 Fórum</button>
+          </div>
+          <button id="social-new-post-btn" class="btn btn-gold" onclick="openSocialComposer()" style="margin-left:auto;display:none">✍️ Novo Post</button>
         </div>
       </div>
 
-      <!-- POST CREATION AREA -->
-      <div id="social-composer" class="card" style="margin-bottom:14px;display:none">
-        <input type="text" id="social-title-input" placeholder="Título do post (fórum)" style="width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none;margin-bottom:8px">
-        <textarea id="social-content-input" placeholder="Escreva seu post..." style="width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;outline:none;min-height:100px;resize:vertical;margin-bottom:8px"></textarea>
-        <div class="btns-row">
-          <button id="social-publish-btn" class="btn btn-gold" onclick="publishSocialPost()">Publicar</button>
-          <button class="btn btn-ghost" onclick="closeSocialComposer()">Cancelar</button>
+      <div id="social-compose-modal" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.65);align-items:center;justify-content:center;padding:20px;overflow-y:auto">
+        <div style="width:100%;max-width:720px;max-height:calc(100vh - 80px);background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+            <div>
+              <div style="font-size:15px;font-weight:700">Criar novo post</div>
+              <div id="social-compose-type" style="font-size:11px;color:var(--text3);margin-top:4px">Fórum</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="closeSocialComposer()" style="padding:4px 8px">✕</button>
+          </div>
+          <div style="padding:20px;display:flex;flex-direction:column;gap:12px;overflow-y:auto">
+            <input type="text" id="social-title-input" placeholder="Título do post" style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;outline:none">
+            <textarea id="social-content-input" placeholder="Escreva seu post..." style="width:100%;padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'DM Mono',monospace;font-size:14px;outline:none;min-height:220px;resize:vertical"></textarea>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+              <span style="font-size:11px;color:var(--text3)">Máx 900 caracteres. Use **negrito**, *itálico*, ~~tachado~~ e quebras de linha.</span>
+              <div class="btns-row">
+                <button id="social-publish-btn" class="btn btn-gold" onclick="publishSocialPost()">Publicar</button>
+                <button class="btn btn-ghost" onclick="closeSocialComposer()">Cancelar</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -960,14 +976,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
       <!-- PAGINATION -->
       <div id="social-pagination" class="btns-row" style="justify-content:center;padding:12px 0;display:none">
-        <button class="btn btn-ghost" onclick="loadSocialPage(currentPage - 1)">← Anterior</button>
+        <button class="btn btn-ghost" onclick="loadSocialPage(currentSocialPage - 1)">← Anterior</button>
         <span id="social-page-info" style="font-size:12px;color:var(--text3);padding:0 8px"></span>
-        <button class="btn btn-ghost" onclick="loadSocialPage(currentPage + 1)">Próximo →</button>
+        <button class="btn btn-ghost" onclick="loadSocialPage(currentSocialPage + 1)">Próximo →</button>
       </div>
 
       <!-- POST DETAIL MODAL -->
-      <div id="social-post-modal" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.6);overflow-y:auto;padding:20px">
-        <div style="max-width:720px;margin:40px auto;background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:0">
+      <div id="social-post-modal" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:20px">
+        <div style="width:100%;max-width:720px;max-height:calc(100vh - 80px);overflow:hidden;background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:0;display:flex;flex-direction:column">
           <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid var(--border)">
             <button class="btn btn-ghost" onclick="closeSocialModal()" style="padding:4px 8px">← Voltar</button>
           </div>

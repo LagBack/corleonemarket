@@ -10,6 +10,68 @@ let currentSocialType = 'forum';
 let openPostId = null;
 let notificationsLoaded = false;
 
+const SOCIAL_POST_CHAR_LIMIT = 900;
+const SOCIAL_COMMENT_CHAR_LIMIT = 300;
+const SOCIAL_BAD_WORDS = [
+  'merda','porra','caralho','foda','puta','piranha','buceta','viado','viado','otario','otário','arrombado','burra','burro','idiota','estupido','estúpido','babaca','filhoda','filho da puta','puta que pariu','desgraça','vaca'
+];
+
+function normalizeBadWordText(text) {
+  return String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function containsBadWords(text) {
+  const normalized = normalizeBadWordText(text);
+  return SOCIAL_BAD_WORDS.some(word => {
+    const safeWord = word.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return new RegExp(`\\b${safeWord}\\b`, 'i').test(normalized);
+  });
+}
+
+function escapeHtml(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatSocialText(text) {
+  if (!text) return '';
+  let html = escapeHtml(text.trim());
+  html = html
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/~~(.+?)~~/g, '<s>$1</s>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+  return html
+    .split(/\n{2,}/g)
+    .map(block => `<p>${block.replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
+function formatSocialPreview(text) {
+  if (!text) return '';
+  const trimmed = String(text || '').replace(/\n/g, ' ').replace(/\*\*|~~|\*/g, '');
+  return trimmed.length > 200 ? trimmed.substring(0, 197).trim() + '…' : trimmed;
+}
+
+function openSocialComposer() {
+  const modal = document.getElementById('social-compose-modal');
+  const titleInput = document.getElementById('social-title-input');
+  const contentInput = document.getElementById('social-content-input');
+  const typeLabel = document.getElementById('social-compose-type');
+  const typeText = currentSocialTab === 'updates' ? 'Atualização' : 'Fórum';
+
+  typeLabel.textContent = typeText;
+  titleInput.value = '';
+  contentInput.value = '';
+  titleInput.placeholder = currentSocialTab === 'updates' ? 'Título da atualização' : 'Título do post';
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => contentInput.focus(), 50);
+}
+
 // ─── SOCIAL TAB SWITCHING ───
 function showSocialTab(tab) {
   currentSocialTab = tab;
@@ -19,11 +81,9 @@ function showSocialTab(tab) {
   document.querySelectorAll('.social-tab').forEach(b => b.classList.remove('active'));
   document.querySelector(`.social-tab[data-tab="${tab}"]`).classList.add('active');
   
-  if (tab === 'updates') {
-    document.getElementById('social-composer').style.display = CU && ['admin', 'dev'].includes(CU.role) ? '' : 'none';
-  } else {
-    document.getElementById('social-composer').style.display = CU ? '' : 'none';
-  }
+  const newPostBtn = document.getElementById('social-new-post-btn');
+  const canPost = CU && (tab === 'forum' || ['admin', 'dev'].includes(CU.role));
+  newPostBtn.style.display = canPost ? '' : 'none';
   
   loadSocialPage(1);
 }
@@ -59,8 +119,6 @@ function renderSocialPosts(posts) {
     const createdDate = new Date(p.created_at).toLocaleDateString('pt-BR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const isPinned = p.is_pinned ? '📌' : '';
     const isLocked = p.is_locked ? '🔒' : '';
-    const likedClass = p.liked_by_me ? 'liked' : '';
-    
     const authorEmoji = p.author ? (p.author.avatar || '🦁') : '🦁';
     const authorPhoto = p.author && p.author.photo ? `<img src="${p.author.photo}" alt="${authorEmoji}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" onerror="this.outerHTML='${authorEmoji}'">` : `<span style="font-size:24px;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:var(--s3)">${authorEmoji}</span>`;
     return `<div class="card social-post-card" style="margin-bottom:14px;cursor:pointer" onclick="openSocialPost(${p.id})">
@@ -68,13 +126,13 @@ function renderSocialPosts(posts) {
         <div style="flex-shrink:0">${authorPhoto}</div>
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-            <span style="font-weight:600;font-size:13px">${p.author ? p.author.nick || p.author.name : 'Anônimo'}</span>
+            <span style="font-weight:600;font-size:13px">${p.author ? escapeHtml(p.author.nick || p.author.name) : 'Anônimo'}</span>
             ${p.author && p.author.role !== 'user' ? `<span style="font-size:9px;padding:1px 6px;background:var(--gold-dim);color:var(--gold);border-radius:3px">${p.author.role.toUpperCase()}</span>` : ''}
             <span style="font-size:11px;color:var(--text3)">${createdDate}</span>
-            ${isPinned}<${isLocked}
+            ${isPinned}${isLocked}
           </div>
-          <h3 style="font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text)">${p.title}</h3>
-          <p style="font-size:12px;color:var(--text2);line-height:1.5;max-height:80px;overflow:hidden;text-overflow:ellipsis">${p.content.substring(0, 200)}</p>
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text)">${escapeHtml(p.title)}</h3>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;max-height:80px;overflow:hidden;text-overflow:ellipsis">${formatSocialPreview(p.content)}</p>
           <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--text3)">
             <span>❤️ ${p.like_count || 0}</span>
             <span>💬 ${p.comment_count || 0}</span>
@@ -113,14 +171,16 @@ async function openSocialPost(postId) {
     const isOwner = CU && String(CU.id) === String(post.author_id);
     const isAdmin = CU && ['admin', 'dev'].includes(CU.role);
     
-    const detailPhoto = post.author && post.author.photo ? `<img src="${post.author.photo}" alt="${post.author.nick || post.author.name || 'Avatar'}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">` : `<span style="font-size:32px;display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:var(--s3)">${post.author ? (post.author.avatar || '🦁') : '🦁'}</span>`;
+    const authorName = post.author ? escapeHtml(post.author.nick || post.author.name || 'Anônimo') : 'Anônimo';
+  const authorRole = post.author && post.author.role !== 'user' ? escapeHtml(post.author.role) : '';
+  const detailPhoto = post.author && post.author.photo ? `<img src="${post.author.photo}" alt="${authorName}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">` : `<span style="font-size:32px;display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:var(--s3)">${post.author ? (post.author.avatar || '🦁') : '🦁'}</span>`;
     detailDiv.innerHTML = `
       <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
         <div style="flex-shrink:0">${detailPhoto}</div>
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-            <span style="font-weight:600;font-size:14px">${post.author ? post.author.nick || post.author.name : 'Anônimo'}</span>
-            ${post.author && post.author.role !== 'user' ? `<span style="font-size:10px;padding:2px 8px;background:var(--gold-dim);color:var(--gold);border-radius:3px;text-transform:uppercase">${post.author.role}</span>` : ''}
+            <span style="font-weight:600;font-size:14px">${authorName}</span>
+            ${authorRole ? `<span style="font-size:10px;padding:2px 8px;background:var(--gold-dim);color:var(--gold);border-radius:3px;text-transform:uppercase">${authorRole}</span>` : ''}
           </div>
           <div style="font-size:11px;color:var(--text3)">${new Date(post.created_at).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
         </div>
@@ -130,7 +190,7 @@ async function openSocialPost(postId) {
         </div>` : ''}
       </div>
       <h2 style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:12px">${post.title}</h2>
-      <div style="font-size:13px;line-height:1.8;color:var(--text2);margin-bottom:16px;word-wrap:break-word">${post.content}</div>
+      <div style="font-size:13px;line-height:1.8;color:var(--text2);margin-bottom:16px;word-wrap:break-word">${formatSocialText(post.content)}</div>
       <div style="display:flex;gap:16px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
         <button class="btn btn-ghost btn-sm" onclick="toggleLikeSocialPost(${postId})" ${!CU ? 'disabled' : ''} style="gap:4px">
           ${post.liked_by_me ? '❤️' : '🤍'} ${post.like_count || 0}
@@ -185,7 +245,7 @@ function renderCommentThread(comment, depth = 0) {
         <div style="font-size:11px;color:var(--text3);margin-bottom:4px">
           <strong>${comment.author ? comment.author.nick || comment.author.name : 'Anônimo'}</strong> · ${createdDate}
         </div>
-        <p style="font-size:12px;line-height:1.6;margin-bottom:6px">${comment.content}</p>
+        <div style="font-size:12px;line-height:1.6;margin-bottom:6px">${formatSocialText(comment.content)}</div>
         <div style="display:flex;gap:8px;font-size:11px">
           <button class="btn btn-ghost btn-sm" onclick="toggleLikeSocialComment(${comment.id})" ${!CU ? 'disabled' : ''} style="gap:4px">
             ${comment.liked_by_me ? '❤️' : '🤍'} ${comment.like_count || 0}
@@ -252,8 +312,11 @@ function closeCommentArea() {
 }
 
 async function submitComment() {
-  const content = document.getElementById('social-comment-text').value.trim();
+  const contentInput = document.getElementById('social-comment-text');
+  const content = contentInput.value.trim();
   if (!content) return showMsg('social-comment-text', 'Escreva um comentário', 'err');
+  if (content.length > SOCIAL_COMMENT_CHAR_LIMIT) return showMsg('social-comment-text', `Máximo ${SOCIAL_COMMENT_CHAR_LIMIT} caracteres`, 'err');
+  if (containsBadWords(content)) return showMsg('social-comment-text', 'Conteúdo não permitido', 'err');
   
   const btn = document.getElementById('social-comment-submit-btn');
   setBtnBusy(btn, true, 'Comentando…');
@@ -270,30 +333,37 @@ async function submitComment() {
 
 // ─── PUBLISH POST ───
 async function publishSocialPost() {
-  const title = document.getElementById('social-title-input').value.trim();
-  const content = document.getElementById('social-content-input').value.trim();
+  const titleInput = document.getElementById('social-title-input');
+  const contentInput = document.getElementById('social-content-input');
+  const title = titleInput.value.trim();
+  const content = contentInput.value.trim();
   
   if (!title) return showMsg('social-title-input', 'Título é obrigatório', 'err');
+  if (title.length > 200) return showMsg('social-title-input', 'Título deve ter até 200 caracteres', 'err');
   if (!content) return showMsg('social-content-input', 'Conteúdo é obrigatório', 'err');
+  if (content.length > SOCIAL_POST_CHAR_LIMIT) return showMsg('social-content-input', `Máximo ${SOCIAL_POST_CHAR_LIMIT} caracteres`, 'err');
+  if (containsBadWords(title) || containsBadWords(content)) return showMsg('social-content-input', 'Conteúdo não permitido', 'err');
   
   const btn = document.getElementById('social-publish-btn');
   setBtnBusy(btn, true, 'Publicando…');
   try {
     await POST('social/posts', { title, content, type: currentSocialType });
-    document.getElementById('social-title-input').value = '';
-    document.getElementById('social-content-input').value = '';
+    titleInput.value = '';
+    contentInput.value = '';
     closeSocialComposer();
     loadSocialPage(1);
     showMsg('social-posts-list', '✓ Post publicado!', 'ok');
   } catch (e) {
-    showMsg('social-title-input', e.message, 'err');
+    showMsg('social-content-input', e.message, 'err');
   } finally {
     setBtnBusy(btn, false);
   }
 }
 
 function closeSocialComposer() {
-  document.getElementById('social-composer').style.display = 'none';
+  const modal = document.getElementById('social-compose-modal');
+  modal.style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 // ─── EDIT/DELETE POST ───
@@ -484,6 +554,13 @@ window.addEventListener('hashchange', () => {
   } else {
     showPage('social');
     showSocialTab(tab);
+  }
+});
+
+document.addEventListener('click', (e) => {
+  const composeModal = document.getElementById('social-compose-modal');
+  if (composeModal && composeModal.style.display === 'flex' && e.target === composeModal) {
+    closeSocialComposer();
   }
 });
 
