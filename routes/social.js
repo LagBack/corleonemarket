@@ -5,7 +5,7 @@ const { requireAuth, requireAdmin, requireMod } = require('../middleware/auth');
 // Helper: Get user details for posts/comments
 async function getUserDetails(userId) {
   if (!userId) return null;
-  const [rows] = await pool.query('SELECT id, name, nick, avatar, role FROM users WHERE id = ?', [userId]);
+  const [rows] = await pool.query('SELECT id, name, nick, avatar, photo, role FROM users WHERE id = ?', [userId]);
   return rows.length ? rows[0] : null;
 }
 

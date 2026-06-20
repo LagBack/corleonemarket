@@ -20,7 +20,7 @@ function showSocialTab(tab) {
   document.querySelector(`.social-tab[data-tab="${tab}"]`).classList.add('active');
   
   if (tab === 'updates') {
-    document.getElementById('social-composer').style.display = 'none';
+    document.getElementById('social-composer').style.display = CU && ['admin', 'dev'].includes(CU.role) ? '' : 'none';
   } else {
     document.getElementById('social-composer').style.display = CU ? '' : 'none';
   }
@@ -61,9 +61,11 @@ function renderSocialPosts(posts) {
     const isLocked = p.is_locked ? '🔒' : '';
     const likedClass = p.liked_by_me ? 'liked' : '';
     
+    const authorEmoji = p.author ? (p.author.avatar || '🦁') : '🦁';
+    const authorPhoto = p.author && p.author.photo ? `<img src="${p.author.photo}" alt="${authorEmoji}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" onerror="this.outerHTML='${authorEmoji}'">` : `<span style="font-size:24px;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:var(--s3)">${authorEmoji}</span>`;
     return `<div class="card social-post-card" style="margin-bottom:14px;cursor:pointer" onclick="openSocialPost(${p.id})">
       <div style="display:flex;align-items:flex-start;gap:12px">
-        <div style="font-size:24px;flex-shrink:0">${p.author ? (p.author.avatar || '🦁') : '🦁'}</div>
+        <div style="flex-shrink:0">${authorPhoto}</div>
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
             <span style="font-weight:600;font-size:13px">${p.author ? p.author.nick || p.author.name : 'Anônimo'}</span>
@@ -111,9 +113,10 @@ async function openSocialPost(postId) {
     const isOwner = CU && String(CU.id) === String(post.author_id);
     const isAdmin = CU && ['admin', 'dev'].includes(CU.role);
     
+    const detailPhoto = post.author && post.author.photo ? `<img src="${post.author.photo}" alt="${post.author.nick || post.author.name || 'Avatar'}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">` : `<span style="font-size:32px;display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:var(--s3)">${post.author ? (post.author.avatar || '🦁') : '🦁'}</span>`;
     detailDiv.innerHTML = `
       <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
-        <div style="font-size:32px;flex-shrink:0">${post.author ? (post.author.avatar || '🦁') : '🦁'}</div>
+        <div style="flex-shrink:0">${detailPhoto}</div>
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
             <span style="font-weight:600;font-size:14px">${post.author ? post.author.nick || post.author.name : 'Anônimo'}</span>
