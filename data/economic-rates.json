@@ -1,63 +1,63 @@
 {
-  "buyFeeRate": 0.04,
+  "buyFeeRate": 0.02,
   "sellFeeRate": 0.03,
   "dailyMaintenanceBrackets": [
     {
       "min": 0,
       "max": 1000000,
-      "rate": 20
+      "rate": 0.0020
     },
     {
       "min": 1000001,
       "max": 5000000,
-      "rate": 35
+      "rate": 0.0035
     },
     {
       "min": 5000001,
       "max": 10000000,
-      "rate": 50
+      "rate": 0.0050
     },
     {
       "min": 10000001,
       "max": 25000000,
-      "rate": 75
+      "rate": 0.0075
     },
     {
       "min": 25000001,
       "max": 50000000,
-      "rate": 100
+      "rate": 0.0100
     },
     {
       "min": 50000001,
       "max": 100000000,
-      "rate": 125
+      "rate": 0.0125
     },
     {
       "min": 100000001,
       "max": null,
-      "rate": 150
+      "rate": 0.0150
     }
   ],
   "wealthTaxBrackets": [
     {
       "min": 0,
       "max": 5000000,
-      "rate": 200
+      "rate": 0.01
     },
     {
       "min": 5000001,
       "max": 25000000,
-      "rate": 400
+      "rate": 0.02
     },
     {
       "min": 25000001,
       "max": 100000000,
-      "rate": 600
+      "rate": 0.04
     },
     {
       "min": 100000001,
       "max": null,
-      "rate": 800
+      "rate": 0.08
     }
   ],
   "wealthTaxCycleDays": 15

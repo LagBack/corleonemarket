@@ -1981,14 +1981,14 @@ async function renderEconomic() {
         <div><strong>Taxas Diárias de Manutenção (patrimônio total):</strong></div>
         ${config.dailyMaintenanceBrackets.map(b => `
           <div style="padding-left:12px;font-size:11px;color:var(--text3)">
-            R$${b.min === 0 ? '0' : b.min.toLocaleString('pt-BR')} — ${b.max ? b.max.toLocaleString('pt-BR') : '∞'} → ${(b.rate * 100).toFixed(2)}%
+            R$${b.min === 0 ? '0' : b.min.toLocaleString('pt-BR')} — ${b.max ? b.max.toLocaleString('pt-BR') : '∞'} → ${b.rate.toFixed(2)}%
           </div>
         `).join('')}
         <hr style="border-color:var(--border);margin:8px 0">
         <div><strong>Imposto Patrimonial (a cada ${config.wealthTaxCycleDays} dias):</strong></div>
         ${config.wealthTaxBrackets.map(b => `
           <div style="padding-left:12px;font-size:11px;color:var(--text3)">
-            R$${b.min === 0 ? '0' : b.min.toLocaleString('pt-BR')} — ${b.max ? b.max.toLocaleString('pt-BR') : '∞'} → ${(b.rate * 100).toFixed(2)}%
+            R$${b.min === 0 ? '0' : b.min.toLocaleString('pt-BR')} — ${b.max ? b.max.toLocaleString('pt-BR') : '∞'} → ${b.rate.toFixed(2)}%
           </div>
         `).join('')}
       `;
@@ -2063,7 +2063,7 @@ async function openRatesEditor() {
       <span style="font-size:11px;color:var(--text3)">—</span>
       <input type="number" value="${b.max === null ? '' : b.max}" id="${prefix}-${i}-max" placeholder="∞" step="100000" style="width:70px;padding:4px;background:var(--s2);border:1px solid var(--border);border-radius:3px;color:inherit;font-size:12px">
       <span style="font-size:11px;color:var(--text3)">→</span>
-      <input type="number" value="${b.rate}" id="${prefix}-${i}-rate" placeholder="%" step="0.05" min="0" max="100" style="width:60px;padding:4px;background:var(--s2);border:1px solid var(--border);border-radius:3px;color:inherit;font-size:12px">
+      <input type="number" value="${b.rate}" id="${prefix}-${i}-rate" placeholder="%" step="0.1" min="0" max="100" style="width:60px;padding:4px;background:var(--s2);border:1px solid var(--border);border-radius:3px;color:inherit;font-size:12px">
       <span style="font-size:10px;color:var(--text3)">%</span>
     </div>`;
 
