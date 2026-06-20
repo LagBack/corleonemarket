@@ -68,6 +68,9 @@ router.put('/config', requireAuth, async (req, res) => {
     // Convert display-percent to decimal for storage in JSON
     const _toDec = r => Math.round(r / 100 * 10000) / 10000; // safe percent→decimal
 
+    console.log('[PUT /api/economic/config] Received buyFeeRate:', body.buyFeeRate, typeof body.buyFeeRate);
+    console.log('[PUT /api/economic/config] _toDec →', _toDec(body.buyFeeRate));
+
     // Sanitize: last bracket must always have max=Infinity (guard against corrupted data like max=0/NaN)
     function sanitizeLastBracket(arr) {
       if (!arr || arr.length === 0) return arr;
@@ -82,8 +85,9 @@ router.put('/config', requireAuth, async (req, res) => {
       return arr;
     }
 
+    const newBuyRate = _toDec(body.buyFeeRate);
     econConfig.saveConfig({
-      buyFeeRate:         _toDec(body.buyFeeRate),
+      buyFeeRate:         newBuyRate,
       sellFeeRate:        _toDec(body.sellFeeRate),
       dailyMaintenanceBrackets: sanitizeLastBracket(body.dailyMaintenanceBrackets).map(b => ({
         min: Number(b.min), max: b.max === null ? Infinity : Number(b.max), rate: _toDec(Number(b.rate))
@@ -93,6 +97,10 @@ router.put('/config', requireAuth, async (req, res) => {
       })),
       wealthTaxCycleDays: Number(body.wealthTaxCycleDays),
     });
+
+    // Verify the value was persisted correctly
+    const afterSave = econConfig.getConfig();
+    console.log('[PUT /api/economic/config] After save buyFeeRate (decimal):', afterSave.buyFeeRate, 'display%:', Math.round(afterSave.buyFeeRate * 10000) / 100);
 
     // Log to admin log
     try {

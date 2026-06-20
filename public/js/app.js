@@ -2173,8 +2173,11 @@ async function saveRatesConfig() {
       wealthTaxCycleDays: parseFloat(document.getElementById('rate-cycle')?.value) || 15,
     };
 
+    console.log('[SAVE] Sending payload buyFeeRate:', payload.buyFeeRate, typeof payload.buyFeeRate);
+
     const resp = await PUT('economic/config', payload);
     if (resp.error) throw new Error(resp.error);
+    console.log('[SAVE] Server response buyFeeRate:', resp);
 
     // Close modal and refresh dashboard — renderEconomic fetches FRESH config via GET
     closeModal();
