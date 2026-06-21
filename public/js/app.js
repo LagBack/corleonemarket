@@ -617,7 +617,8 @@ function showPage(pg) {
   document.querySelectorAll('.hn-btn,.bottom-nav-btn').forEach(b => b.classList.remove('active'));
   const page = document.getElementById('p-' + pg);
   if (!page) return;
-  page.classList.add('active');
+  page.classList.add('active', 'animating');
+  setTimeout(() => page.classList.remove('animating'), 200);
   document.querySelector(`.hn-btn[data-page="${pg}"]`)?.classList.add('active');
   document.querySelector(`.bottom-nav-btn[data-page="${pg}"]`)?.classList.add('active');
   window.scrollTo({ top: 0, behavior: 'smooth' });
