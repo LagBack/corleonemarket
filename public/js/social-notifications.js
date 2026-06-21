@@ -12,7 +12,13 @@ let notificationsLoaded = false;
 
 // ── SVG ICON HELPERS ──
 const _sv = {
+  pin: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11-1.79V4A2 2 0 0 1 10 2h4a2 2 0 0 1 2 2v4.95"/></svg>`,
+  lock: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
   heart: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+  heartOutline: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+  comment: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  edit: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>`,
   check: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
 };
 
@@ -139,7 +145,7 @@ function renderSocialPosts(posts) {
     const isOwner = CU && String(CU.id) === String(p.author_id);
     const isAdmin = CU && ['admin', 'dev'].includes(CU.role);
     const createdDate = new Date(p.created_at).toLocaleDateString('pt-BR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const ic = {pin:`<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11-1.79V4A2 2 0 0 1 10 2h4a2 2 0 0 1 2 2v4.95"/></svg>`, lock:`<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`, heart:`<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`, comment:`<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`, trash:`<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`, edit:`<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>`, check:`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` };
+    const ic = _sv;
     const isPinned = p.is_pinned ? ic.pin : '';
     const isLocked = p.is_locked ? ic.lock : '';
     const authorEmoji = p.author ? (p.author.avatar || '🦁') : '🦁';
@@ -208,8 +214,8 @@ async function openSocialPost(postId) {
           <div style="font-size:11px;color:var(--text3)">${new Date(post.created_at).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
         </div>
         ${isOwner || isAdmin ? `<div style="display:flex;gap:4px">
-          ${isOwner ? `<button class="btn btn-ghost btn-sm" onclick="editSocialPost(${postId})">${ic.edit}</button>
-          <button class="btn btn-ghost btn-sm" onclick="deleteSocialPost(${postId})">${ic.trash}</button>` : ''}
+          ${isOwner ? `<button class="btn btn-ghost btn-sm" onclick="editSocialPost(${postId})">${_sv.edit}</button>
+          <button class="btn btn-ghost btn-sm" onclick="deleteSocialPost(${postId})">${_sv.trash}</button>` : ''}
         </div>` : ''}
       </div>
       <h2 style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:12px">${post.title}</h2>
@@ -218,7 +224,7 @@ async function openSocialPost(postId) {
         <button class="btn btn-ghost btn-sm" onclick="toggleLikeSocialPost(${postId})" ${!CU ? 'disabled' : ''} style="gap:4px">
           ${post.liked_by_me ? _sv.heart : `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`} ${post.like_count || 0}
         </button>
-        <button class="btn btn-ghost btn-sm" onclick="showCommentArea()" ${!CU ? 'disabled' : ''}>${ic.comment} Comentar</button>
+        <button class="btn btn-ghost btn-sm" onclick="showCommentArea()" ${!CU ? 'disabled' : ''}>${_sv.comment} Comentar</button>
       </div>
     `;
     
@@ -276,7 +282,7 @@ function renderCommentThread(comment, depth = 0) {
           <button class="btn btn-ghost btn-sm" onclick="toggleLikeSocialComment(${comment.id})" ${!CU ? 'disabled' : ''} style="gap:4px">
             ${comment.liked_by_me ? _sv.heart : `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`} ${comment.like_count || 0}
           </button>
-          ${isOwner || isAdmin ? `<button class="btn btn-ghost btn-sm" onclick="deleteSocialComment(${comment.id})">${ic.trash}</button>` : ''}
+          ${isOwner || isAdmin ? `<button class="btn btn-ghost btn-sm" onclick="deleteSocialComment(${comment.id})">${_sv.trash}</button>` : ''}
         </div>
       </div>
     </div>
