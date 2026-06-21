@@ -39,9 +39,14 @@ function escapeHtml(text) {
     .replace(/'/g, '&#39;');
 }
 
+function preserveSocialSpaces(text) {
+  return String(text || '').replace(/ {2,}/g, spaces => '&nbsp;'.repeat(spaces.length - 1) + ' ');
+}
+
 function formatSocialText(text) {
   if (!text) return '';
   let html = escapeHtml(text.trim());
+  html = preserveSocialSpaces(html);
   html = html
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/~~(.+?)~~/g, '<s>$1</s>')
@@ -54,7 +59,8 @@ function formatSocialText(text) {
 
 function formatSocialPreview(text) {
   if (!text) return '';
-  const trimmed = String(text || '').replace(/\n/g, ' ').replace(/\*\*|~~|\*/g, '');
+  let trimmed = String(text || '').replace(/\n/g, ' ').replace(/\*\*|~~|\*/g, '');
+  trimmed = preserveSocialSpaces(trimmed);
   return trimmed.length > 200 ? trimmed.substring(0, 197).trim() + '…' : trimmed;
 }
 
