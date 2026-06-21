@@ -9,6 +9,8 @@ let currentSocialPage = 1;
 let currentSocialType = 'forum';
 let openPostId = null;
 let notificationsLoaded = false;
+// When true, ignore the next hashchange handler invocation (prevents double-open flicker)
+let _suppressHashChange = false;
 
 const SOCIAL_POST_CHAR_LIMIT = 3000;
 const SOCIAL_COMMENT_CHAR_LIMIT = 300;
@@ -209,9 +211,14 @@ async function openSocialPost(postId) {
     
     document.getElementById('social-post-modal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
-    window.location.hash = `#/social/${currentSocialType === 'update' ? 'updates' : 'forum'}/post/${postId}`;
+    // set hash programmatically but suppress the immediate hashchange handler to avoid double-open
+    _suppressHashChange = true;
+    try { window.location.hash = `#/social/${currentSocialType === 'update' ? 'updates' : 'forum'}/post/${postId}`; } catch (e) {}
+    setTimeout(() => { _suppressHashChange = false; }, 500);
+    return true;
   } catch (e) {
     showMsg('social-post-detail', e.message, 'err');
+    return false;
   }
 }
 
@@ -548,6 +555,11 @@ async function openNotificationLink(notificationId) {
 
 // ─── HASH ROUTER FOR FRIENDLY URLs ───
 window.addEventListener('hashchange', () => {
+  if (_suppressHashChange) {
+    // reset flag and ignore this programmatic hashchange
+    _suppressHashChange = false;
+    return;
+  }
   const hash = window.location.hash.substring(1);
   if (!hash.startsWith('/social')) return;
   
@@ -557,7 +569,13 @@ window.addEventListener('hashchange', () => {
   if (parts[3] === 'post' && parts[4]) {
     showPage('social');
     showSocialTab(tab);
-    setTimeout(() => openSocialPost(parseInt(parts[4])), 300);
+    // try to open the post; if it fails (deleted/non-existent), clear the post fragment
+    setTimeout(async () => {
+      const ok = await openSocialPost(parseInt(parts[4]));
+      if (!ok) {
+        try { history.replaceState(null, '', `#/social/${tab}`); } catch (e) { window.location.hash = `#/social/${tab}`; }
+      }
+    }, 300);
   } else {
     showPage('social');
     showSocialTab(tab);
