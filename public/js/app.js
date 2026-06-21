@@ -120,14 +120,34 @@ function routeFromHash() {
   }
 
   if (parts[0] === 'social') {
-    const tab = parts[1] === 'updates' ? 'updates' : 'forum';
+    let tab = 'forum';
+    let postId = null;
+    let index = 1;
+
+    if (parts[1] === 'updates') {
+      tab = 'updates';
+      index = 2;
+    } else if (parts[1] === 'forum') {
+      tab = 'forum';
+      index = 2;
+    }
+
+    if (parts[index] === 'post' && parts[index + 1]) {
+      postId = parseInt(parts[index + 1], 10);
+    }
+
     currentSocialTab = tab;
     currentSocialType = tab === 'updates' ? 'update' : 'forum';
     showPage('social');
-    if (parts[2] === 'post' && parts[3]) {
-      openSocialPost(parseInt(parts[3], 10)).then(ok => {
+
+    if (parts[1] === 'forum') {
+      history.replaceState(null, '', postId ? `#/social/post/${postId}` : '#/social');
+    }
+
+    if (postId) {
+      openSocialPost(postId).then(ok => {
         if (!ok) {
-          history.replaceState(null, '', `#/social/${tab}`);
+          history.replaceState(null, '', tab === 'updates' ? '#/social/updates' : '#/social');
         }
       });
     }
@@ -603,8 +623,10 @@ function showPage(pg) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
   if (pg === 'social') {
-    // Social page has its own sub-route handling
-    showSocialTab(currentSocialTab || 'forum');
+    // Social page has its own sub-route handling; preserve deep social/post URLs
+    if (!window.location.hash.includes('/post/')) {
+      showSocialTab(currentSocialTab || 'forum', true);
+    }
     return;
   }
 
