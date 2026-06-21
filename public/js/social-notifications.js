@@ -72,6 +72,8 @@ function openSocialComposer() {
   setTimeout(() => contentInput.focus(), 50);
   // update char counter immediately
   updateComposeCharCount();
+  // ensure listener attached (in case DOM mutations removed it)
+  _composeAttach();
 }
 
 // ─── SOCIAL TAB SWITCHING ───
@@ -356,6 +358,8 @@ async function publishSocialPost() {
     closeSocialComposer();
     loadSocialPage(1);
     showMsg('social-posts-list', '✓ Post publicado!', 'ok');
+    // reset counter display
+    updateComposeCharCount();
   } catch (e) {
     showMsg('social-content-input', e.message, 'err');
   } finally {
@@ -616,14 +620,7 @@ const _composeAttach = () => {
 };
 _composeAttach();
 
-// Close notification menu on outside click
-document.addEventListener('click', (e) => {
-  const notifWrap = document.getElementById('notif-wrap');
-  const notifMenu = document.getElementById('notif-menu');
-  if (notifWrap && notifMenu && !notifWrap.contains(e.target)) {
-    notifMenu.style.display = 'none';
-  }
-});
+// (Removed duplicate outside-click handler; capture handler above handles closing)
 
 // Close social modal on ESC
 document.addEventListener('keydown', (e) => {
