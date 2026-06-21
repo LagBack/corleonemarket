@@ -56,7 +56,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 ::-webkit-scrollbar-track{background:var(--s1)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
-/* ── SCREENS ── */
+/* ── NAV ICONS ── */
+.nav-i{display:inline-block;width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;margin-right:4px;opacity:.85}
+.bn-i{display:inline-block;width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;display:block;margin:0 auto 3px}
 .screen{display:none;min-height:100vh;flex-direction:column}
 .screen.active{display:flex}
 
@@ -423,7 +425,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div id="auth-login">
         <div class="fg"><label>E-mail</label><input type="email" id="l-email" placeholder='email@email.com'></div>
         <div class="fg"><label>Senha</label><input type="password" id="l-pass" placeholder='Insira sua senha aqui' onkeydown="if(event.key==='Enter')doLogin()"></div>
-        <button class="btn-primary" onclick="doLogin()">Entrar no Pregão →</button>
+        <button class="btn-primary" onclick="doLogin()">Entrar no Pregão <svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
       </div>
 
       <div id="auth-register" style="display:none">
@@ -452,7 +454,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             <option value="Outro">🌍 Outro</option>
           </select>
         </div>
-        <button class="btn-primary" onclick="doRegister()">Criar Conta →</button>
+        <button class="btn-primary" onclick="doRegister()">Criar Conta <svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
         <div class="auth-demo">
           <b>LEMBRE-SE</b>, não há necessidade de usar seu email real, mas lembre que caso você esqueça seus dados não é possivel recuperar<br>
         </div>
@@ -472,31 +474,31 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <div class="app-header">
     <div class="app-logo serif"><em>Corleone</em><span>Market</span></div>
     <div class="hn">
-      <button class="hn-btn active" data-page="market" onclick="showPage('market')">Mercado</button>
-      <button class="hn-btn" data-page="trade" onclick="showPage('trade')">Negociar</button>
-      <button class="hn-btn" data-page="portfolio" onclick="showPage('portfolio')">Portfólio</button>
-      <button class="hn-btn" data-page="ranking" onclick="showPage('ranking')">Ranking</button>
-      <button class="hn-btn" data-page="profile" onclick="showPage('profile')">Perfil</button>
-      <button class="hn-btn" data-page="social" onclick="showPage('social')">Social</button>
-      <button class="hn-btn admin-only" data-page="economic" style="display:none" onclick="showPage('economic')">📋 Econômico</button>
-      <button class="hn-btn admin-only" data-page="admin" style="display:none" onclick="showPage('admin')">⚙ Admin</button>
-      <button class="hn-btn dev-only" data-page="dev" style="display:none" onclick="showPage('dev')">Dev</button>
+      <button class="hn-btn active" data-page="market" onclick="showPage('market')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Mercado</button>
+      <button class="hn-btn" data-page="trade" onclick="showPage('trade')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l-4 4h14"/><polyline points="18 9 22 5 18 9"/><path d="M17 21l4-4H7"/><polyline points="6 15 2 19 6 15"/></svg> Negociar</button>
+      <button class="hn-btn" data-page="portfolio" onclick="showPage('portfolio')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> Portfólio</button>
+      <button class="hn-btn" data-page="ranking" onclick="showPage('ranking')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C8 4 10 6.5 10 9v6.5"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 15 6.5 15 9v3.5"/><line x1="4" y1="21" x2="20" y2="21"/><path d="M12 3l3 6H9l3-6z"/></svg> Ranking</button>
+      <button class="hn-btn" data-page="profile" onclick="showPage('profile')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Perfil</button>
+      <button class="hn-btn" data-page="social" onclick="showPage('social')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Social</button>
+      <button class="hn-btn admin-only" data-page="economic" style="display:none" onclick="showPage('economic')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="5" width="12" height="16" rx="1"/><line x1="13" y1="3" x2="13" y2="7"/><line x1="11" y1="9" x2="17" y2="9"/><line x1="11" y1="13" x2="15" y2="13"/><line x1="11" y1="17" x2="14" y2="17"/></svg>Econômico</button>
+      <button class="hn-btn admin-only" data-page="admin" style="display:none" onclick="showPage('admin')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Admin</button>
+      <button class="hn-btn dev-only" data-page="dev" style="display:none" onclick="showPage('dev')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Dev</button>
     </div>
     <div class="hdr-right">
       <div class="mkt-pill open" id="mkt-status">● ABERTO</div>
       <!-- THEME SELECTOR -->
       <div style="position:relative" id="theme-wrap">
-        <button class="btn btn-ghost" id="theme-btn" onclick="toggleThemeMenu()" title="Trocar tema" style="padding:4px 8px;font-size:14px;line-height:1">🎨</button>
+        <button class="btn btn-ghost" id="theme-btn" onclick="toggleThemeMenu()" title="Trocar tema" style="padding:4px 8px;font-size:14px;line-height:1"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><path d="M6 2v3"/><path d="M18 2v3"/><path d="M6 19v3"/><path d="M18 19v3"/><path d="M2 13.5h3"/><path d="M2 6.5h3"/><path d="M19 13.5h3"/><path d="M19 6.5h3"/><circle cx="13.5" cy="17.5" r="2.5"/></svg></button>
         <div class="tm" id="theme-menu">
-          <button class="tm-item" data-theme="default" onclick="setTheme('default')">☀️ Padrão</button>
-          <button class="tm-item" data-theme="very-dark" onclick="setTheme('very-dark')">🌑 Muito Escuro</button>
-          <button class="tm-item" data-theme="light" onclick="setTheme('light')">💡 Claro</button>
+          <button class="tm-item" data-theme="default" onclick="setTheme('default')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> Padrão</button>
+          <button class="tm-item" data-theme="very-dark" onclick="setTheme('very-dark')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Muito Escuro</button>
+          <button class="tm-item" data-theme="light" onclick="setTheme('light')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> Claro</button>
         </div>
       </div>
       <!-- /THEME SELECTOR -->
       <!-- NOTIFICATION BELL -->
       <div style="position:relative;display:inline-block" id="notif-wrap">
-        <button class="btn btn-ghost" id="notif-btn" onclick="toggleNotifMenu()" title="Notificações" style="padding:4px 8px;font-size:14px;line-height:1;position:relative">🔔<span id="notif-badge" style="display:none;position:absolute;top:0;right:2px;background:#e74c3c;color:#fff;font-size:9px;font-weight:700;border-radius:6px;padding:0 4px;min-width:14px;text-align:center;line-height:1.2">0</span></button>
+        <button class="btn btn-ghost" id="notif-btn" onclick="toggleNotifMenu()" title="Notificações" style="padding:4px 8px;font-size:14px;line-height:1;position:relative"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span id="notif-badge" style="display:none;position:absolute;top:0;right:2px;background:#e74c3c;color:#fff;font-size:9px;font-weight:700;border-radius:6px;padding:0 4px;min-width:14px;text-align:center;line-height:1.2">0</span></button>
         <div class="notif-menu" id="notif-menu" style="display:none;position:absolute;top:100%;right:0;width:360px;max-height:420px;background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 30px rgba(0,0,0,.45);z-index:70;flex-direction:column;overflow:hidden;">
           <div style='display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)'>
             <span style="font-size:13px;font-weight:600">Notificações</span>
@@ -601,27 +603,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div class="grid2">
         <div class="card">
           <div class="card-title" style="justify-content:space-between">
-            <span>📊 Configuração Atual</span>
-            <button class="btn btn-ghost btn-sm" onclick="openRatesEditor()" style="font-size:10px;padding:3px 8px;line-height:1.4" title="Editar taxas de imposto">✏️ Editar Taxas</button>
+            <span><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Configuração Atual</span>
+            <button class="btn btn-ghost btn-sm" onclick="openRatesEditor()" style="font-size:10px;padding:3px 8px;line-height:1.4" title="Editar taxas de imposto"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> Editar Taxas</button>
           </div>
           <div id="econ-config" style="font-size:12px;line-height:2"></div>
         </div>
         <div class="card">
-          <div class="card-title">⚡ Ações Manuais (Admin)</div>
+          <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg> Ações Manuais (Admin)</div>
           <div class="btns-row" style="gap:8px;flex-wrap:wrap">
-            <button class="btn btn-gold" onclick="manualDailyFee()">💰 Taxa Diária Agora</button>
-            <button class="btn btn-r" onclick="manualWealthTax()">🏛️ Imposto Patrimonial Agora</button>
+            <button class="btn btn-gold" onclick="manualDailyFee()"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg> Taxa Diária Agora</button>
+            <button class="btn btn-r" onclick="manualWealthTax()"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21L3 8l9-4 9 4v13"/><rect x="7" y="13" width="3" height="4"/><rect x="14" y="13" width="3" height="4"/></svg> Imposto Patrimonial Agora</button>
           </div>
           <div id="econ-manual-msg" style="margin-top:8px"></div>
         </div>
       </div>
       <div class="grid2">
         <div class="card">
-          <div class="card-title">📋 Últimas Taxas Diárias</div>
+          <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="5" width="12" height="16" rx="1"/><line x1="13" y1="3" x2="13" y2="7"/><line x1="11" y1="9" x2="17" y2="9"/></svg> Últimas Taxas Diárias</div>
           <div id="econ-daily-history" style="max-height:300px;overflow-y:auto"></div>
         </div>
         <div class="card">
-          <div class="card-title">🏛️ Últimos Impostos Patrimoniais</div>
+          <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21L3 8l9-4 9 4v13"/><rect x="7" y="13" width="3" height="4"/><rect x="14" y="13" width="3" height="4"/></svg> Últimos Impostos Patrimoniais</div>
           <div id="econ-tax-history" style="max-height:300px;overflow-y:auto"></div>
         </div>
       </div>
@@ -632,17 +634,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div class="grid2">
         <div>
           <div class="card" style="margin-bottom:14px">
-            <div class="card-title">🏆 Ranking de Patrimônio</div>
+            <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C8 4 10 6.5 10 9v6.5"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 15 6.5 15 9v3.5"/><line x1="4" y1="21" x2="20" y2="21"/><path d="M12 3l3 6H9l3-6z"/></svg> Ranking de Patrimônio</div>
             <div id="rank-inv"></div>
           </div>
         </div>
         <div>
           <div class="card" style="margin-bottom:14px">
-            <div class="card-title">📈 Demanda &amp; Oferta</div>
+            <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Demanda &amp; Oferta</div>
             <div id="rank-sd"></div>
           </div>
           <div class="card">
-            <div class="card-title">🔥 Mais Negociados</div>
+            <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Mais Negociados</div>
             <div id="rank-top"></div>
           </div>
         </div>
@@ -688,7 +690,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       </div>
       <div class="grid2">
         <div class="card">
-          <div class="card-title">🥧 Participação nas Empresas</div>
+          <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg> Participação nas Empresas</div>
           <div style="position:relative;height:260px;display:flex;align-items:center;justify-content:center">
             <canvas id="pieChart" style="max-height:240px"></canvas>
             <div id="pie-empty" style="display:none;color:var(--text3);font-size:13px;position:absolute">Sem ativos em carteira</div>
@@ -696,7 +698,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           <div id="pie-legend" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px"></div>
         </div>
         <div class="card">
-          <div class="card-title">💰 Dividendos Recebidos <span class="ct-badge gold" id="div-total-badge">R$0</span></div>
+          <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg> Dividendos Recebidos <span class="ct-badge gold" id="div-total-badge">R$0</span></div>
           <div id="div-history" style="max-height:220px;overflow-y:auto"></div>
           <div id="div-created" style="margin-top:12px"></div>
         </div>
@@ -708,11 +710,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div class="grid2">
         <div>
           <div class="card" style="margin-bottom:14px">
-            <div class="card-title">🏭 Minhas Participações</div>
+            <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20V8l-6 4V8l-6 4V4H2z"/><rect x="6" y="14" width="3" height="3"/><rect x="15" y="14" width="3" height="3"/></svg> Minhas Participações</div>
             <div id="my-ownership-list"></div>
           </div>
           <div class="card">
-            <div class="card-title">📤 Vender Participação</div>
+            <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Vender Participação</div>
             <div class="fg"><label>Empresa</label><select id="sell-own-sym" onchange="updateSellOwnershipInfo()" style="width:100%"><option value="">— Selecionar —</option></select></div>
             <div id="sell-own-info" style="margin-bottom:10px"></div>
             <div class="form-row">
@@ -724,7 +726,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           </div>
         </div>
         <div class="card">
-          <div class="card-title">📋 Mercado de Participações <span class="ct-badge" id="offers-ct">0</span></div>
+          <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Mercado de Participações <span class="ct-badge" id="offers-ct">0</span></div>
           <p style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.6">Compre participações de empresas de outros players. Donos recebem taxa de cada trade nessa ação — é renda passiva real.</p>
           <div id="ownership-market-list"></div>
         </div>
@@ -734,25 +736,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <!-- ADMIN -->
     <div class="page" id="p-admin">
       <div class="admin-zone" id="admin-ownership-zone">
-        <h3 class="gold">🏭 Participações</h3>
+        <h3 class="gold"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20V8l-6 4V8l-6 4V4H2z"/><rect x="6" y="14" width="3" height="3"/><rect x="15" y="14" width="3" height="3"/></svg> Participações</h3>
         <div id="admin-ownership-content"></div>
       </div>
 
       <div class="admin-zone">
-        <h3 class="red">⚡ Controle do Mercado</h3>
+        <h3 class="red"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg> Controle do Mercado</h3>
         <div class="btns-row">
           <button class="btn btn-g" onclick="adminAct('market/open')">Abrir</button>
           <button class="btn btn-r" onclick="adminAct('market/close')">Fechar</button>
-          <button class="btn btn-gold" onclick="adminAct('market/reset',true)">🔄 Resetar Preços</button>
-          <button class="btn btn-dark" onclick="adminAct('market/crash')">💥 Crash</button>
-          <button class="btn btn-dark" onclick="adminAct('market/bull')">🚀 Alta Geral</button>
+          <button class="btn btn-gold" onclick="adminAct('market/reset',true)"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resetar Preços</button>
+          <button class="btn btn-dark" onclick="adminAct('market/crash')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Crash</button>
+          <button class="btn btn-dark" onclick="adminAct('market/bull')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Alta Geral</button>
         </div>
         <div id="adm-mkt-msg"></div>
       </div>
 
       <!-- ── CRIAR ATIVO (único card, tudo junto) ── -->
       <div class="admin-zone" style="margin-bottom:14px">
-        <h3 class="gold">➕ Criar Ativo</h3>
+        <h3 class="gold"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Criar Ativo</h3>
 
         <div class="grid2" style="gap:10px">
           <!-- Coluna esquerda: dados da empresa -->
@@ -779,7 +781,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
           <!-- Coluna direita: donos -->
           <div>
-            <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#c9a84c;margin-bottom:8px">👑 Donos da Empresa (opcional)</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#c9a84c;margin-bottom:8px"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V7l-2 1V5l7-2 5 5 5-5 7 2v3l-2-1v12"/><path d="M6 16h12"/></svg> Donos da Empresa (opcional)</div>
             <div style="font-size:11px;color:#9890b0;line-height:1.6;margin-bottom:12px;padding:8px 10px;background:#18181f;border-left:2px solid #c9a84c;border-radius:0 4px 4px 0">
               Donos recebem uma <strong style="color:#c9a84c">% de cada trade</strong> como renda passiva. Total máximo: <strong style="color:#c9a84c">1%</strong>.
             </div>
@@ -799,7 +801,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
               <div class="owner-add-btns">
                 <button type="button" onclick="addSelfAsOwner()"
                   style="padding:7px 12px;background:var(--s3);color:var(--gold2);border:1px solid var(--border2);border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
-                  👤 Eu como dono
+                  <svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Eu como dono
                 </button>
                 <button type="button" onclick="addOwnerRow()"
                   style="padding:7px 12px;background:#c9a84c;color:#0d0d0f;border:none;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
@@ -822,14 +824,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         </div>
 
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid #2a2a3a;display:flex;gap:10px;align-items:center">
-          <button class="btn btn-g" onclick="adminCreateStock()">✓ Criar Ativo</button>
+          <button class="btn btn-g" onclick="adminCreateStock()"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Criar Ativo</button>
         </div>
         <div id="adm-create-msg"></div>
       </div>
 
       <!-- ── EDITAR ATIVO ── -->
       <div class="admin-zone" style="margin-bottom:14px">
-        <h3>✏️ Editar Ativo Existente</h3>
+        <h3><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> Editar Ativo Existente</h3>
         <div class="fg"><label>Selecionar</label><select id="edit-sym-sel" onchange="loadEditStock()"><option value="">— Selecionar —</option></select></div>
         <div id="edit-stock-form" style="display:none">
           <div class="grid2" style="gap:10px">
@@ -845,7 +847,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
             </div>
           </div>
           <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-            <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-bottom:8px">👑 Donos deste ativo</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-bottom:8px"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V7l-2 1V5l7-2 5 5 5-5 7 2v3l-2-1v12"/><path d="M6 16h12"/></svg> Donos deste ativo</div>
             <div class="owner-add-row" style="display:flex;gap:6px;align-items:flex-end;margin-bottom:8px">
               <div style="flex:1">
                 <select id="edit-owner-player-sel" style="width:100%;padding:7px 9px;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px;font-family:'DM Mono',monospace">
@@ -857,7 +859,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
                   style="width:100%;padding:7px 9px;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px;font-family:'DM Mono',monospace">
               </div>
               <div class="owner-add-btns">
-                <button type="button" class="btn btn-dark btn-sm" onclick="addSelfAsEditOwner()">👤 Eu como dono</button>
+                <button type="button" class="btn btn-dark btn-sm" onclick="addSelfAsEditOwner()"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Eu como dono</button>
                 <button type="button" class="btn btn-gold btn-sm" onclick="addEditOwnerRow()">+ Adicionar</button>
               </div>
             </div>
@@ -877,7 +879,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       </div>
 
       <div class="admin-zone">
-        <h3>👥 Usuários</h3>
+        <h3><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Usuários</h3>
         <div id="adm-users-msg" style="margin-bottom:8px"></div>
         <div style="overflow-x:auto">
           <table class="mkt-table mkt-table--cards" id="users-tbl">
@@ -888,7 +890,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       </div>
 
       <div class="admin-zone">
-        <h3>📋 Log</h3>
+        <h3><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Log</h3>
         <div id="adm-log" style="max-height:180px;overflow-y:auto"></div>
       </div>
     </div>
@@ -904,8 +906,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         </p>
         <div class="btns-row">
           <button class="btn btn-gold" onclick="renderDev()">Atualizar Relatório</button>
-          <button class="btn btn-g" onclick="downloadDbBackup()">⬇ Download db.json</button>
-          <button class="btn btn-dark" onclick="document.getElementById('import-db-input').click()">⬆ Importar db.json</button>
+          <button class="btn btn-g" onclick="downloadDbBackup()"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download db.json</button>
+          <button class="btn btn-dark" onclick="document.getElementById('import-db-input').click()"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Importar db.json</button>
         </div>
         <div id="dev-msg"></div>
       </div>
@@ -948,10 +950,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div class="card" style="margin-bottom:14px">
         <div class="social-tabs" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div style="display:flex;gap:2px">
-            <button class="social-tab active" data-tab="updates" onclick="showSocialTab('updates')">📢 Atualizações</button>
-            <button class="social-tab" data-tab="forum" onclick="showSocialTab('forum')">💬 Fórum</button>
+            <button class="social-tab active" data-tab="updates" onclick="showSocialTab('updates')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Atualizações</button>
+            <button class="social-tab" data-tab="forum" onclick="showSocialTab('forum')"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Fórum</button>
           </div>
-          <button id="social-new-post-btn" class="btn btn-gold" onclick="openSocialComposer()" style="margin-left:auto;display:none">✍️ Novo Post</button>
+          <button id="social-new-post-btn" class="btn btn-gold" onclick="openSocialComposer()" style="margin-left:auto;display:none"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Novo Post</button>
         </div>
       </div>
 
@@ -983,16 +985,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
       <!-- PAGINATION -->
       <div id="social-pagination" class="btns-row" style="justify-content:center;padding:12px 0;display:none">
-        <button class="btn btn-ghost" onclick="loadSocialPage(currentSocialPage - 1)">← Anterior</button>
+        <button class="btn btn-ghost" onclick="loadSocialPage(currentSocialPage - 1)"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Anterior</button>
         <span id="social-page-info" style="font-size:12px;color:var(--text3);padding:0 8px"></span>
-        <button class="btn btn-ghost" onclick="loadSocialPage(currentSocialPage + 1)">Próximo →</button>
+        <button class="btn btn-ghost" onclick="loadSocialPage(currentSocialPage + 1)">Próximo <svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
       </div>
 
       <!-- POST DETAIL MODAL -->
       <div id="social-post-modal" style="position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;overflow-y:auto;padding:20px">
         <div style="width:100%;max-width:720px;max-height:calc(100vh - 80px);background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:0;display:flex;flex-direction:column;overflow:auto">
           <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid var(--border)">
-            <button class="btn btn-ghost" onclick="closeSocialModal()" style="padding:4px 8px">← Voltar</button>
+            <button class="btn btn-ghost" onclick="closeSocialModal()" style="padding:4px 8px"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> Voltar</button>
           </div>
           <div id="social-post-detail" style="padding:20px;overflow:auto;font-size:15px;line-height:1.8;"></div>
           <div id="social-comments-section" style="padding:0 20px 20px;border-top:1px solid var(--border);overflow:auto">
@@ -1019,15 +1021,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   </div>
 
   <nav class="bottom-nav" id="bottom-nav" aria-label="Navegação principal">
-    <button type="button" class="bottom-nav-btn active" data-page="market" onclick="showPage('market')"><span class="bn-icon">📊</span><span>Mercado</span></button>
-    <button type="button" class="bottom-nav-btn" data-page="trade" onclick="showPage('trade')"><span class="bn-icon">💱</span><span>Negociar</span></button>
-    <button type="button" class="bottom-nav-btn" data-page="portfolio" onclick="showPage('portfolio')"><span class="bn-icon">💼</span><span>Carteira</span></button>
-    <button type="button" class="bottom-nav-btn" data-page="ranking" onclick="showPage('ranking')"><span class="bn-icon">🏆</span><span>Ranking</span></button>
-    <button type="button" class="bottom-nav-btn" data-page="profile" onclick="showPage('profile')"><span class="bn-icon">👤</span><span>Perfil</span></button>
-      <button type="button" class="bottom-nav-btn" data-page="social" onclick="showPage('social')"><span class="bn-icon">💬</span><span>Social</span></button>
-    <button type="button" class="bottom-nav-btn admin-only" data-page="economic" style="display:none" onclick="showPage('economic')"><span class="bn-icon">📋</span><span>Econômico</span></button>
-    <button type="button" class="bottom-nav-btn admin-only" data-page="admin" style="display:none" onclick="showPage('admin')"><span class="bn-icon">⚙️</span><span>Admin</span></button>
-    <button type="button" class="bottom-nav-btn dev-only" data-page="dev" style="display:none" onclick="showPage('dev')"><span class="bn-icon">🛠</span><span>Dev</span></button>
+    <button type="button" class="bottom-nav-btn active" data-page="market" onclick="showPage('market')"><svg class="bn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>Mercado</span></button>
+    <button type="button" class="bottom-nav-btn" data-page="trade" onclick="showPage('trade')"><svg class="bn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l-4 4h14"/><polyline points="18 9 22 5 18 9"/> <path d="M17 21l4-4H7"/><polyline points="6 15 2 19 6 15"/></svg><span>Negociar</span></button>
+    <button type="button" class="bottom-nav-btn" data-page="portfolio" onclick="showPage('portfolio')"><svg class="bn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><span>Carteira</span></button>
+    <button type="button" class="bottom-nav-btn" data-page="ranking" onclick="showPage('ranking')"><svg class="bn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 9 6.5 9 9v6.5"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 15 6.5 15 9v3.5"/><line x1="4" y1="21" x2="20" y2="21"/><path d="M12 3l3 6h-6l3-6z"/><path d="M12 15.5v3.5"/></svg><span>Ranking</span></button>
+    <button type="button" class="bottom-nav-btn" data-page="profile" onclick="showPage('profile')"><svg class="bn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Perfil</span></button>
+      <button type="button" class="bottom-nav-btn" data-page="social" onclick="showPage('social')"><svg class="bn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Social</span></button>
+    <button type="button" class="bottom-nav-btn admin-only" data-page="economic" style="display:none" onclick="showPage('economic')"><svg class="bn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="5" width="12" height="16" rx="1"/><line x1="13" y1="3" x2="13" y2="7"/><line x1="11" y1="9" x2="17" y2="9"/><line x1="11" y1="13" x2="15" y2="13"/><line x1="11" y1="17" x2="14" y2="17"/></svg><span>Econômico</span></button>
+    <button type="button" class="bottom-nav-btn admin-only" data-page="admin" style="display:none" onclick="showPage('admin')"><svg class="bn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Admin</span></button>
+    <button type="button" class="bottom-nav-btn dev-only" data-page="dev" style="display:none" onclick="showPage('dev')"><svg class="bn-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg><span>Dev</span></button>
   </nav>
 </div><!-- /s-app -->
 

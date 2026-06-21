@@ -165,14 +165,64 @@ function routeFromHash() {
 
 window.addEventListener('hashchange', routeFromHash);
 
+// ── ROLE LABELS (SVG icons) ──
 function roleLabel(role) {
-  if (role === 'admin') return '👑 Admin';
-  if (role === 'moderator') return '🎩 Moderador';
-  if (role === 'dev') return '🛠 Dev';
-  return '🦁 Investidor';
+  const s = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
+  switch (role) {
+    case 'admin':   return s+'<path d="M4 19V7l-2 1V5l7-2 5 5 5-5 7 2v3l-2-1v12"/><path d="M6 16h12"/></svg>'+' Admin';
+    case 'moderator': return s+'<path d="M12 2c-3.5 0-6 2.5-6 6v4l-2 2h16l-2-2V8c0-3.5-2.5-6-6-6z"/><path d="M8 14v3a2 2 0 0 0 4 0v-3"/></svg>'+' Moderador';
+    case 'dev':     return IC.dev+' Dev';
+    default:        return s+'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+' Investidor';
+  }
 }
 
-const TIER_EMOJI = { don_corleone:'🔥', supremo:'⚡', magnata:'🏆', padrinom:'🎭', notavel:'🏛️', investidor:'💰' };
+// ── SVG ICON DEFINITIONS ──
+const IC = {
+  crown:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V10.84L2 8.34L7 3l5 5.5L17 3l5 5.34L22 10.84V21"/><path d="M6 17h12"/></svg>`,
+  lightning:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+  building:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21L3 7l9-4 9 4v14"/><path d="M9 21V13h6v8"/><path d="M9 9h.01M15 9h.01M9 13h.01M15 13h.01"/></svg>`,
+  mask:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c0-5 3.5-9 10-9s10 4 10 9-3.5 9-10 9S2 17 2 12z"/><circle cx="8" cy="11" r="1.5"/><circle cx="16" cy="11" r="1.5"/><path d="M9 16c1 .5 2.5.8 3 .8s2-.3 3-.8"/></svg>`,
+  pillar:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v8"/><rect x="9" y="10" width="6" height="3" rx="1"/><path d="M10 13v5"/><path d="M14 13v5"/><path d="M8 21h8"/><path d="M9 18h6"/><rect x="8" y="6" width="8" height="2" rx="1"/></svg>`,
+  wallet:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5"/></svg>`,
+  // Nav icons (smaller, 16px)
+  market:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+  trade:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l-4 4h14"/><polyline points="18 9 22 5 18 9"/><path d="M17 21l4-4H7"/><polyline points="6 15 2 19 6 15"/></svg>`,
+  portfolio:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>`,
+  ranking:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9h-1.5a2.5 2.5 0 0 1 0-5C8 4 10 6.5 10 9v6.5"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 15 6.5 15 9v3.5"/><line x1="4" y1="21" x2="20" y2="21"/><path d="M12 3l3 6H9l3-6z"/></svg>`,
+  profile:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  social:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  economic:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="5" width="12" height="16" rx="1"/><line x1="13" y1="3" x2="13" y2="7"/><line x1="11" y1="9" x2="17" y2="9"/></svg>`,
+  admin:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  dev:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
+  // Other icons
+  settings:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15"/></svg>`,
+  zap:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+  banknote:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 10v4M18 10v4"/></svg>`,
+  list:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+  trophy:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.45 1-1 1H8"/><path d="M14 14.66V17c0 .55-.45 1-1 1h-1"/><path d="M12 3v11"/><rect x="8" y="14" width="8" height="5" rx="1"/></svg>`,
+  barChart:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>`,
+  trending:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
+  factory:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20V8l-6 4V8l-6 4V4H2z"/><rect x="6" y="14" width="3" height="3"/><rect x="15" y="14" width="3" height="3"/></svg>`,
+  upload:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+  download:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+  plus:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  edit:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>`,
+  pin:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11-1.79V4A2 2 0 0 1 10 2h4a2 2 0 0 1 2 2v4.95A2 2 0 0 1 15 10.76l-3 4.24V10z"/><line x1="10" y1="18" x2="14" y2="18"/></svg>`,
+  lock:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+  heart:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+  comment:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  trash:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  pie:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>`,
+  log:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+  check:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+  star:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+  wallet:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>`,
+  people:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+};
+
+// ── TOAST CHECKMARK HELPER ──
+function _t(msg, kind) { showMsg('social-posts-list', msg, kind); }
+
 const TIER_LABEL = { don_corleone:'Don Corleone', supremo:'SUPREMO', magnata:'MAGNATA', padrinom:'PADRINO', notavel:'NOTÁVEL', investidor:'INVESTIDOR' };
 const TIER_COLOR = { don_corleone:'#FFD700', supremo:'#FF6B35', magnata:'#DAA520', padrinom:'#CD853F', notavel:'#90EE90', investidor:'#aaa' };
 
@@ -186,7 +236,17 @@ const TIER_TT = {
 };
 
 function tierBadge(tierId) {
-  return TIER_EMOJI[tierId] || '💰';
+  const c = 'currentColor';
+  const s = `fill="none" stroke="${c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"`;
+  const svgs = {
+    don_corleone: `<svg viewBox="0 0 24 24"><path d="M4 19V7l-2 1V5l7-2 5 5 5-5 7 2v3l-2-1v12" ${s}/><path d="M6 16h12" ${s}/></svg>`,
+    supremo: `<svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10" ${s}/></svg>`,
+    magnata: `<svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13" ${s}/><rect x="8" y="13" width="3" height="4" rx=".5" ${s}/><rect x="13" y="13" width="3" height="4" rx=".5" ${s}/></svg>`,
+    padrinom: `<svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 0 0-7 7c0 4 3 7 7 9 6-2 7-6 7-9a7 7 0 0 0-7-7z" ${s}/><circle cx="9" cy="10" r=".8" fill="${c}"/><circle cx="15" cy="10" r=".8" fill="${c}"/><path d="M10 14.5c.8.5 2 .8 2 .8s1.2-.3 2-.8" ${s}/></svg>`,
+    notavel: `<svg viewBox="0 0 24 24"><path d="M12 3v7" ${s}/><rect x="9" y="10" width="6" height="3" rx="1" ${s}/><path d="M10 13v5" ${s}/><path d="M14 13v5" ${s}/><path d="M8 21h8" ${s}/><path d="M9 18h6" ${s}/><rect x="8" y="6" width="8" height="2" rx=".5" ${s}/></svg>`,
+    investidor: `<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="14" rx="2" ${s}/><path d="M2 10h20" ${s}/><circle cx="17" cy="14" r="1.5" fill="${c}"/></svg>`
+  };
+  return svgs[tierId] || svgs.investidor;
 }
 
 function tierName(tierId) {
@@ -203,7 +263,7 @@ function tierTooltip(tierId) {
 
 function supporterBadge(user) {
   if (!user || !user.hasDonated) return '';
-  return `<span class="badge-tip"><span class="supporter-badge">🌟 Supporter</span><span class="tip-bubble">Entregue aos usuários que contribuíram ao projeto doando.</span></span>`;
+  return `<span class="badge-tip"><span class="supporter-badge">${IC.star} Supporter</span><span class="tip-bubble">Entregue aos usuários que contribuíram ao projeto doando.</span></span>`;
 }
 
 function getFontClass() {
@@ -291,7 +351,7 @@ function validateRegisterEmail() {
   if (!value) return;
   if (isValidEmailFormat(value)) {
     fb.classList.add('valid');
-    fb.innerHTML = '<span class="ef-icon">✓</span><span>E-mail válido</span>';
+    fb.innerHTML = IC.check+' <span>E-mail válido</span>';
   } else {
     fb.classList.add('invalid');
     fb.innerHTML = '<span class="ef-icon">✕</span><span>Formato inválido — use qualquer@provedor.com (ex: voce@gmail.com)</span>';
@@ -761,7 +821,7 @@ async function executeOrder() {
       CU.balance = data.user.balance;
       const feeLabel = data.fee > 0 ? ` | Taxa: R$${data.fee.toFixed(2)}` : '';
       document.getElementById('td-bal').textContent = 'R$' + CU.balance.toFixed(2);
-      showMsg('trade-msg', `✓ ${orderType==='buy'?'Compra':'Venda'}: ${qty}× ${sym} — R$${data.tx.total.toFixed(2)}${feeLabel}`, 'ok');
+      showMsg('trade-msg', `${IC.check}${orderType==='buy'?'Compra':'Venda'}: ${qty}× ${sym} — R$${data.tx.total.toFixed(2)}${feeLabel}`, 'ok');
       renderTradeHist();
       updateTradeInfo();
     } catch(e) { showMsg('trade-msg', e.message, 'err'); }
@@ -1130,7 +1190,7 @@ async function saveProfile() {
     editAvatar = normalizeAvatar(CU.avatar);
     updateHeaderUser();
     refreshRankingIfActive();
-    showMsg('prof-msg', '✓ Perfil salvo!', 'ok');
+    showMsg('prof-msg', IC.check+' Perfil salvo!', 'ok');
     renderProfile();
   } catch(e) { showMsg('prof-msg', e.message, 'err'); }
 }
@@ -1155,7 +1215,7 @@ async function uploadPhoto(input) {
     } catch (_) {}
     updateHeaderUser();
     refreshRankingIfActive();
-    showMsg('prof-msg', '✓ Foto atualizada!', 'ok');
+    showMsg('prof-msg', IC.check+' Foto atualizada!', 'ok');
     renderProfile();
   } catch(e) { showMsg('prof-msg', e.message, 'err'); }
   finally { input.value = ''; }
@@ -1351,7 +1411,7 @@ async function createOwnershipOffer() {
     const askPrice = document.getElementById('sell-own-price').value;
     try {
       await POST('market/ownership-offers', { sym, pctToSell, askPrice });
-      showMsg('sell-own-msg', '✓ Oferta publicada!', 'ok');
+      showMsg('sell-own-msg', IC.check+' Oferta publicada!', 'ok');
       adminOwnershipReady = false;
       await renderP2PPage();
       adminOwnershipReady = true;
@@ -1365,7 +1425,7 @@ async function buyOwnershipOffer(offerId, sym, price, pct) {
     try {
       const { user } = await POST(`market/ownership-offers/${offerId}/buy`);
       CU.balance = user.balance;
-      showMsg('sell-own-msg', `✓ Participação adquirida! Agora você recebe ${pct.toFixed(4)}% dos trades em ${sym}.`, 'ok');
+      showMsg('sell-own-msg', IC.check+' Participação adquirida! Agora você recebe ${pct.toFixed(4)}% dos trades em ${sym}.', 'ok');
       adminOwnershipReady = false;
       await renderP2PPage();
       adminOwnershipReady = true;
@@ -1407,7 +1467,7 @@ function renderUsersTable(usersData) {
       <td data-label="Saldo" class="mono" style="font-size:11px">R$${fmtN(u.balance)}</td>
       <td class="td-actions" data-label="Ações">
         <div class="btns-row">
-          ${canAccessAdmin() ? `<button class="btn btn-dark btn-sm" onclick="openBalanceModal('${u.id}','${safeName}',${parseFloat(u.balance)||0})">💰 Saldo</button>` : ''}
+          ${canAccessAdmin() ? `<button class="btn btn-dark btn-sm" onclick="openBalanceModal('${u.id}','${safeName}',${parseFloat(u.balance)||0})">${IC.wallet} Saldo</button>` : ''}
           ${canAccessFullAdmin() && !isSelf && !roleLocked ? `<button class="btn btn-r btn-sm" onclick="deleteUser('${u.id}','${safeName}')">✕</button>` : ''}
         </div>
       </td>
@@ -1445,7 +1505,7 @@ async function adminAct(path, confirm_) {
   return withActionLock('adminAct:' + path, async () => {
     try {
       await POST('admin/' + path);
-      showMsg('adm-mkt-msg', '✓ Feito!', 'ok');
+      showMsg('adm-mkt-msg', IC.check+' Feito!', 'ok');
       await loadMarketState();
     } catch(e) { showMsg('adm-mkt-msg', e.message, 'err'); }
   });
@@ -1590,7 +1650,7 @@ async function renderDev() {
 function ownerSelectOptions(users, includeSelf = true) {
   const opts = ['<option value="">— Escolher player —</option>'];
   if (includeSelf && CU) {
-    opts.push(`<option value="${CU.id}" data-nick="${CU.nick||CU.name}">👤 Eu — ${CU.nick||CU.name}</option>`);
+    opts.push(`<option value="${CU.id}" data-nick="${CU.nick||CU.name}"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Eu — ${CU.nick||CU.name}</option>`);
   }
   const others = users.filter(u => !CU || u.id !== CU.id);
   opts.push(...others.map(u =>
@@ -1687,7 +1747,7 @@ function renderOwnerRowsList(rows, containerId, totalId, warningId, summaryId, u
   container.innerHTML = rows.length
     ? rows.map(r => `
       <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:4px;margin-bottom:6px;flex-wrap:wrap">
-        <div style="font-size:16px">${r.userId === CU?.id ? '👑' : '👤'}</div>
+        <div style="font-size:16px">${r.userId === CU?.id ? IC.crown : `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}</div>
         <div style="flex:1;min-width:120px">
           <div style="font-weight:600;font-size:12px">${r.name}${r.userId === CU?.id ? ' <span style="color:var(--gold);font-size:10px">(você)</span>' : ''}</div>
           <div style="font-size:10px;color:var(--text3)">Recebe <span class="mono gold">${r.pct.toFixed(3)}%</span> de cada trade</div>
@@ -1735,7 +1795,7 @@ async function adminCreateStock() {
 
   try {
     await POST('stocks', { sym, name, sector, desc, price, shares, vol, status, owners: ownerRows });
-    showMsg('adm-create-msg', `✓ Ativo ${sym} criado${ownerRows.length ? ` com ${ownerRows.length} dono(s)!` : '!'}`, 'ok');
+    showMsg('adm-create-msg', `${IC.check} Ativo ${sym} criado${ownerRows.length ? ` com ${ownerRows.length} dono(s)!` : '!'}`, 'ok');
     ownerRows = [];
     renderOwnerRows();
     await loadMarketState();
@@ -1772,7 +1832,7 @@ async function adminSaveStock() {
   if (totalOwners > 10) { showMsg('adm-edit-msg', 'Total de % dos donos não pode ultrapassar 10%.', 'err'); return; }
   try {
     await PUT(`stocks/${sym}`, { name, sector, desc, vol, status, pricePct, owners: editOwnerRows });
-    showMsg('adm-edit-msg', `✓ ${sym} atualizado!`, 'ok');
+    showMsg('adm-edit-msg', `${IC.check} ${sym} atualizado!`, 'ok');
     await loadMarketState();
   } catch(e) { showMsg('adm-edit-msg', e.message, 'err'); }
 }
@@ -1782,7 +1842,7 @@ async function adminDeleteStock() {
   if (!sym || !confirm(`Deletar ${sym}?`)) return;
   try {
     await DEL(`stocks/${sym}`);
-    showMsg('adm-edit-msg', `✓ ${sym} deletado.`, 'ok');
+    showMsg('adm-edit-msg', `${IC.check} ${sym} deletado.`, 'ok');
     document.getElementById('edit-stock-form').style.display = 'none';
     await loadMarketState();
     renderAdmin();
@@ -1819,7 +1879,7 @@ async function changeRole(selectEl) {
       if (canAccessDev()) document.querySelectorAll('.dev-only').forEach(e => e.style.display = '');
       updateHeaderUser();
     }
-    showMsg('adm-users-msg', `✓ Papel alterado para ${finalRole}.`, 'ok');
+    showMsg('adm-users-msg', `${IC.check} Papel alterado para ${finalRole}.`, 'ok');
     await renderAdminUsers();
   } catch(e) {
     selectEl.value = prev;
@@ -1834,7 +1894,7 @@ function openBalanceModal(uid, name, currentBalance) {
   const modal = document.getElementById('modal-content');
   modal.className = 'modal';
   modal.innerHTML = `
-    <h2>💰 Saldo de ${name}</h2>
+    <h2>${IC.wallet} Saldo de ${name}</h2>
     <p style="color:var(--text3);font-size:12px;margin-bottom:16px">Saldo atual: <span class="mono gold">R$${fmtN(currentBalance)}</span></p>
     <div class="fg"><label>Valor (R$)</label><input type="number" id="bal-val" placeholder="50000" step="0.01" style="width:100%"></div>
     <div class="fg"><label>Operação</label>
@@ -1865,7 +1925,7 @@ async function applyBalance(uid) {
         CU.balance = nb;
         updateHeaderUser();
       }
-      showMsg('bal-msg', `✓ Novo saldo: R$${fmtN(nb)}`, 'ok');
+      showMsg('bal-msg', `${IC.check} Novo saldo: R$${fmtN(nb)}`, 'ok');
       setTimeout(async () => {
         closeModal();
         await renderAdminUsers();
@@ -1880,7 +1940,7 @@ async function deleteUser(uid, name) {
   try {
     await DEL(`admin/users/${uid}`);
     await renderAdminUsers();
-    showMsg('adm-users-msg', '✓ Usuário removido.', 'ok');
+    showMsg('adm-users-msg', IC.check+' Usuário removido.', 'ok');
   } catch(e) { showMsg('adm-users-msg', e.message, 'err'); }
 }
 
@@ -2111,7 +2171,7 @@ async function manualDailyFee() {
   if (!confirm('Aplicar taxa de manutenção diária para TODOS os usuários agora?')) return;
   try {
     await POST('economic/manual/maintenance');
-    showMsg('econ-manual-msg', '✓ Taxa diária aplicada a todos!', 'ok');
+    showMsg('econ-manual-msg', IC.check+' Taxa diária aplicada a todos!', 'ok');
     renderEconomic();
   } catch(e) { showMsg('econ-manual-msg', e.message, 'err'); }
 }
@@ -2120,7 +2180,7 @@ async function manualWealthTax() {
   if (!confirm('Aplicar imposto patrimonial para TODOS os usuários agora?')) return;
   try {
     await POST('economic/manual/wealth-tax');
-    showMsg('econ-manual-msg', '✓ Imposto patrimonial aplicado!', 'ok');
+    showMsg('econ-manual-msg', IC.check+' Imposto patrimonial aplicado!', 'ok');
     renderEconomic();
   } catch(e) { showMsg('econ-manual-msg', e.message, 'err'); }
 }
@@ -2151,7 +2211,7 @@ async function openRatesEditor() {
 
   const content = `
     <h2 style="font-family:'Playfair Display',serif;font-size:18px;font-style:italic;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border);color:var(--gold2)">
-      ✏️ Editar Taxas Econômicas
+      <svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> Editar Taxas Econômicas
     </h2>
     <div style="font-size:11px;color:var(--text3);margin-bottom:14px">
       Altera as taxas em tempo real — sem precisar reiniciar o servidor.
@@ -2263,7 +2323,7 @@ async function saveRatesConfig() {
 
     // Close modal and refresh dashboard — renderEconomic fetches FRESH config via GET
     closeModal();
-    showMsg('econ-manual-msg', '✓ Taxas econômicas atualizadas com sucesso!', 'ok');
+    showMsg('econ-manual-msg', IC.check+' Taxas econômicas atualizadas com sucesso!', 'ok');
     renderEconomic();
   } catch(e) {
     document.getElementById('rate-editor-msg').innerHTML = `<div class="alert err" style="margin-top:10px;padding:8px;font-size:11px">${e.message}</div>`;
