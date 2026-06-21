@@ -97,6 +97,54 @@ function setPageLoading(pageId, loading) {
   page.classList.toggle('page-loading', loading);
 }
 
+const PAGE_HASH_MAP = {
+  market: 'market',
+  trade: 'trade',
+  portfolio: 'portfolio',
+  ranking: 'ranking',
+  profile: 'profile',
+  economic: 'economic',
+  admin: 'admin',
+  dev: 'dev'
+};
+
+function routeFromHash() {
+  const rawHash = window.location.hash.slice(1);
+  const path = rawHash.startsWith('/') ? rawHash.slice(1) : rawHash;
+  const parts = path.split('/').filter(Boolean);
+
+  if (!parts.length) {
+    history.replaceState(null, '', '#/market');
+    showPage('market');
+    return;
+  }
+
+  if (parts[0] === 'social') {
+    const tab = parts[1] === 'updates' ? 'updates' : 'forum';
+    currentSocialTab = tab;
+    currentSocialType = tab === 'updates' ? 'update' : 'forum';
+    showPage('social');
+    if (parts[2] === 'post' && parts[3]) {
+      openSocialPost(parseInt(parts[3], 10)).then(ok => {
+        if (!ok) {
+          history.replaceState(null, '', `#/social/${tab}`);
+        }
+      });
+    }
+    return;
+  }
+
+  const page = PAGE_HASH_MAP[parts[0]] || 'market';
+  if (page !== 'market' || parts[0] === 'market') {
+    history.replaceState(null, '', `#/${page}`);
+  } else {
+    history.replaceState(null, '', '#/market');
+  }
+  showPage(page);
+}
+
+window.addEventListener('hashchange', routeFromHash);
+
 function roleLabel(role) {
   if (role === 'admin') return '👑 Admin';
   if (role === 'moderator') return '🎩 Moderador';
@@ -266,6 +314,7 @@ async function startApp() {
   await loadMarketState();
   buildChart();
   showPage('market');
+  routeFromHash();
   startPolling();
   startKeepAlive();
 }
@@ -543,10 +592,7 @@ function showPage(pg) {
     showPage('market');
     return;
   }
-  // If navigating away from Social, clear any lingering social hash to avoid stale sub-tab state
-  if (pg !== 'social' && window.location && String(window.location.hash || '').startsWith('#/social')) {
-    try { history.replaceState(null, '', '#/'); } catch(e) { window.location.hash = '#/'; }
-  }
+
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.hn-btn,.bottom-nav-btn').forEach(b => b.classList.remove('active'));
   const page = document.getElementById('p-' + pg);
@@ -555,6 +601,15 @@ function showPage(pg) {
   document.querySelector(`.hn-btn[data-page="${pg}"]`)?.classList.add('active');
   document.querySelector(`.bottom-nav-btn[data-page="${pg}"]`)?.classList.add('active');
   window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  if (pg === 'social') {
+    // Social page has its own sub-route handling
+    showSocialTab(currentSocialTab || 'forum');
+    return;
+  }
+
+  history.replaceState(null, '', `#/${pg}`);
+
   if (pg === 'trade')     renderTradePage();
   if (pg === 'portfolio') renderPortfolio();
   if (pg === 'ranking')   renderRanking();
@@ -562,7 +617,6 @@ function showPage(pg) {
   if (pg === 'economic')  renderEconomic();
   if (pg === 'admin')     renderAdmin();
   if (pg === 'dev')       renderDev();
-  if (pg === 'social')   loadSocialPage(1);
 }
 
 function roleSelectOptions(currentRole) {

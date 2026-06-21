@@ -97,7 +97,7 @@ function showSocialTab(tab) {
   const canPost = CU && (tab === 'forum' || ['admin', 'dev'].includes(CU.role));
   newPostBtn.style.display = canPost ? '' : 'none';
   // Update friendly URL to reflect current social sub-tab
-  window.location.hash = `#/social/${tab === 'updates' ? 'updates' : 'forum'}`;
+  history.replaceState(null, '', `#/social/${tab === 'updates' ? 'updates' : 'forum'}`);
   loadSocialPage(1);
 }
 
