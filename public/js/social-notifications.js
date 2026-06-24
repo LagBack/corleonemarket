@@ -11,24 +11,26 @@ let openPostId = null;
 let notificationsLoaded = false;
 
 // ── SVG ICON HELPERS ──
-const _svgBase = (inner, size = 13) =>
-  `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex-shrink:0">${inner}</svg>`;
+// Icons are sized 15px with stroke-width 2 and rounded joins so they read clearly
+// even inside small ghost buttons. `currentColor` inherits the button text color.
+const _svgBase = (inner, size = 15) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-3px;flex-shrink:0">${inner}</svg>`;
 
 const _sv = {
-  // Push-pin (thumbtack) — used for pinned post indicator
-  pin: _svgBase(`<line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/>`, 13),
-  // Unpin — pin with diagonal slash
-  unpin: _svgBase(`<line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/><line x1="3" y1="3" x2="21" y2="21"/>`, 13),
-  // Lock — padlock closed
-  lock: _svgBase(`<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`, 13),
-  // Unlock — padlock open (shackle on the right)
-  unlock: _svgBase(`<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`, 13),
+  // Push-pin (Feather "bookmark") — clear "pin/save" affordance
+  pin: _svgBase(`<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>`),
+  // Unpin — bookmark with diagonal slash through it
+  unpin: _svgBase(`<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><line x1="3" y1="3" x2="21" y2="21"/>`),
+  // Lock — closed padlock (Feather "lock")
+  lock: _svgBase(`<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`),
+  // Unlock — open padlock (Feather "unlock")
+  unlock: _svgBase(`<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>`),
   heart: _svgBase(`<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>`),
   heartOutline: _svgBase(`<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>`),
   comment: _svgBase(`<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>`),
   trash: _svgBase(`<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>`),
   edit: _svgBase(`<path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>`),
-  check: _svgBase(`<polyline points="20 6 9 17 4 12"/>`, 14)
+  check: _svgBase(`<polyline points="20 6 9 17 4 12"/>`, 16)
 };
 
 function _t(msg, kind) { showMsg('social-posts-list', msg, kind); }
@@ -181,10 +183,10 @@ function renderSocialPosts(posts) {
             <span>${ic.comment} ${p.comment_count || 0}</span>
           </div>
         </div>
-        ${isAdmin ? `<div style="display:flex;gap:4px;flex-direction:column">
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();togglePinPost(${p.id})" title="${p.is_pinned ? 'Desafixar' : 'Fixar'}" style="display:inline-flex;align-items:center;gap:4px">${p.is_pinned ? ic.unpin : ic.pin} <span style="font-size:10px">${p.is_pinned ? 'Desafixar' : 'Fixar'}</span></button>
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleLockPost(${p.id})" title="${p.is_locked ? 'Desbloquear' : 'Bloquear'}" style="display:inline-flex;align-items:center;gap:4px">${p.is_locked ? ic.unlock : ic.lock} <span style="font-size:10px">${p.is_locked ? 'Desbloquear' : 'Bloquear'}</span></button>
-          ${isOwner ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();deleteSocialPost(${p.id})" title="Deletar" style="display:inline-flex;align-items:center;gap:4px">${ic.trash} <span style="font-size:10px">Deletar</span></button>` : ''}
+        ${isAdmin ? `<div style="display:flex;gap:4px;flex-direction:column;flex-shrink:0;align-items:stretch">
+          <button class="btn btn-ghost btn-sm social-admin-btn" onclick="event.stopPropagation();togglePinPost(${p.id})" title="${p.is_pinned ? 'Desafixar post' : 'Fixar post no topo'}" style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;color:${p.is_pinned ? 'var(--gold2)' : 'var(--text3)'}">${p.is_pinned ? _sv.unpin : _sv.pin} <span style="font-size:10px">${p.is_pinned ? 'Desafixar' : 'Fixar'}</span></button>
+          <button class="btn btn-ghost btn-sm social-admin-btn" onclick="event.stopPropagation();toggleLockPost(${p.id})" title="${p.is_locked ? 'Desbloquear comentários' : 'Bloquear novos comentários'}" style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;color:${p.is_locked ? 'var(--red2)' : 'var(--text3)'}">${p.is_locked ? _sv.unlock : _sv.lock} <span style="font-size:10px">${p.is_locked ? 'Desbloquear' : 'Bloquear'}</span></button>
+          <button class="btn btn-ghost btn-sm social-admin-btn" onclick="event.stopPropagation();deleteSocialPost(${p.id})" title="${isOwner ? 'Deletar meu post' : 'Deletar post (admin)'}" style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;color:var(--red2)">${_sv.trash} <span style="font-size:10px">Deletar</span></button>
         </div>` : ''}
       </div>
     </div>`;
@@ -227,6 +229,8 @@ async function openSocialPost(postId) {
   const detailBadges = (detailPinBadge || detailLockBadge)
     ? `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${detailPinBadge}${detailLockBadge}</div>`
     : '';
+    // Admins can manage any post; owners can edit their own
+    const canDeleteThisPost = isAdmin || isOwner;
     detailDiv.innerHTML = `
       <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
         <div style="flex-shrink:0">${detailPhoto}</div>
@@ -237,27 +241,35 @@ async function openSocialPost(postId) {
           </div>
           <div style="font-size:11px;color:var(--text3)">${new Date(post.created_at).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
         </div>
-        ${isOwner || isAdmin ? `<div style="display:flex;gap:4px">
-          ${isOwner ? `<button class="btn btn-ghost btn-sm" onclick="editSocialPost(${postId})">${_sv.edit}</button>
-          <button class="btn btn-ghost btn-sm" onclick="deleteSocialPost(${postId})">${_sv.trash}</button>` : ''}
+        ${(isOwner || isAdmin) ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${isOwner ? `<button class="btn btn-ghost btn-sm" onclick="editSocialPost(${postId})" title="Editar" style="display:inline-flex;align-items:center;gap:4px">${_sv.edit} <span style="font-size:10px">Editar</span></button>` : ''}
+          ${canDeleteThisPost ? `<button class="btn btn-ghost btn-sm" onclick="deleteSocialPost(${postId})" title="${isAdmin && !isOwner ? 'Deletar post (admin)' : 'Deletar'}" style="display:inline-flex;align-items:center;gap:4px;color:var(--red2)">${_sv.trash} <span style="font-size:10px">Deletar</span></button>` : ''}
         </div>` : ''}
       </div>
       <h2 style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:8px">${post.title}</h2>
       ${detailBadges}
       <div style="font-size:13px;line-height:1.8;color:var(--text2);margin-bottom:16px;word-wrap:break-word">${formatSocialText(post.content)}</div>
-      <div style="display:flex;gap:16px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center">
         <button class="btn btn-ghost btn-sm" onclick="toggleLikeSocialPost(${postId})" ${!CU ? 'disabled' : ''} style="gap:4px">
-          ${post.liked_by_me ? _sv.heart : `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`} ${post.like_count || 0}
+          ${post.liked_by_me ? _sv.heart : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-3px;flex-shrink:0"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`} <span>${post.like_count || 0}</span>
         </button>
-        ${post.is_locked && !isAdmin ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--red2)">${_sv.lock} Comentários bloqueados</span>` : `<button class="btn btn-ghost btn-sm" onclick="showCommentArea()" ${!CU ? 'disabled' : ''}>${_sv.comment} Comentar</button>`}
-        ${isAdmin ? `<button class="btn btn-ghost btn-sm" onclick="togglePinPost(${postId})" title="${post.is_pinned ? 'Desafixar' : 'Fixar'}" style="display:inline-flex;align-items:center;gap:4px">${post.is_pinned ? _sv.unpin : _sv.pin} <span style="font-size:10px">${post.is_pinned ? 'Desafixar' : 'Fixar'}</span></button>
-        <button class="btn btn-ghost btn-sm" onclick="toggleLockPost(${postId})" title="${post.is_locked ? 'Desbloquear' : 'Bloquear'}" style="display:inline-flex;align-items:center;gap:4px">${post.is_locked ? _sv.unlock : _sv.lock} <span style="font-size:10px">${post.is_locked ? 'Desbloquear' : 'Bloquear'}</span></button>` : ''}
+        ${post.is_locked && !isAdmin ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--red2);font-weight:600">${_sv.lock} Comentários bloqueados</span>` : `<button class="btn btn-ghost btn-sm" onclick="showCommentArea()" ${!CU ? 'disabled' : ''} style="display:inline-flex;align-items:center;gap:4px">${_sv.comment} <span>Comentar</span></button>`}
+        ${isAdmin ? `<button class="btn btn-ghost btn-sm" onclick="togglePinPost(${postId})" title="${post.is_pinned ? 'Desafixar post' : 'Fixar post no topo'}" style="display:inline-flex;align-items:center;gap:5px;color:${post.is_pinned ? 'var(--gold2)' : 'var(--text3)'}">${post.is_pinned ? _sv.unpin : _sv.pin} <span style="font-size:10px">${post.is_pinned ? 'Desafixar' : 'Fixar'}</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleLockPost(${postId})" title="${post.is_locked ? 'Desbloquear comentários' : 'Bloquear novos comentários'}" style="display:inline-flex;align-items:center;gap:5px;color:${post.is_locked ? 'var(--red2)' : 'var(--text3)'}">${post.is_locked ? _sv.unlock : _sv.lock} <span style="font-size:10px">${post.is_locked ? 'Desbloquear' : 'Bloquear'}</span></button>` : ''}
       </div>
     `;
-    
-    document.getElementById('social-comment-input-area').style.display = CU ? '' : 'none';
+    // Lock-aware comment input area: hide it for non-admins when post is locked,
+    // show it for admins so they can always moderate
+    const commentArea = document.getElementById('social-comment-input-area');
+    const canComment = CU && (!post.is_locked || isAdmin);
+    commentArea.style.display = canComment ? '' : 'none';
+    if (!canComment) {
+      // Also clear any pending text so it doesn't get sent if user re-opens later
+      const textEl = document.getElementById('social-comment-text');
+      if (textEl) textEl.value = '';
+    }
     loadSocialComments(postId);
-    
+
     document.getElementById('social-post-modal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
     const newHash = `#/social${currentSocialType === 'update' ? '/updates' : ''}/post/${postId}`;
@@ -307,7 +319,7 @@ function renderCommentThread(comment, depth = 0) {
         <div style="font-size:12px;line-height:1.6;margin-bottom:6px">${formatSocialText(comment.content)}</div>
         <div style="display:flex;gap:8px;font-size:11px">
           <button class="btn btn-ghost btn-sm" onclick="toggleLikeSocialComment(${comment.id})" ${!CU ? 'disabled' : ''} style="gap:4px">
-            ${comment.liked_by_me ? _sv.heart : `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`} ${comment.like_count || 0}
+            ${comment.liked_by_me ? _sv.heart : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-3px;flex-shrink:0"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`} ${comment.like_count || 0}
           </button>
           ${isOwner || isAdmin ? `<button class="btn btn-ghost btn-sm" onclick="deleteSocialComment(${comment.id})">${_sv.trash}</button>` : ''}
         </div>
@@ -376,7 +388,19 @@ async function submitComment() {
   if (!content) return showMsg('social-comment-text', 'Escreva um comentário', 'err');
   if (content.length > SOCIAL_COMMENT_CHAR_LIMIT) return showMsg('social-comment-text', `Máximo ${SOCIAL_COMMENT_CHAR_LIMIT} caracteres`, 'err');
   if (containsBadWords(content)) return showMsg('social-comment-text', 'Conteúdo não permitido', 'err');
-  
+
+  // Client-side lock guard: re-fetch the post so we don't trust stale UI state
+  if (openPostId && CU && !['admin', 'dev'].includes(CU.role)) {
+    try {
+      const fresh = await GET(`social/posts/${openPostId}`);
+      if (fresh.is_locked) {
+        closeCommentArea();
+        showMsg('social-comments-list', 'Este post está bloqueado — comentários desativados.', 'err');
+        return;
+      }
+    } catch (_) { /* fall through and let the server reject if needed */ }
+  }
+
   const btn = document.getElementById('social-comment-submit-btn');
   setBtnBusy(btn, true, 'Comentando…');
   try {

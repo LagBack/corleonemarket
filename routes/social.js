@@ -447,10 +447,13 @@ router.post('/posts/:id/comments', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Conteúdo não permitido' });
     }
 
-    // Check if post exists and is not locked
+    // Check if post exists and is not locked. Admins/devs bypass the lock so
+    // they can still post moderator notices on locked topics.
     const [posts] = await pool.query('SELECT is_locked, author_id FROM social_posts WHERE id = ?', [postId]);
     if (!posts.length) return res.status(404).json({ error: 'Post não encontrado' });
-    if (posts[0].is_locked) return res.status(403).json({ error: 'Este post está bloqueado' });
+    if (posts[0].is_locked && !['admin', 'dev'].includes(req.session.role)) {
+      return res.status(403).json({ error: 'Este post está bloqueado' });
+    }
 
     const now = Date.now();
     const sanitized = sanitizeContent(content);
