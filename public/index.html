@@ -271,6 +271,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .rank-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;background:var(--s3);border:1px solid var(--border);overflow:hidden;flex-shrink:0}
 .rank-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 
+/* Ranking pagination */
+.rank-pg-wrap{text-align:center;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px}
+.rank-pg-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 16px;border-radius:4px;border:1px solid var(--border);background:var(--s1);color:var(--text1);font-size:12px;cursor:pointer;transition:all .15s}
+.rank-pg-btn:hover:not(:disabled){background:var(--gold);color:#000;border-color:var(--gold)}
+.rank-pg-btn:disabled{opacity:.35;cursor:not-allowed}
+.rank-pg-label{font-size:12px;color:var(--text3);min-width:80px}
+
 /* ── ADMIN ── */
 .admin-zone{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
 .admin-zone h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
@@ -638,6 +645,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           <div class="card" style="margin-bottom:14px">
             <div class="card-title"><svg class="nav-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C8 4 10 6.5 10 9v6.5"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 15 6.5 15 9v3.5"/><line x1="4" y1="21" x2="20" y2="21"/><path d="M12 3l3 6H9l3-6z"/></svg> Ranking de Patrimônio</div>
             <div id="rank-inv"></div>
+            <div class="rank-pg-wrap">
+              <button class="rank-pg-btn" id="rank-prev" onclick="(function(){rankPage--;renderRanking()})()" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>Anterior</button>
+              <span class="rank-pg-label" id="rank-pg-label"></span>
+              <button class="rank-pg-btn" id="rank-next" onclick="(function(){rankPage++;renderRanking()})()">Próximo<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+            </div>
           </div>
         </div>
         <div>

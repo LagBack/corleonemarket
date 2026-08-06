@@ -927,6 +927,8 @@ async function renderPortfolio() {
 }
 
 // ── RANKING ──
+let rankPage = 1, rankTotalPages = 1;
+
 async function renderRanking() {
   const gen = ++_pageLoadGen;
   setPageLoading('ranking', true);
@@ -937,11 +939,16 @@ async function renderRanking() {
   try {
     const { investors, supplyDemand, topTraded } = await GET('market/ranking');
     if (gen !== _pageLoadGen) return;
+    rankTotalPages = Math.ceil(investors.length / 10) || 1;
+    if (rankPage > rankTotalPages) rankPage = 1;
     const medals = ['r1', 'r2', 'r3'];
-    document.getElementById('rank-inv').innerHTML = investors.map((r, i) => {
+    const start = (rankPage - 1) * 10;
+    const pageInvestors = investors.slice(start, start + 10);
+    document.getElementById('rank-inv').innerHTML = pageInvestors.map((r, i) => {
+      const realIdx = start + i;
       const avHtml = userAvatarHtml(r, { wrapClass: 'rank-av' });
       return `<div class="rank-row" onclick="openProfileModal('${r.id}')" style="cursor:pointer" title="Ver perfil">
-        <div class="rank-n ${medals[i]||''} serif">${i+1}</div>
+        <div class="rank-n ${medals[realIdx]||''} serif">${realIdx+1}</div>
         ${avHtml}
         <div style="flex:1">
           <div style="font-weight:600;font-size:13px" class="${getFontClass()}">${r.name} <span style="font-size:10px;color:var(--text3)">${formatCountry(r.country)}</span></div>
@@ -969,6 +976,12 @@ async function renderRanking() {
         <div class="mono" style="font-size:12px">R$${fmtN(s.volume*s.price)}</div>
       </div>`
     ).join('');
+    // Pagination controls
+    const prevBtn = document.getElementById('rank-prev');
+    const nextBtn = document.getElementById('rank-next');
+    if (prevBtn) prevBtn.disabled = rankPage <= 1;
+    if (nextBtn) nextBtn.disabled = rankPage >= rankTotalPages;
+    document.getElementById('rank-pg-label').textContent = `${start + 1}-${Math.min(start + 10, investors.length)} de ${investors.length}`;
   } catch(e) { console.error(e); }
   finally { if (gen === _pageLoadGen) setPageLoading('ranking', false); }
 }
