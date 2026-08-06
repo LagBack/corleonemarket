@@ -20,6 +20,10 @@ const uploadsDir = path.join(__dirname, 'public', 'uploads');
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use('/js', (req, res, next) => {
+  res.set('Cache-Control', 'no-cache');
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 const sessionStore = new MySQLStore({
   host:               (process.env.DB_HOST || '').replace(/^https?:\/\//, '').replace(/\/$/, ''),
@@ -72,7 +76,9 @@ app.use('/api/notifications', require('./routes/notifications'));
 
 // â”€â”€ Serve frontend â”€â”€
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+  const mtime = fs.statSync(path.join(__dirname, 'public', 'js', 'app.js')).mtimeMs;
+  res.send(html.replace('/js/app.js', `/js/app.js?v=${Math.round(mtime)}`));
 });
 
 // â”€â”€ Start â”€â”€

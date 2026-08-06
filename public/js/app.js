@@ -929,6 +929,9 @@ async function renderPortfolio() {
 // ── RANKING ──
 let rankPage = 1, rankTotalPages = 1;
 
+function goRankPrev() { if (rankPage > 1) { rankPage--; renderRanking(); } }
+function goRankNext() { if (rankPage < rankTotalPages) { rankPage++; renderRanking(); } }
+
 async function renderRanking() {
   const gen = ++_pageLoadGen;
   setPageLoading('ranking', true);
