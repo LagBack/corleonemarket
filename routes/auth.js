@@ -5,7 +5,6 @@ const pool = require('../data/mysql');
 const { normalizeCountry } = require('../data/countries');
 const { toPublicUser } = require('../data/user-serialize');
 const { normalizeRole } = require('../data/roles');
-const db   = require('../data/db');       // lowdb — still used for portfolios
 const { requireAuth } = require('../middleware/auth');
 
 // Email format: (anything)@(any provider).com
@@ -38,11 +37,6 @@ router.post('/login', async (req, res) => {
     req.session.userId = user.id;
     req.session.role   = normalizeRole(user.role);
     req.session.roleSyncedAt = Date.now();
-    const pfs = db.get('portfolios').value();
-    if (!pfs[user.id]) {
-      pfs[user.id] = {};
-      db.set('portfolios', pfs).write();
-    }
     res.json({ ok: true, user: toPublicUser(user, { includePhotoData: true }) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -80,10 +74,6 @@ router.post('/register', async (req, res) => {
        newUser.avatar, newUser.photo, newUser.country, newUser.bio,
        newUser.role, newUser.balance, newUser.joined, false]
     );
-    // Create empty portfolio in lowdb
-    const pfs = db.get('portfolios').value();
-    pfs[newUser.id] = {};
-    db.set('portfolios', pfs).write();
     req.session.userId = newUser.id;
     req.session.role   = normalizeRole(newUser.role);
     req.session.roleSyncedAt = Date.now();

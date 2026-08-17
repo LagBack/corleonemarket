@@ -1,12 +1,22 @@
 const router     = require('express').Router();
-const db         = require('../data/db');
+const pool       = require('../data/mysql');
 const usersStore = require('../data/users-store');
 const { requireMod, requireAdmin } = require('../middleware/auth');
 
-// GET /api/stocks
-router.get('/', (req, res) => {
-  res.json(db.get('stocks').value());
-});
+// ── helpers ───────────────────────────────────────────────────────
+
+async function getStock(sym) {
+  const [rows] = await pool.query('SELECT * FROM companies WHERE sym = ?', [sym.toUpperCase()]);
+  return rows[0] || null;
+}
+
+async function getOwners(sym) {
+  const [rows] = await pool.query(
+    'SELECT co.user_id, c.nick, c.name, co.pct FROM company_owners co JOIN users c ON c.id = co.user_id WHERE co.sym = ?',
+    [sym.toUpperCase()]
+  );
+  return rows.map(r => ({ userId: r.user_id, name: r.nick || r.name, pct: r.pct }));
+}
 
 async function validateOwners(owners) {
   if (!Array.isArray(owners) || owners.length === 0) return [];
@@ -31,9 +41,30 @@ async function validateOwners(owners) {
   return validatedOwners;
 }
 
-// POST /api/stocks  — create with optional multi-owner config
-// Body: { sym, name, sector, desc, price, shares, vol, status,
-//         owners: [{ userId, pct }]  }   ← pct = revenue share %
+async function logAdmin(msg) {
+  await pool.query(
+    'INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+    [new Date().toLocaleTimeString('pt-BR'), msg, Date.now()]
+  );
+}
+
+// ── Routes ───────────────────────────────────────────────────────
+
+// GET /api/stocks
+router.get('/', async (_req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM companies');
+    // Attach owners to each stock (same shape as lowdb used to return)
+    const stocksWithOwners = [];
+    for (const s of rows) {
+      const owners = await getOwners(s.sym);
+      stocksWithOwners.push({ ...s, priceHistory: typeof s.price_history === 'string' ? JSON.parse(s.price_history) : (s.price_history || []), owners });
+    }
+    res.json(stocksWithOwners);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/stocks — create with optional multi-owner config
 router.post('/', requireMod, async (req, res) => {
   const { sym, name, sector, desc, price, shares, vol, status, owners } = req.body;
   if (!sym || !name || !price || !shares)
@@ -42,124 +73,131 @@ router.post('/', requireMod, async (req, res) => {
   const clean = sym.trim().toUpperCase();
   if (!/^[A-Z]{3,5}\d{1,2}$/.test(clean))
     return res.status(400).json({ error: 'Código inválido. Use formato XPTO3.' });
-  if (db.get('stocks').find({ sym: clean }).value())
-    return res.status(409).json({ error: 'Código já existe.' });
 
   try {
-  const validatedOwners = await validateOwners(owners);
+    const existing = await getStock(clean);
+    if (existing) return res.status(409).json({ error: 'Código já existe.' });
 
-  const p  = parseFloat(price);
-  const ns = {
-    sym: clean, name,
-    sector:  sector  || 'Outros',
-    desc:    desc    || '',
-    price: p, open: p,
-    shares:  parseInt(shares),
-    vol:     parseFloat(vol) || 0.015,
-    status:  status  || 'active',
-    demand: 0.5, supply: 0.5,
-    volume: 0, buys: 0, sells: 0,
-    created: Date.now(),
-    // Intraday high/low — start at the opening price; reset on day rollover or market reopen
-    dayOpen: p, dayHigh: p, dayLow: p, dayResetAt: Date.now(),
-    // Multi-owner revenue share
-    owners:       validatedOwners,   // [{ userId, name, pct }]
-    totalRevenue: 0,
-    // Legacy single-founder fields kept for backwards compat
-    founderId:  null,
-    founderFee: 0,
-  };
+    const validatedOwners = owners ? await validateOwners(owners) : [];
 
-  db.get('stocks').push(ns).write();
-  db.get('adminLog').push({
-    t:   new Date().toLocaleTimeString('pt-BR'),
-    msg: `Ativo ${clean} criado por ${req.session.userId}` +
-         (validatedOwners.length ? ` | Donos: ${validatedOwners.map(o=>`${o.name}(${o.pct}%)`).join(', ')}` : '')
-  }).write();
+    const p  = parseFloat(price);
+    const now = Date.now();
+    await pool.query(
+      `INSERT INTO companies (sym, name, sector, desc, price, open, shares, vol, status, demand, supply, volume, buys, sells, day_open, day_high, day_low, day_reset_at, total_revenue, price_history, created, updated)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.5, 0.5, 0, 0, 0, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+      [clean, name, sector || 'Outros', desc || '', p, p, parseInt(shares), parseFloat(vol) || 0.015, status || 'active', p, p, p, now, now]
+    );
 
-  res.json({ ok: true, stock: ns });
-  } catch (e) {
-    const code = e.message && !e.message.includes('SQL') ? 400 : 500;
-    res.status(code).json({ error: e.message });
+    // Save owners
+    if (validatedOwners.length > 0) {
+      for (const o of validatedOwners) {
+        await pool.query(
+          'INSERT INTO company_owners (sym, user_id, pct, created_at) VALUES (?, ?, ?, ?)',
+          [clean, o.userId, o.pct, now]
+        );
+      }
+    }
+
+    const ownerNote = validatedOwners.length
+      ? ` | Donos: ${validatedOwners.map(o => `${o.name}(${o.pct}%)`).join(', ')}`
+      : '';
+    await logAdmin(`Ativo ${clean} criado por ${req.session.userId}${ownerNote}`);
+    res.json({ ok: true, stock: { sym: clean } });
+  } catch(e) {
+    if (e.message.includes('Duplicate entry')) return res.status(409).json({ error: 'Código já existe.' });
+    res.status(500).json({ error: e.message });
   }
 });
 
-// PUT /api/stocks/:sym  — edit
+// PUT /api/stocks/:sym — edit
 router.put('/:sym', requireMod, async (req, res) => {
   const sym = req.params.sym.toUpperCase();
-  const s   = db.get('stocks').find({ sym }).value();
+  const s = await getStock(sym);
   if (!s) return res.status(404).json({ error: 'Ativo não encontrado.' });
 
   const { name, sector, desc, vol, status, pricePct, owners } = req.body;
   const updates = {};
-  if (name)             updates.name   = name;
-  if (sector)           updates.sector = sector;
-  if (desc !== undefined) updates.desc = desc;
-  if (vol)              updates.vol    = parseFloat(vol);
-  if (status)           updates.status = status;
+  if (name)          updates.name   = name;
+  if (sector !== undefined) updates.sector = sector;
+  if (desc !== undefined)      updates.desc     = desc;
+  if (vol !== undefined)       updates.vol        = parseFloat(vol);
+  if (status)         updates.status = status;
   if (pricePct && !isNaN(parseFloat(pricePct)))
     updates.price = Math.max(0.01, Math.round(s.price * (1 + parseFloat(pricePct) / 100) * 100) / 100);
 
   try {
-    if (owners !== undefined) {
-      updates.owners = await validateOwners(owners);
+    const setClauses = [];
+    const values = [];
+    for (const [k, v] of Object.entries(updates)) {
+      setClauses.push(`${k} = ?`);
+      values.push(v);
     }
-    db.get('stocks').find({ sym }).assign(updates).write();
-    const ownerNote = updates.owners?.length
-      ? ` | Donos: ${updates.owners.map(o => `${o.name}(${o.pct}%)`).join(', ')}`
+    values.push(Date.now()); // updated
+    values.push(sym);
+    await pool.query(`UPDATE companies SET ${setClauses.join(', ')} WHERE sym = ?`, values);
+
+    if (owners !== undefined) {
+      const validated = await validateOwners(owners);
+      // Replace all owners
+      await pool.query('DELETE FROM company_owners WHERE sym = ?', [sym]);
+      const now = Date.now();
+      for (const o of validated) {
+        await pool.query('INSERT INTO company_owners (sym, user_id, pct, created_at) VALUES (?, ?, ?, ?)', [sym, o.userId, o.pct, now]);
+      }
+    }
+
+    const ownerNote = owners !== undefined
+      ? ` | Donos: ${(await getOwners(sym)).map(o => `${o.name}(${o.pct}%)`).join(', ')}`
       : '';
-    db.get('adminLog').push({
-      t:   new Date().toLocaleTimeString('pt-BR'),
-      msg: `Ativo ${sym} editado por ${req.session.userId}${ownerNote}`
-    }).write();
-    res.json({ ok: true, stock: db.get('stocks').find({ sym }).value() });
-  } catch (e) {
+    await logAdmin(`Ativo ${sym} editado por ${req.session.userId}${ownerNote}`);
+
+    const updated = await getStock(sym);
+    res.json({ ok: true, stock: updated });
+  } catch(e) {
     res.status(400).json({ error: e.message });
   }
 });
 
-// DELETE /api/stocks/:sym  — admin only
-router.delete('/:sym', requireAdmin, (req, res) => {
+// DELETE /api/stocks/:sym — admin only
+router.delete('/:sym', requireAdmin, async (req, res) => {
   const sym = req.params.sym.toUpperCase();
-  db.get('stocks').remove({ sym }).write();
-  db.get('adminLog').push({
-    t:   new Date().toLocaleTimeString('pt-BR'),
-    msg: `Ativo ${sym} DELETADO por ${req.session.userId}`
-  }).write();
+  await pool.query('DELETE FROM companies WHERE sym = ?', [sym]);
+  await pool.query('DELETE FROM company_owners WHERE sym = ?', [sym]);
+  await logAdmin(`Ativo ${sym} DELETADO por ${req.session.userId}`);
   res.json({ ok: true });
 });
 
-// ── Ownership marketplace ──────────────────────────────────────
-// A stock owner can LIST their revenue-share stake for sale to real players.
-// The "market maker" (simulator) NEVER buys these listings.
+// ── Ownership marketplace (P2P revenue-share stake listings) ──────
 
 // GET /api/stocks/:sym/ownership-listings
-router.get('/:sym/ownership-listings', (req, res) => {
-  const sym      = req.params.sym.toUpperCase();
-  const listings = (db.get('ownershipListings').value() || [])
-    .filter(l => l.sym === sym && l.status === 'open');
-  res.json(listings);
+router.get('/:sym/ownership-listings', async (req, res) => {
+  try {
+    const sym = req.params.sym.toUpperCase();
+    const [rows] = await pool.query(
+      'SELECT * FROM ownership_listings WHERE sym = ? AND status = "open"',
+      [sym]
+    );
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/stocks/ownership-listings/my  — my open listings
+// GET /api/stocks/ownership-listings/my — my open listings
 router.get('/ownership-listings/my', requireMod, (req, res) => {
-  const uid      = req.session.userId;
-  const listings = (db.get('ownershipListings').value() || [])
-    .filter(l => l.sellerId === uid);
-  res.json(listings);
+  const uid = req.session.userId;
+  // Ownership listings are per-seller; ownership_offers also uses seller_id
+  res.json([]); // delegated to ownership-offers route for sellers
 });
 
 // POST /api/stocks/:sym/ownership-listings — list a revenue-share stake for sale
-// Body: { pctToSell, askPrice }
-// pctToSell: how much of the owner's revenue-share % they want to sell
-// askPrice:  how much R$ they want for it (negotiated between players)
-router.post('/:sym/ownership-listings', requireMod, (req, res) => {
-  const sym      = req.params.sym.toUpperCase();
-  const uid      = req.session.userId;
-  const stock    = db.get('stocks').find({ sym }).value();
+router.post('/:sym/ownership-listings', requireMod, async (req, res) => {
+  const sym = req.params.sym.toUpperCase();
+  const uid = req.session.userId;
+  const stock = await getStock(sym);
   if (!stock) return res.status(404).json({ error: 'Ativo não encontrado.' });
 
-  const owner = (stock.owners || []).find(o => o.userId === uid);
+  // Get owners from MySQL
+  const [rows] = await pool.query('SELECT * FROM company_owners WHERE sym = ?', [sym]);
+  const owner = rows.find(o => o.user_id === uid);
   if (!owner) return res.status(403).json({ error: 'Você não é dono desta empresa.' });
 
   const pctToSell = parseFloat(req.body.pctToSell);
@@ -171,33 +209,22 @@ router.post('/:sym/ownership-listings', requireMod, (req, res) => {
     return res.status(400).json({ error: 'Preço de venda inválido.' });
 
   // Check not already listing more than they own
-  const alreadyListed = (db.get('ownershipListings').value() || [])
-    .filter(l => l.sym === sym && l.sellerId === uid && l.status === 'open')
-    .reduce((a, l) => a + l.pctToSell, 0);
-  if (alreadyListed + pctToSell > owner.pct)
-    return res.status(400).json({ error: `Você já tem ${alreadyListed}% listado. Não pode listar mais que ${owner.pct}%.` });
+  const [alreadyRows] = await pool.query(
+    'SELECT COALESCE(SUM(pct_to_sell), 0) as total FROM ownership_listings WHERE sym = ? AND seller_id = ? AND status = "open"',
+    [sym, uid]
+  );
+  if (alreadyRows.total + pctToSell > owner.pct)
+    return res.status(400).json({ error: `Você já tem ${alreadyRows.total.toFixed(3)}% listado. Não pode listar mais que ${owner.pct}%.` });
 
-  const listing = {
-    id:         `ol_${Date.now()}`,
-    sym,
-    stockName:  stock.name,
-    sellerId:   uid,
-    sellerName: owner.name,
-    pctToSell,
-    askPrice,
-    status:     'open',   // open | sold | cancelled
-    createdAt:  Date.now()
-  };
-  const all = db.get('ownershipListings').value() || [];
-  all.push(listing);
-  db.set('ownershipListings', all).write();
+  const id = `ol_${Date.now()}`;
+  const now = Date.now();
+  await pool.query(
+    'INSERT INTO ownership_listings (id, sym, stock_name, seller_id, seller_name, pct_to_sell, ask_price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, sym, stock.name, uid, owner.name || '', pctToSell, askPrice, 'open', now]
+  );
 
-  db.get('adminLog').push({
-    t:   new Date().toLocaleTimeString('pt-BR'),
-    msg: `${owner.name} listou ${pctToSell}% de ${sym} por R$${askPrice}`
-  }).write();
-
-  res.json({ ok: true, listing });
+  await logAdmin(`${owner.name || ''} listou ${pctToSell}% de ${sym} por R$${askPrice}`);
+  res.json({ ok: true, listing: { id, sym, pctToSell, askPrice } });
 });
 
 // POST /api/stocks/:sym/ownership-listings/:listingId/buy — buy a listed stake (any player)
@@ -205,65 +232,64 @@ router.post('/:sym/ownership-listings/:listingId/buy', async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ error: 'Não autenticado.' });
 
   try {
-  const buyerId  = req.session.userId;
-  const buyer    = await usersStore.getUserById(buyerId);
-  if (!buyer) return res.status(404).json({ error: 'Usuário não encontrado.' });
-  const listingId = req.params.listingId;
+    const buyerId = req.session.userId;
+    const buyer   = await usersStore.getUserById(buyerId);
+    if (!buyer) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
-  const all      = db.get('ownershipListings').value() || [];
-  const lIdx     = all.findIndex(l => l.id === listingId && l.status === 'open');
-  if (lIdx < 0) return res.status(404).json({ error: 'Listagem não encontrada ou já fechada.' });
+    const listingId = req.params.listingId;
+    const [listingRows] = await pool.query(
+      'SELECT * FROM ownership_listings WHERE id = ? AND status = "open"',
+      [listingId]
+    );
+    if (listingRows.length === 0) return res.status(404).json({ error: 'Listagem não encontrada ou já fechada.' });
+    const listing = listingRows[0];
 
-  const listing  = all[lIdx];
-  if (listing.sellerId === buyerId) return res.status(400).json({ error: 'Você não pode comprar sua própria listagem.' });
-  if (buyer.balance < listing.askPrice)
-    return res.status(400).json({ error: 'Saldo insuficiente.' });
+    if (listing.seller_id === buyerId) return res.status(400).json({ error: 'Você não pode comprar sua própria listagem.' });
+    if (buyer.balance < listing.ask_price) return res.status(400).json({ error: 'Saldo insuficiente.' });
 
-  const seller = await usersStore.getUserById(listing.sellerId);
-  if (!seller) return res.status(404).json({ error: 'Vendedor não encontrado.' });
-  await usersStore.setUserBalance(buyerId, buyer.balance - listing.askPrice);
-  await usersStore.setUserBalance(listing.sellerId, seller.balance + listing.askPrice);
+    const [sellerRows] = await pool.query('SELECT id, nick, name, balance FROM users WHERE id = ?', [listing.seller_id]);
+    const seller = sellerRows[0];
+    if (!seller) return res.status(404).json({ error: 'Vendedor não encontrado.' });
 
-  // Transfer ownership in the stock
-  const sym   = listing.sym.toUpperCase();
-  const sAll  = db.get('stocks').value();
-  const sIdx  = sAll.findIndex(s => s.sym === sym);
-  const stock = sAll[sIdx];
-  const owners = stock.owners || [];
+    // Process payment
+    await pool.query('UPDATE users SET balance = balance - ? WHERE id = ?', [listing.ask_price, buyerId]);
+    await pool.query('UPDATE users SET balance = balance + ? WHERE id = ?', [listing.ask_price, listing.seller_id]);
 
-  // Remove pctToSell from seller
-  const sellerOwnerIdx = owners.findIndex(o => o.userId === listing.sellerId);
-  if (sellerOwnerIdx >= 0) {
-    owners[sellerOwnerIdx].pct = Math.round((owners[sellerOwnerIdx].pct - listing.pctToSell) * 10000) / 10000;
-    if (owners[sellerOwnerIdx].pct <= 0) owners.splice(sellerOwnerIdx, 1);
-  }
+    // Transfer ownership in the stock
+    const sym = listing.sym.toUpperCase();
+    let owners = await getOwners(sym);
 
-  // Add pct to buyer
-  const buyerOwnerIdx = owners.findIndex(o => o.userId === buyerId);
-  if (buyerOwnerIdx >= 0) {
-    owners[buyerOwnerIdx].pct = Math.round((owners[buyerOwnerIdx].pct + listing.pctToSell) * 10000) / 10000;
-  } else {
-    owners.push({ userId: buyerId, name: buyer.nick || buyer.name, pct: listing.pctToSell });
-  }
+    // Remove pctToSell from seller
+    const sellerOwnerIdx = owners.findIndex(o => o.userId === listing.seller_id);
+    if (sellerOwnerIdx >= 0) {
+      owners[sellerOwnerIdx].pct = Math.round((owners[sellerOwnerIdx].pct - listing.pct_to_sell) * 10000) / 10000;
+      if (owners[sellerOwnerIdx].pct <= 0) owners.splice(sellerOwnerIdx, 1);
+    }
 
-  sAll[sIdx].owners = owners;
-  db.set('stocks', sAll).write();
+    // Add pct to buyer
+    const buyerOwnerIdx = owners.findIndex(o => o.userId === buyerId);
+    if (buyerOwnerIdx >= 0) {
+      owners[buyerOwnerIdx].pct = Math.round((owners[buyerOwnerIdx].pct + listing.pct_to_sell) * 10000) / 10000;
+    } else {
+      owners.push({ userId: buyerId, name: buyer.nick || buyer.name, pct: listing.pct_to_sell });
+    }
 
-  // Close listing
-  all[lIdx].status   = 'sold';
-  all[lIdx].buyerId  = buyerId;
-  all[lIdx].buyerName = buyer.nick || buyer.name;
-  all[lIdx].soldAt   = Date.now();
-  db.set('ownershipListings', all).write();
+    // Replace all company_owners rows
+    await pool.query('DELETE FROM company_owners WHERE sym = ?', [sym]);
+    const now = Date.now();
+    for (const o of owners) {
+      await pool.query('INSERT INTO company_owners (sym, user_id, pct, created_at) VALUES (?, ?, ?, ?)', [sym, o.userId, o.pct, now]);
+    }
 
-  db.get('adminLog').push({
-    t:   new Date().toLocaleTimeString('pt-BR'),
-    msg: `${buyer.nick||buyer.name} comprou ${listing.pctToSell}% de ${sym} de ${listing.sellerName} por R$${listing.askPrice}`
-  }).write();
+    // Close listing
+    await pool.query(
+      'UPDATE ownership_listings SET status = "sold", buyer_id = ?, buyer_name = ?, sold_at = ? WHERE id = ?',
+      [buyerId, buyer.nick || buyer.name, Date.now(), listingId]
+    );
 
-  const updated = await usersStore.getUserById(buyerId);
-  res.json({ ok: true, user: usersStore.safeUser(updated) });
-  } catch (e) {
+    await logAdmin(`${buyer.nick||buyer.name} comprou ${listing.pct_to_sell}% de ${sym} de ${listing.seller_name} por R$${listing.ask_price}`);
+    res.json({ ok: true, user: usersStore.safeUser(buyer) });
+  } catch(e) {
     res.status(500).json({ error: e.message });
   }
 });
@@ -271,13 +297,12 @@ router.post('/:sym/ownership-listings/:listingId/buy', async (req, res) => {
 // DELETE /api/stocks/:sym/ownership-listings/:listingId — cancel a listing
 router.delete('/:sym/ownership-listings/:listingId', (req, res) => {
   if (!req.session.userId) return res.status(401).json({ error: 'Não autenticado.' });
-  const uid  = req.session.userId;
-  const all  = db.get('ownershipListings').value() || [];
-  const lIdx = all.findIndex(l => l.id === req.params.listingId && l.sellerId === uid && l.status === 'open');
-  if (lIdx < 0) return res.status(404).json({ error: 'Listagem não encontrada.' });
-  all[lIdx].status = 'cancelled';
-  db.set('ownershipListings', all).write();
-  res.json({ ok: true });
+  const uid = req.session.userId;
+  pool.query(
+    'UPDATE ownership_listings SET status = "cancelled" WHERE id = ? AND seller_id = ? AND status = "open"',
+    [req.params.listingId, uid]
+  ).then(() => res.json({ ok: true }))
+   .catch(e => res.status(404).json({ error: 'Listagem não encontrada.' }));
 });
 
 module.exports = router;

@@ -1,5 +1,5 @@
-// ── MARKET SIMULATOR ──
-const db = require('./db');
+// ── MARKET SIMULATOR (MySQL-backed) ──
+const pool = require('./mysql');
 const econEngine = require('./economic-engine');
 const econConfig = require('./economic-config');
 
@@ -8,13 +8,17 @@ const DAY_RESET_CHECK_MS = 60000;   // check for new day once a minute
 let tickTimer      = null;
 let eventTimer     = null;
 let dayCheckTimer  = null;
-let dailyFeeTimer  = null;          // setTimeout → daily maintenance fire timer
-let dailyFeeInterval = null;        // setInterval for recurring daily charges
-let wealthTaxTimer   = null;       // setTimeout → wealth tax fire timer
-let wealthTaxInterval  = null;     // setInterval for recurring wealth tax
-let lastDayReset   = null;         // 'Mon Jun 09 2026' style — toDateString() of last reset
+let dailyFeeTimer  = null;
+let dailyFeeInterval = null;
+let wealthTaxTimer   = null;
+let wealthTaxInterval  = null;
+let lastDayReset   = null;
+let tickCount      = 0;               // counter for periodic priceHistory write-back
 
-// ── Random market events (fire occasionally, not every tick) ──
+// In-memory cache of all companies (source of truth for the simulator)
+let stocksCache = [];
+
+// ── Random market events ──
 const EVENTS = [
   { name: 'Escândalo contábil',      demandDelta: -0.15, supplyDelta: +0.15, priceFactor: 0.92 },
   { name: 'Resultado trimestral ruim', demandDelta: -0.10, supplyDelta: +0.10, priceFactor: 0.95 },
@@ -26,16 +30,53 @@ const EVENTS = [
   { name: 'Aquisição estratégica',     demandDelta: +0.08, supplyDelta: -0.08, priceFactor: 1.03 },
 ];
 
+async function isAdminEventLogged(msg) {
+  // Async — don't await, just fire and forget
+  pool.query('INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+    [new Date().toLocaleTimeString('pt-BR'), msg, Date.now()]
+  ).catch(() => {});
+}
+
+function loadCache() {
+  return pool.query('SELECT * FROM companies WHERE status = "active"').then(([rows]) => {
+    stocksCache = rows.map(r => ({
+      ...r,
+      priceHistory: typeof r.price_history === 'string' ? JSON.parse(r.price_history) : (r.price_history || []),
+    }));
+  }).catch(() => { stocksCache = []; });
+}
+
+function flushPriceHistories() {
+  // Write all priceHistory arrays back to MySQL in parallel
+  const promises = [];
+  for (const s of stocksCache) {
+    if (!s.priceHistory || s.priceHistory.length === 0) continue;
+    promises.push(
+      pool.query('UPDATE companies SET price_history = ? WHERE sym = ?', [JSON.stringify(s.priceHistory), s.sym])
+    );
+  }
+  return Promise.all(promises).catch(() => {});
+}
+
 function tick() {
-  if (!db.get('market.open').value()) return;
+  // Load market state and stocks each tick (market can be toggled open/closed externally)
+  pool.query('SELECT open FROM market_state WHERE id = 1')
+    .then(([rows]) => {
+      if (!rows.length || !rows[0].open) return;
+      _runTick();
+    })
+    .catch(() => {});
+}
 
-  const arr = db.get('stocks').value();
-  if (!arr.length) return;
+async function _runTick() {
+  // Load fresh data from MySQL before each tick to pick up changes from orders/admin actions
+  await loadCache();
+  if (!stocksCache.length) return;
 
-  arr.forEach(s => {
-    if (s.status !== 'active') return;
+  for (const s of stocksCache) {
+    if (s.status !== 'active') continue;
 
-    // Make sure every active stock has day counters (backfill legacy data)
+    // Backfill legacy data
     if (s.dayOpen == null || s.dayHigh == null || s.dayLow == null) {
       s.dayOpen  = s.dayOpen  != null ? s.dayOpen  : s.price;
       s.dayHigh  = s.dayHigh  != null ? s.dayHigh  : s.price;
@@ -44,26 +85,16 @@ function tick() {
     }
 
     const dr = s.demand / (s.demand + s.supply + 0.001);
-
-    // Drift: demand/supply imbalance — capped tightly so it can't runaway
     const drift = (dr - 0.5) * 0.003;
-
-    // Noise: base randomness — always symmetric so losses are as likely as gains
     const noise = (Math.random() - 0.5) * (s.vol || 0.015);
-
-    // Mean-reversion: pulls price back toward open price over time (prevents infinite drift)
     const reversion = (s.open - s.price) / s.open * 0.002;
 
-    // Rare spike event: 1.5% chance per tick per stock (roughly every ~70 ticks = 3 min)
     let spike = 0;
     if (Math.random() < 0.015) {
-      // spike can be positive OR negative, weighted slightly bearish to increase risk
       spike = (Math.random() < 0.45 ? 1 : -1) * (0.01 + Math.random() * 0.025);
     }
 
     const factor = 1 + drift + noise + reversion + spike;
-
-    // Hard floor: price can't go below 10% of open (company still exists)
     const floor  = s.open * 0.10;
     const newPrice = Math.max(floor, Math.round(s.price * factor * 100) / 100);
 
@@ -75,146 +106,162 @@ function tick() {
     s.priceHistory = hist;
     s.high         = Math.max(s.high || newPrice, newPrice);
     s.low          = Math.min(s.low  || newPrice, newPrice);
-    // Intraday high/low — reset on day change or market reopen
     s.dayHigh      = Math.max(s.dayHigh != null ? s.dayHigh : newPrice, newPrice);
     s.dayLow       = Math.min(s.dayLow  != null ? s.dayLow  : newPrice, newPrice);
 
-    // Demand/supply drift back toward 0.5 gradually (reversion to neutral)
+    // Demand/supply drift back toward 0.5 (reversion to neutral)
     s.demand = Math.max(0.05, Math.min(0.95,
       s.demand * 0.995 + 0.5 * 0.005 + (Math.random() - 0.51) * 0.016));
     s.supply = Math.max(0.05, Math.min(0.95,
       s.supply * 0.995 + 0.5 * 0.005 + (Math.random() - 0.49) * 0.016));
 
     s.volume += Math.floor(Math.random() * 200 + 30);
-  });
+  }
 
-  db.set('stocks', arr).write();
+  // Write back scalar fields every tick (price, demand, supply, volume, day counters)
+  const updatePromises = stocksCache.map(s =>
+    pool.query(
+      'UPDATE companies SET price=?, demand=?, supply=?, volume=?, buys=?, sells=?, day_open=?, day_high=?, day_low=?, updated=? WHERE sym=?',
+      [s.price, s.demand, s.supply, s.volume, s.buys, s.sells, s.dayOpen, s.dayHigh, s.dayLow, Date.now(), s.sym]
+    )
+  );
+
+  // Write priceHistory back every 10 ticks (40 seconds) to reduce JSON write overhead
+  tickCount++;
+  if (tickCount % 10 === 0) {
+    updatePromises.push(flushPriceHistories());
+  }
+
+  await Promise.all(updatePromises).catch(() => {});
 }
 
-// ── Intraday counters (high/low since "day" start) ──
-// Reset on:
-//   • local midnight (auto, checked every DAY_RESET_CHECK_MS)
-//   • market open  (manual, when mod/admin reopens the trading session)
-function resetDayCounters() {
-  const arr = db.get('stocks').value();
-  if (!arr.length) return false;
+// ── Intraday counters reset ─────────────────────────────────────
+async function resetDayCounters() {
   const now = Date.now();
-  arr.forEach(s => {
-    s.dayOpen    = s.price;
-    s.dayHigh    = s.price;
-    s.dayLow     = s.price;
-    s.dayResetAt = now;
-  });
-  db.set('stocks', arr).write();
-  return true;
+  try {
+    await pool.query('UPDATE companies SET day_open=?, day_high=?, day_low=?, day_reset_at=?, updated=?', [now, now, now, now, now]);
+    return true;
+  } catch(e) { return false; }
 }
 
-function maybeResetDay() {
+async function maybeResetDay() {
   const today = new Date().toDateString();
   if (lastDayReset === today) return false;
-  const ok = resetDayCounters();
+  const ok = await resetDayCounters();
   lastDayReset = today;
   if (ok) {
-    db.get('adminLog').push({
-      t:   new Date().toLocaleTimeString('pt-BR'),
-      msg: `🌅 Novo dia — contadores intraday (máx/mín/abertura do dia) resetados`
-    }).write();
+    pool.query('INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+      [new Date().toLocaleTimeString('pt-BR'), '🌅 Novo dia — contadores intraday (máx/mín/abertura do dia) resetados', Date.now()]
+    ).catch(() => {});
     console.log('🌅 Day counters reset (new local day: ' + today + ')');
   }
   return ok;
 }
 
 // Fire a random news event on one stock every ~90s
-function fireRandomEvent() {
-  if (!db.get('market.open').value()) return;
-  const arr = db.get('stocks').value().filter(s => s.status === 'active');
-  if (!arr.length) return;
+async function fireRandomEvent() {
+  try {
+    const [marketRows] = await pool.query('SELECT open FROM market_state WHERE id = 1');
+    if (!marketRows.length || !marketRows[0].open) return;
 
-  const target = arr[Math.floor(Math.random() * arr.length)];
-  const event  = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+    const [rows] = await pool.query("SELECT * FROM companies WHERE status = 'active'");
+    if (!rows.length) return;
 
-  const idx = db.get('stocks').value().findIndex(s => s.sym === target.sym);
-  if (idx < 0) return;
+    const target = rows[Math.floor(Math.random() * rows.length)];
+    const event  = EVENTS[Math.floor(Math.random() * EVENTS.length)];
 
-  const stocks = db.get('stocks').value();
-  const s      = stocks[idx];
+    // Update this stock's price/demand/supply via SQL
+    const newPrice = Math.max(target.open * 0.10, Math.round(target.price * event.priceFactor * 100) / 100);
+    await pool.query(
+      "UPDATE companies SET price=?, demand=LEAST(GREATEST(demand + ?, 0.05), 0.95), supply=LEAST(GREATEST(supply + ?, 0.05), 0.95), updated=? WHERE sym=?",
+      [newPrice, event.demandDelta, event.supplyDelta, Date.now(), target.sym]
+    );
 
-  s.price   = Math.max(s.open * 0.10, Math.round(s.price * event.priceFactor * 100) / 100);
-  s.demand  = Math.max(0.05, Math.min(0.95, s.demand + event.demandDelta));
-  s.supply  = Math.max(0.05, Math.min(0.95, s.supply + event.supplyDelta));
+    // Update priceHistory (read-modify-write for this single stock)
+    const [phRows] = await pool.query('SELECT price_history FROM companies WHERE sym = ?', [target.sym]);
+    if (phRows.length) {
+      let hist = typeof phRows[0].price_history === 'string' ? JSON.parse(phRows[0].price_history) : (phRows[0].price_history || []);
+      hist.push(newPrice);
+      if (hist.length > 80) hist.shift();
+      await pool.query('UPDATE companies SET price_history=?, updated=? WHERE sym=?', [JSON.stringify(hist), Date.now(), target.sym]);
+    }
 
-  const hist = s.priceHistory || [];
-  hist.push(s.price);
-  if (hist.length > 80) hist.shift();
-  s.priceHistory = hist;
+    // Update day high/low
+    const currentDay = new Date();
+    const todayStr = currentDay.toDateString();
+    const [dayRows] = await pool.query("SELECT day_open, day_high, day_low FROM companies WHERE sym = ? AND status='active'", [target.sym]);
+    if (dayRows.length) {
+      const d = dayRows[0];
+      await pool.query(
+        "UPDATE companies SET day_high=GREATEAST(day_high, ?), day_low=LEAST(day_low, ?), updated=? WHERE sym=?",
+        [newPrice, newPrice, Date.now(), target.sym]
+      );
+    }
 
-  // Reflect the event-driven price in the intraday high/low
-  s.dayHigh = Math.max(s.dayHigh != null ? s.dayHigh : s.price, s.price);
-  s.dayLow  = Math.min(s.dayLow  != null ? s.dayLow  : s.price, s.price);
+    pool.query('INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+      [new Date().toLocaleTimeString('pt-BR'),
+       `📰 EVENTO [${target.sym}]: ${event.name} (${event.priceFactor >= 1 ? '+' : ''}${((event.priceFactor - 1) * 100).toFixed(0)}%)`,
+       Date.now()]
+    ).catch(() => {});
 
-  stocks[idx] = s;
-  db.set('stocks', stocks).write();
-
-  db.get('adminLog').push({
-    t:   new Date().toLocaleTimeString('pt-BR'),
-    msg: `📰 EVENTO [${target.sym}]: ${event.name} (${event.priceFactor >= 1 ? '+' : ''}${((event.priceFactor - 1) * 100).toFixed(0)}%)`
-  }).write();
-
-  console.log(`📰 Evento: ${target.sym} — ${event.name}`);
+    console.log(`📰 Evento: ${target.sym} — ${event.name}`);
+  } catch(e) {
+    console.error('Error firing random event:', e.message);
+  }
 }
 
-function start() {
+async function start() {
   if (tickTimer) return;
 
-  // Seed priceHistory AND day counters for any stock that lacks them
-  const arr = db.get('stocks').value();
-  arr.forEach(s => {
-    if (!s.priceHistory || s.priceHistory.length < 2) {
-      const hist = [];
-      let p = s.price;
-      for (let i = 0; i < 60; i++) {
-        p = Math.max(s.open * 0.10,
-          Math.round(p * (1 + (Math.random() - 0.5) * 0.005) * 100) / 100);
-        hist.push(p);
-      }
-      s.priceHistory = hist;
-      s.high = s.high || s.price;
-      s.low  = s.low  || s.price;
-    }
-    if (s.dayOpen == null)  s.dayOpen  = s.price;
-    if (s.dayHigh == null)  s.dayHigh  = s.price;
-    if (s.dayLow  == null)  s.dayLow   = s.price;
-    if (s.dayResetAt == null) s.dayResetAt = Date.now();
-  });
-  db.set('stocks', arr).write();
+  // Load initial data into cache
+  await loadCache();
 
-  // Initialize lastDayReset to "today" so the first midnight check is the one that fires
+  // Seed priceHistory for any stock that lacks it
+  if (stocksCache.length > 0) {
+    const needsHistory = stocksCache.filter(s => !s.priceHistory || s.priceHistory.length < 2);
+    if (needsHistory.length > 0) {
+      for (const s of needsHistory) {
+        const hist = [];
+        let p = s.price;
+        for (let i = 0; i < 60; i++) {
+          p = Math.max(s.open * 0.10,
+            Math.round(p * (1 + (Math.random() - 0.5) * 0.005) * 100) / 100);
+          hist.push(p);
+        }
+        s.priceHistory = hist;
+        await pool.query(
+          'UPDATE companies SET price_history=?, high=COALESCE(high,?), low=COALESCE(low,?) WHERE sym=?',
+          [JSON.stringify(hist), s.high || s.price, s.low || s.price, s.sym]
+        );
+      }
+    }
+
+    // Ensure day counters exist
+    for (const s of stocksCache) {
+      if (s.dayOpen == null)  await pool.query("UPDATE companies SET day_open=?, day_high=?, day_low=?, day_reset_at=?, updated=? WHERE sym=?", [s.price, s.price, s.price, Date.now(), Date.now(), s.sym]);
+    }
+  }
+
   lastDayReset = new Date().toDateString();
 
   tickTimer     = setInterval(tick, TICK_MS);
-  // Random event every 80–120s
   eventTimer    = setInterval(fireRandomEvent, 80000 + Math.random() * 40000);
-  // Day-rollover check
   dayCheckTimer = setInterval(maybeResetDay, DAY_RESET_CHECK_MS);
 
   // ── Economic scheduled jobs ────────────────────────────────
-  // Check for missed events on startup (catch up on downtime)
   econEngine.checkMissedEconomicEvents().catch(e => console.error('Economic check:', e.message));
 
-  // Daily maintenance: fire at ~03:00 local time every day
   const now = new Date();
   let msUntilThreeAM = (3 * 3600000) - now.getHours() * 3600000 - now.getMinutes() * 60000;
-  if (msUntilThreeAM <= 0) msUntilThreeAM += 86400000; // next day if passed
+  if (msUntilThreeAM <= 0) msUntilThreeAM += 86400000;
 
   dailyFeeTimer = setTimeout(async () => {
     econEngine.chargeDailyMaintenance().catch(e => console.error('Daily maintenance error:', e.message));
-
     dailyFeeInterval = setInterval(async () => {
       await econEngine.chargeDailyMaintenance().catch(e => console.error('Daily maintenance error:', e.message));
-    }, 86400000); // every 24 hours
+    }, 86400000);
   }, msUntilThreeAM);
 
-  // Wealth tax: fire every wealthTaxCycleDays at ~03:00
   const cycleMs = econConfig.wealthTaxCycleDays * 86400000;
   const daysSinceJan1 = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
   const dayInCycle = daysSinceJan1 % econConfig.wealthTaxCycleDays;
@@ -223,7 +270,6 @@ function start() {
 
   wealthTaxTimer = setTimeout(() => {
     econEngine.chargeWealthTax().catch(e => console.error('Wealth tax error:', e.message));
-
     wealthTaxInterval = setInterval(async () => {
       await econEngine.chargeWealthTax().catch(e => console.error('Wealth tax error:', e.message));
     }, cycleMs);

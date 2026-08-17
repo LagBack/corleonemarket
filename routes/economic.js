@@ -3,7 +3,6 @@
 
 const router       = require('express').Router();
 const pool         = require('../data/mysql');
-const db           = require('../data/db');
 const econConfig   = require('../data/economic-config');
 const econEngine   = require('../data/economic-engine');
 const usersStore   = require('../data/users-store');
@@ -104,10 +103,10 @@ router.put('/config', requireAuth, async (req, res) => {
 
     // Log to admin log
     try {
-      db.get('adminLog').push({
-        t: new Date().toLocaleTimeString('pt-BR'),
-        msg: `⚙️ Configuração econômica atualizada por ${req.user?.nick || req.user?.name || 'unknown'}`
-      }).write();
+      await pool.query(
+        'INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+        [new Date().toLocaleTimeString('pt-BR'), `⚙️ Configuração econômica atualizada por ${req.user?.nick || req.user?.name || 'unknown'}`, Date.now()]
+      );
     } catch (_) { /* non-critical */ }
 
     res.json({ ok: true, message: 'Configuração econômica salva com sucesso.' });

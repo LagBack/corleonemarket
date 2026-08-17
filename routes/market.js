@@ -1,5 +1,4 @@
 const router      = require('express').Router();
-const db          = require('../data/db');
 const pool        = require('../data/mysql');
 const usersStore  = require('../data/users-store');
 const { photoUrlForUser, hasAnyPhoto } = require('../data/user-serialize');
@@ -8,10 +7,44 @@ const { normalizeRole } = require('../data/roles');
 const { computeTier }    = require('../data/tiers');
 const econConfig         = require('../data/economic-config');
 
-// ── Portfolio helpers (MySQL) ──────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────
+
+async function getStock(sym) {
+  const [rows] = await pool.query('SELECT * FROM companies WHERE sym = ?', [sym.toUpperCase()]);
+  return rows[0] || null;
+}
+
+async function getStockWithOwners(sym) {
+  const s = await getStock(sym);
+  if (!s) return null;
+  // Parse price_history from JSON string
+  s.priceHistory = typeof s.price_history === 'string' ? JSON.parse(s.price_history) : (s.price_history || []);
+  // Get owners from company_owners table
+  const [ownerRows] = await pool.query(
+    'SELECT user_id, pct FROM company_owners WHERE sym = ?',
+    [sym.toUpperCase()]
+  );
+  // Attach owner names by querying users
+  if (ownerRows.length > 0) {
+    const placeholders = ownerRows.map(() => '?').join(',');
+    const [userRows] = await pool.query(
+      `SELECT id, nick, name FROM users WHERE id IN (${placeholders})`,
+      ownerRows.map(o => o.user_id)
+    );
+    const userMap = {};
+    userRows.forEach(u => userMap[u.id] = u);
+    s.owners = ownerRows.map(o => ({
+      userId: o.user_id,
+      name: (userMap[o.user_id] || {}).nick || (userMap[o.user_id] || {}).name || '',
+      pct: o.pct
+    }));
+  } else {
+    s.owners = [];
+  }
+  return s;
+}
 
 async function getPortfolio(uid) {
-  // Returns { SYM: qty, ... }
   const [rows] = await pool.query(
     'SELECT sym, qty FROM portfolios WHERE user_id = ? AND qty > 0',
     [uid]
@@ -53,26 +86,43 @@ async function getUserTransactions(uid) {
   return rows;
 }
 
-// ── Routes ────────────────────────────────────────────────────────────────
+async function logAdmin(msg) {
+  await pool.query(
+    'INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+    [new Date().toLocaleTimeString('pt-BR'), msg, Date.now()]
+  );
+}
+
+// ── Routes ────────────────────────────────────────────────────────
 
 // GET /api/market/state
-router.get('/state', (req, res) => {
-  const stocks   = db.get('stocks').value();
-  const open     = db.get('market.open').value();
-  const ibcx     = stocks.length
-    ? stocks.reduce((a, s) => a + (s.price / s.open * 1000), 0) / stocks.length
-    : 1000;
-  const totalVol = stocks.reduce((a, s) => a + s.volume * s.price, 0);
-  const stocksLite = stocks.map(({ priceHistory, ...s }) => s);
-  res.json({ stocks: stocksLite, open, ibcx, totalVol });
+router.get('/state', async (req, res) => {
+  try {
+    const [stocks] = await pool.query('SELECT * FROM companies');
+    const [marketRows] = await pool.query('SELECT * FROM market_state WHERE id = 1');
+    const market = marketRows[0] || { open: 1 };
+    const open = !!market.open;
+
+    const ibcx = stocks.length
+      ? stocks.reduce((a, s) => a + (s.price / s.open * 1000), 0) / stocks.length
+      : 1000;
+    const totalVol = stocks.reduce((a, s) => a + (s.volume || 0) * (s.price || 0), 0);
+
+    // Return stocks without price_history in the response (same as lowdb's destructuring pattern)
+    const stocksLite = stocks.map(({ price_history, ...s }) => s);
+    res.json({ stocks: stocksLite, open, ibcx, totalVol });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // GET /api/market/history/:sym
-router.get('/history/:sym', (req, res) => {
-  const sym   = req.params.sym.toUpperCase();
-  const stock = db.get('stocks').find({ sym }).value();
-  if (!stock) return res.status(404).json({ error: 'Ativo não encontrado' });
-  res.json({ sym, history: stock.priceHistory || [] });
+router.get('/history/:sym', async (req, res) => {
+  try {
+    const sym = req.params.sym.toUpperCase();
+    const stock = await getStock(sym);
+    if (!stock) return res.status(404).json({ error: 'Ativo não encontrado' });
+    const history = typeof stock.price_history === 'string' ? JSON.parse(stock.price_history) : (stock.price_history || []);
+    res.json({ sym, history });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // GET /api/market/portfolio
@@ -90,7 +140,9 @@ router.get('/portfolio', requireAuth, async (req, res) => {
 // POST /api/market/order
 router.post('/order', requireAuth, async (req, res) => {
   try {
-    if (!db.get('market.open').value())
+    const [marketRows] = await pool.query('SELECT * FROM market_state WHERE id = 1');
+    const market = marketRows[0] || { open: 1 };
+    if (!market.open)
       return res.status(403).json({ error: 'Mercado está fechado.' });
 
     const { sym, type, qty } = req.body;
@@ -102,7 +154,7 @@ router.post('/order', requireAuth, async (req, res) => {
     const user  = await usersStore.getUserById(uid);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
-    const stock = db.get('stocks').find({ sym }).value();
+    const stock = await getStock(sym.toUpperCase());
     if (!stock) return res.status(404).json({ error: 'Ativo não encontrado.' });
     if (stock.status !== 'active') return res.status(403).json({ error: 'Ativo suspenso.' });
 
@@ -115,23 +167,25 @@ router.post('/order', requireAuth, async (req, res) => {
       const totalCost = total + buyFee;          // trade value + fee
       if (user.balance < totalCost) return res.status(400).json({ error: 'Saldo insuficiente.' });
       await usersStore.setUserBalance(uid, user.balance - totalCost);
-      await setPortfolioQty(uid, sym, (pf[sym] || 0) + quantity);
-      db.get('stocks').find({ sym }).assign({
-        demand: Math.min(0.95, stock.demand + 0.03),
-        buys:   stock.buys + quantity,
-        volume: stock.volume + quantity
-      }).write();
+      await setPortfolioQty(uid, sym.toUpperCase(), (pf[sym] || 0) + quantity);
+      // Update demand/supply/volume on companies row
+      const newDemand = Math.min(0.95, stock.demand + 0.03);
+      await pool.query(
+        'UPDATE companies SET demand = ?, buys = buys + ?, volume = volume + ? WHERE sym = ?',
+        [newDemand, quantity, quantity, sym.toUpperCase()]
+      );
     } else if (type === 'sell') {
       const owned = pf[sym] || 0;
       if (owned < quantity) return res.status(400).json({ error: 'Cotas insuficientes.' });
       const netReceived = total - sellFee;         // sale value minus fee
       await usersStore.setUserBalance(uid, user.balance + netReceived);
-      await setPortfolioQty(uid, sym, owned - quantity);
-      db.get('stocks').find({ sym }).assign({
-        supply: Math.min(0.95, stock.supply + 0.03),
-        sells:  stock.sells + quantity,
-        volume: stock.volume + quantity
-      }).write();
+      await setPortfolioQty(uid, sym.toUpperCase(), owned - quantity);
+      // Update demand/supply/volume on companies row
+      const newSupply = Math.min(0.95, stock.supply + 0.03);
+      await pool.query(
+        'UPDATE companies SET supply = ?, sells = sells + ?, volume = volume + ? WHERE sym = ?',
+        [newSupply, quantity, quantity, sym.toUpperCase()]
+      );
     } else {
       return res.status(400).json({ error: 'Tipo de ordem inválido.' });
     }
@@ -147,7 +201,6 @@ router.post('/order', requireAuth, async (req, res) => {
       ts:   Date.now()
     };
 
-    // Override addTransaction to write the fee columns
     await pool.query(
       `INSERT INTO transactions (uid, uname, type, sym, qty, price, total, fee, fee_type, time, ts)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -155,10 +208,9 @@ router.post('/order', requireAuth, async (req, res) => {
     );
 
     // ── Owner revenue share ──
-    const freshStock = db.get('stocks').find({ sym }).value();
+    const freshStock = await getStockWithOwners(sym.toUpperCase());
     if (freshStock && Array.isArray(freshStock.owners) && freshStock.owners.length > 0) {
       let totalPaid = 0;
-      const divs = db.get('dividends').value() || [];
       for (const owner of freshStock.owners) {
         const fee = Math.round(total * (owner.pct / 100) * 100) / 100;
         if (fee < 0.01) continue;
@@ -166,25 +218,21 @@ router.post('/order', requireAuth, async (req, res) => {
         if (!ownerUser) continue;
         await usersStore.adjustUserBalance(owner.userId, fee);
         totalPaid += fee;
-        divs.push({
-          id: Date.now() + Math.random(), founderId: owner.userId,
-          sym, stockName: freshStock.name, ownerName: owner.name,
-          traderName: user.nick || user.name, type,
-          tradeTotal: total, pct: owner.pct, fee,
-          time: new Date().toLocaleTimeString('pt-BR'), ts: Date.now()
-        });
+        await pool.query(
+          `INSERT INTO dividends (sym, stock_name, owner_id, owner_name, trader_name, type, trade_total, pct, fee, time, ts)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [freshStock.sym, freshStock.name, owner.userId, owner.name || '', user.nick || user.name, type, total, owner.pct, fee, tx.time, tx.ts]
+        );
       }
       if (totalPaid > 0) {
-        db.set('dividends', divs).write();
-        db.get('stocks').find({ sym })
-          .assign({ totalRevenue: (freshStock.totalRevenue || 0) + totalPaid }).write();
+        await pool.query(
+          'UPDATE companies SET total_revenue = total_revenue + ? WHERE sym = ?',
+          [totalPaid, freshStock.sym]
+        );
       }
     }
 
-    db.get('adminLog').push({
-      t:   new Date().toLocaleTimeString('pt-BR'),
-      msg: `${user.nick || user.name} ${type === 'buy' ? 'COMPROU' : 'VENDEU'} ${quantity}× ${sym} @ R$${stock.price.toFixed(2)} | Taxa: R$${(type === 'buy' ? buyFee : sellFee).toFixed(2)}`
-    }).write();
+    await logAdmin(`${user.nick || user.name} ${type === 'buy' ? 'COMPROU' : 'VENDEU'} ${quantity}× ${sym.toUpperCase()} @ R$${stock.price.toFixed(2)} | Taxa: R$${(type === 'buy' ? buyFee : sellFee).toFixed(2)}`);
 
     const updatedUser = await usersStore.getUserById(uid);
     res.json({
@@ -201,7 +249,7 @@ router.post('/order', requireAuth, async (req, res) => {
 // GET /api/market/ranking
 router.get('/ranking', async (req, res) => {
   try {
-    const stocks = db.get('stocks').value();
+    const [stocks] = await pool.query('SELECT * FROM companies');
     const users  = await usersStore.getAllUsers();
 
     // Load all portfolios from MySQL in one query
@@ -212,12 +260,16 @@ router.get('/ranking', async (req, res) => {
       pfMap[r.user_id][r.sym] = r.qty;
     });
 
+    // Build stock lookup by sym for MV computation
+    const stockMap = {};
+    stocks.forEach(s => { stockMap[s.sym] = s; });
+
     const investors = users
       .map(u => {
         const pf = pfMap[u.id] || {};
         let mv = 0;
         Object.entries(pf).forEach(([sym, qty]) => {
-          const s = stocks.find(x => x.sym === sym);
+          const s = stockMap[sym];
           if (s) mv += s.price * qty;
         });
         const total = Math.round((u.balance + mv) * 100) / 100;
@@ -229,16 +281,15 @@ router.get('/ranking', async (req, res) => {
           wealthTier: computeTier(total),
           hasDonated: !!u.has_donated,
         };
-      }).sort((a, b) => b.total - a.total);
+      }).sort((a, b) => b.total - b.total);
 
     const supplyDemand = [...stocks].sort((a, b) =>
       (b.demand / (b.demand + b.supply)) - (a.demand / (a.demand + a.supply)));
     const topTraded = [...stocks].sort((a, b) => b.volume - a.volume);
 
-    // Intraday movers — use dayOpen (current-day opening) as the reference.
-    // Stocks without dayOpen fall back to s.open so legacy data still works.
+    // Intraday movers — use day_open (current-day opening) as the reference.
     const dayPct = (s) => {
-      const ref = s.dayOpen != null ? s.dayOpen : s.open;
+      const ref = s.day_open != null ? s.day_open : s.open;
       return ref > 0 ? (s.price - ref) / ref * 100 : 0;
     };
     const enrichedDay = stocks
@@ -257,15 +308,17 @@ router.get('/ranking', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── P2P OWNERSHIP MARKETPLACE ─────────────────────────────────────────────
+// ── P2P OWNERSHIP MARKETPLACE (MySQL-backed) ─────────────────────
 
 // GET /api/market/ownership-offers
 router.get('/ownership-offers', async (req, res) => {
   try {
-    const offers = (db.get('ownershipOffers').value() || []).filter(x => x.status === 'open');
+    const [offers] = await pool.query(
+      'SELECT * FROM ownership_offers WHERE status = "open"'
+    );
     if (!offers.length) return res.json([]);
 
-    const sellerIds = [...new Set(offers.map(o => o.sellerId).filter(Boolean))];
+    const sellerIds = [...new Set(offers.map(o => o.seller_id).filter(Boolean))];
     const sellers = new Map();
     if (sellerIds.length) {
       const placeholders = sellerIds.map(() => '?').join(',');
@@ -276,15 +329,23 @@ router.get('/ownership-offers', async (req, res) => {
       rows.forEach(u => sellers.set(u.id, u));
     }
 
-    const enriched = offers.map(o => {
-      const s = db.get('stocks').find({ sym: o.sym }).value();
-      const seller = sellers.get(o.sellerId);
-      return {
-        ...o,
-        stockName:  s ? s.name : o.sym,
-        sellerName: seller ? (seller.nick || seller.name) : '?',
-      };
-    });
+    // Also load company names from MySQL
+    const symList = [...new Set(offers.map(o => o.sym).filter(Boolean))];
+    const stockMap = {};
+    if (symList.length) {
+      const placeholders = symList.map(() => '?').join(',');
+      const [rows] = await pool.query(
+        `SELECT sym, name FROM companies WHERE sym IN (${placeholders})`,
+        symList
+      );
+      rows.forEach(s => stockMap[s.sym] = s.name);
+    }
+
+    const enriched = offers.map(o => ({
+      ...o,
+      stockName:  o.stock_name || stockMap[o.sym] || o.sym,
+      sellerName: (sellers.get(o.seller_id) || {}).nick || (sellers.get(o.seller_id) || {}).name || '?',
+    }));
     res.json(enriched);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -296,24 +357,29 @@ router.post('/ownership-offers', requireAuth, async (req, res) => {
     if (!sym || !pctToSell || !askPrice)
       return res.status(400).json({ error: 'sym, pctToSell e askPrice são obrigatórios.' });
     const uid   = req.session.userId;
-    const stock = db.get('stocks').find({ sym }).value();
+    const stock = await getStock(sym.toUpperCase());
     if (!stock) return res.status(404).json({ error: 'Ativo não encontrado.' });
-    const ownedPct = (stock.ownershipShares || {})[uid] || 0;
-    const pct = parseFloat(pctToSell);
+
+    // Check ownership from company_owners table
+    const [ownerRows] = await pool.query('SELECT * FROM company_owners WHERE sym = ? AND user_id = ?', [sym.toUpperCase(), uid]);
+    let ownedPct = 0;
+    ownerRows.forEach(o => { ownedPct += o.pct; });
     if (ownedPct <= 0) return res.status(403).json({ error: 'Você não tem participação nessa empresa.' });
+
+    const pct = parseFloat(pctToSell);
     if (pct > ownedPct) return res.status(400).json({ error: `Você só pode vender até ${ownedPct.toFixed(3)}%.` });
     if (pct <= 0) return res.status(400).json({ error: 'Porcentagem inválida.' });
-    const offer = {
-      id: 'offer_' + Date.now(), sym, sellerId: uid, pct,
-      askPrice: parseFloat(askPrice), status: 'open',
-      createdAt: Date.now(), time: new Date().toLocaleTimeString('pt-BR')
-    };
-    const offers = db.get('ownershipOffers').value() || [];
-    offers.push(offer);
-    db.set('ownershipOffers', offers).write();
+
+    const id = 'offer_' + Date.now();
+    const now = Date.now();
+    await pool.query(
+      'INSERT INTO ownership_offers (id, sym, stock_name, seller_id, pct, ask_price, status, created_at, time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, sym.toUpperCase(), stock.name, uid, pct, parseFloat(askPrice), 'open', now, new Date().toLocaleTimeString('pt-BR')]
+    );
+
     const user = await usersStore.getUserById(uid);
-    db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `${user.nick||user.name} listou ${pct.toFixed(3)}% de ${sym} por R$${parseFloat(askPrice).toFixed(2)}` }).write();
-    res.json({ ok: true, offer });
+    await logAdmin(`${user.nick||user.name} listou ${pct.toFixed(3)}% de ${sym.toUpperCase()} por R$${parseFloat(askPrice).toFixed(2)}`);
+    res.json({ ok: true, offer: { id, sym: sym.toUpperCase(), pct, askPrice: parseFloat(askPrice) } });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -321,44 +387,70 @@ router.post('/ownership-offers', requireAuth, async (req, res) => {
 router.post('/ownership-offers/:id/buy', requireAuth, async (req, res) => {
   try {
     const uid      = req.session.userId;
-    const offers   = db.get('ownershipOffers').value() || [];
-    const offerIdx = offers.findIndex(o => o.id === req.params.id && o.status === 'open');
-    if (offerIdx < 0) return res.status(404).json({ error: 'Oferta não encontrada ou já encerrada.' });
-    const offer  = offers[offerIdx];
-    if (offer.sellerId === uid) return res.status(400).json({ error: 'Você não pode comprar sua própria oferta.' });
+    const [offerRows] = await pool.query(
+      'SELECT * FROM ownership_offers WHERE id = ? AND status = "open"',
+      [req.params.id]
+    );
+    if (offerRows.length === 0) return res.status(404).json({ error: 'Oferta não encontrada ou já encerrada.' });
+    const offer = offerRows[0];
+
+    if (offer.seller_id === uid) return res.status(400).json({ error: 'Você não pode comprar sua própria oferta.' });
+
     const buyer  = await usersStore.getUserById(uid);
-    const seller = await usersStore.getUserById(offer.sellerId);
-    const stock  = db.get('stocks').find({ sym: offer.sym }).value();
+    const seller = await usersStore.getUserById(offer.seller_id);
+    const stock  = await getStock(offer.sym);
     if (!buyer || !seller || !stock) return res.status(404).json({ error: 'Usuário ou ativo não encontrado.' });
-    if (buyer.balance < offer.askPrice) return res.status(400).json({ error: 'Saldo insuficiente.' });
-    await usersStore.setUserBalance(uid, buyer.balance - offer.askPrice);
-    await usersStore.setUserBalance(offer.sellerId, seller.balance + offer.askPrice);
-    const os = stock.ownershipShares || {};
-    os[offer.sellerId] = Math.round(((os[offer.sellerId] || 0) - offer.pct) * 10000) / 10000;
-    if (os[offer.sellerId] <= 0) delete os[offer.sellerId];
-    os[uid] = Math.round(((os[uid] || 0) + offer.pct) * 10000) / 10000;
-    const owners = stock.owners || [];
-    const si = owners.findIndex(o => o.userId === offer.sellerId);
-    if (si >= 0) { owners[si].pct -= offer.pct; if (owners[si].pct <= 0) owners.splice(si, 1); }
+    if (buyer.balance < offer.ask_price) return res.status(400).json({ error: 'Saldo insuficiente.' });
+
+    // Process payment
+    await pool.query('UPDATE users SET balance = balance - ? WHERE id = ?', [offer.ask_price, uid]);
+    await pool.query('UPDATE users SET balance = balance + ? WHERE id = ?', [offer.ask_price, offer.seller_id]);
+
+    // Transfer ownership
+    const sym = offer.sym.toUpperCase();
+    let owners = await getStockWithOwners(sym).then(s => s.owners);
+
+    // Decrease seller's pct
+    const si = owners.findIndex(o => o.userId === offer.seller_id);
+    if (si >= 0) {
+      owners[si].pct -= offer.pct;
+      if (owners[si].pct <= 0) owners.splice(si, 1);
+    }
+
+    // Increase buyer's pct
     const bi = owners.findIndex(o => o.userId === uid);
-    if (bi >= 0) { owners[bi].pct += offer.pct; } else { owners.push({ userId: uid, name: buyer.nick || buyer.name, pct: offer.pct }); }
-    db.get('stocks').find({ sym: offer.sym }).assign({ ownershipShares: os, owners }).write();
-    offers[offerIdx].status = 'sold'; offers[offerIdx].buyerId = uid; offers[offerIdx].soldAt = Date.now();
-    db.set('ownershipOffers', offers).write();
-    db.get('adminLog').push({ t: new Date().toLocaleTimeString('pt-BR'), msg: `${buyer.nick||buyer.name} comprou ${offer.pct.toFixed(3)}% de ${offer.sym} de ${seller.nick||seller.name} por R$${offer.askPrice.toFixed(2)}` }).write();
-    const updatedBuyer = await usersStore.getUserById(uid);
-    res.json({ ok: true, user: usersStore.safeUser(updatedBuyer) });
+    if (bi >= 0) {
+      owners[bi].pct += offer.pct;
+    } else {
+      owners.push({ userId: uid, name: buyer.nick || buyer.name, pct: offer.pct });
+    }
+
+    // Replace company_owners rows
+    await pool.query('DELETE FROM company_owners WHERE sym = ?', [sym]);
+    const now = Date.now();
+    for (const o of owners) {
+      await pool.query('INSERT INTO company_owners (sym, user_id, pct, created_at) VALUES (?, ?, ?, ?)', [sym, o.userId, o.pct, now]);
+    }
+
+    // Close offer
+    await pool.query(
+      'UPDATE ownership_offers SET status = "sold", buyer_id = ?, buyer_name = ?, sold_at = ? WHERE id = ?',
+      [uid, buyer.nick || buyer.name, Date.now(), req.params.id]
+    );
+
+    await logAdmin(`${buyer.nick||buyer.name} comprou ${offer.pct.toFixed(3)}% de ${offer.sym} de ${seller.nick||seller.name} por R$${offer.ask_price.toFixed(2)}`);
+    res.json({ ok: true, user: usersStore.safeUser(buyer) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // DELETE /api/market/ownership-offers/:id
-router.delete('/ownership-offers/:id', requireAuth, (req, res) => {
+router.delete('/ownership-offers/:id', requireAuth, async (req, res) => {
   const uid    = req.session.userId;
-  const offers = db.get('ownershipOffers').value() || [];
-  const idx    = offers.findIndex(o => o.id === req.params.id && o.sellerId === uid && o.status === 'open');
-  if (idx < 0) return res.status(404).json({ error: 'Oferta não encontrada.' });
-  offers[idx].status = 'cancelled';
-  db.set('ownershipOffers', offers).write();
+  const [result] = await pool.query(
+    'UPDATE ownership_offers SET status = "cancelled" WHERE id = ? AND seller_id = ? AND status = "open"',
+    [req.params.id, uid]
+  );
+  if (result.affectedRows === 0) return res.status(404).json({ error: 'Oferta não encontrada.' });
   res.json({ ok: true });
 });
 

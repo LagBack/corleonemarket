@@ -5,7 +5,6 @@ const { normalizeCountry } = require('../data/countries');
 const { toPublicUser, photoUrlForUser, hasAnyPhoto, hasAnyBanner, bannerDataUrl } = require('../data/user-serialize');
 const { legacyDiskPath } = require('./user-photo');
 const fs     = require('fs');
-const db     = require('../data/db');
 const { requireAuth } = require('../middleware/auth');
 const { computeTier }  = require('../data/tiers');
 
@@ -34,10 +33,12 @@ router.get('/me', requireAuth, async (req, res) => {
     // Compute wealth tier (balance + portfolio market value)
     let mv = 0;
     const pfRows = await pool.query('SELECT sym, qty FROM portfolios WHERE user_id = ? AND qty > 0', [req.session.userId]);
-    const stocks = db.get('stocks').value();
-    for (const r of pfRows[0]) {
-      const s = stocks.find(x => x.sym === r.sym);
-      if (s) mv += s.price * r.qty;
+    const [stockRows] = await pool.query('SELECT sym, price FROM companies WHERE status = "active"');
+    const stockMap = {};
+    stockRows.forEach(s => stockMap[s.sym] = s.price);
+
+    for (const r of pfRows) {
+      if (stockMap[r.sym]) mv += stockMap[r.sym] * r.qty;
     }
     const totalWealth = rows[0].balance + mv;
 
@@ -47,26 +48,42 @@ router.get('/me', requireAuth, async (req, res) => {
 
 // GET /api/users/me/dividends — before /:id/* routes
 router.get('/me/dividends', requireAuth, async (req, res) => {
-  const uid  = req.session.userId;
-  const divs = (db.get('dividends').value() || [])
-    .filter(d => d.founderId === uid).sort((a, b) => b.ts - a.ts).slice(0, 100);
-  const total = divs.reduce((a, d) => a + d.fee, 0);
-  const allStocks = db.get('stocks').value();
-  const ownedStocks = allStocks
-    .filter(s => Array.isArray(s.owners) && s.owners.some(o => o.userId === uid))
-    .map(s => {
-      const o = s.owners.find(o => o.userId === uid);
-      return { sym: s.sym, name: s.name, pct: o.pct, totalRevenue: s.totalRevenue || 0, price: s.price };
+  const uid = req.session.userId;
+  try {
+    // Dividends from MySQL table
+    const [divRows] = await pool.query(
+      'SELECT * FROM dividends WHERE owner_id = ? ORDER BY ts DESC LIMIT 100',
+      [uid]
+    );
+    const divs = divRows.map(d => ({ ...d, founderId: d.owner_id })); // keep shape for frontend compat
+    const total = divs.reduce((a, d) => a + (d.fee || d.fee || 0), 0);
+
+    // Owned stocks from MySQL
+    const [stockRows] = await pool.query('SELECT sym, price, name, total_revenue FROM companies WHERE status = "active"');
+    const stockMap = {};
+    stockRows.forEach(s => stockMap[s.sym] = s);
+
+    const [ownerRows] = await pool.query(
+      'SELECT sym, pct FROM company_owners WHERE user_id = ?',
+      [uid]
+    );
+    const ownedStocks = ownerRows.map(o => ({
+      sym: o.sym,
+      name: stockMap[o.sym]?.name || o.sym,
+      pct: o.pct,
+      totalRevenue: stockMap[o.sym]?.total_revenue || 0,
+      price: stockMap[o.sym]?.price || 0
+    }));
+
+    // myListings - ownership listings are handled via /api/stocks/:sym/ownership-listings
+    res.json({
+      dividends: divs,
+      total: Math.round(total * 100) / 100,
+      ownedStocks,
+      founded: ownedStocks,
+      myListings: []
     });
-  const myListings = (db.get('ownershipListings').value() || [])
-    .filter(l => l.sellerId === uid && l.status === 'open');
-  res.json({
-    dividends: divs,
-    total: Math.round(total * 100) / 100,
-    ownedStocks,
-    founded: ownedStocks,
-    myListings
-  });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // PUT /api/users/me
@@ -124,10 +141,9 @@ router.post('/me/photo', requireAuth, (req, res, next) => {
 router.delete('/me/photo', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT photo FROM users WHERE id = ?', [req.session.userId]);
-    if (!rows.length) return res.status(404).json({ error: 'N達o encontrado' });
+    if (!rows.length) return res.status(404).json({ error: 'Não encontrado' });
     const user = rows[0];
 
-    // Clean up old disk-based photo (legacy) if it still exists on disk
     const diskPath = legacyDiskPath(user.photo);
     if (diskPath && fs.existsSync(diskPath)) {
       try { fs.unlinkSync(diskPath); } catch (_) {}
@@ -141,7 +157,7 @@ router.delete('/me/photo', requireAuth, async (req, res) => {
   } catch (e) {
     if (/Unknown column/i.test(e.message)) {
       return res.status(500).json({
-        error: 'Colunas de foto n達o existem. Execute: node data/mysql-migrate.js'
+        error: 'Colunas de foto não existem. Execute: node data/mysql-migrate.js'
       });
     }
     res.status(500).json({ error: e.message });
@@ -227,7 +243,9 @@ router.get('/:id/public', async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [uid]);
     if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado.' });
     const user = rows[0];
-    const stocks = db.get('stocks').value();
+    const stocks = await pool.query('SELECT sym, price, name, sector, shares, status, day_open, open FROM companies WHERE status = "active"');
+    const stockMap = {};
+    stocks.forEach(s => { stockMap[s.sym] = s; });
     const hideFinance = ['admin', 'dev'].includes(user.role);
 
     const [pfRows] = await pool.query(
@@ -252,11 +270,11 @@ router.get('/:id/public', async (req, res) => {
 
     let mv = 0;
     const holdings = pfRows.map(({ sym, qty }) => {
-      const s = stocks.find(x => x.sym === sym);
+      const s = stockMap[sym];
       if (!s) return null;
       const value = s.price * qty;
       mv += value;
-      const ref = s.dayOpen != null ? s.dayOpen : s.open;
+      const ref = s.day_open != null ? s.day_open : s.open;
       const dayPct = ref > 0 ? (s.price - ref) / ref * 100 : 0;
       return {
         sym,

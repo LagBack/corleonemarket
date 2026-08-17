@@ -1,4 +1,6 @@
-﻿const express = require('express');
+﻿require('dotenv').config();
+
+const express = require('express');
 const session    = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
 const cors = require('cors');

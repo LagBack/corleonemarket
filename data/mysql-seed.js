@@ -72,7 +72,7 @@ async function seedMySQL() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
-    console.log('✅ MySQL tables ready (users, portfolios, transactions, economic_fees)');
+    console.log('✅ MySQL tables ready (users, portfolios, transactions, economic_fees, companies, company_owners, ownership_listings, dividends, ownership_offers, market_state, admin_events)');
 
     const [rows] = await pool.query('SELECT COUNT(*) as cnt FROM users');
     if (rows[0].cnt > 0) {

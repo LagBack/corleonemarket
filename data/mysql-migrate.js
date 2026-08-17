@@ -170,6 +170,161 @@ async function migrateUsersTable() {
     `);
     console.log('📦 MySQL: tabela notifications criada.');
   }
+
+  // ── Market companies table (new in v7.62) ──────────────────────
+  if (!(await columnExists('companies', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS companies (
+        sym         VARCHAR(10)   NOT NULL,
+        name        VARCHAR(255)  NOT NULL,
+        sector      VARCHAR(50)   NOT NULL DEFAULT 'Outros',
+        desc        TEXT          DEFAULT '',
+        price       DOUBLE        NOT NULL DEFAULT 0,
+        open        DOUBLE        NOT NULL DEFAULT 0 COMMENT 'IPO/opening price — anchor for mean reversion',
+        shares      INT           NOT NULL DEFAULT 0 COMMENT 'Total shares outstanding',
+        vol         DOUBLE        NOT NULL DEFAULT 0.015 COMMENT 'Volatility factor',
+        status      VARCHAR(10)   NOT NULL DEFAULT 'active' COMMENT 'active OR suspended',
+        demand      DOUBLE        NOT NULL DEFAULT 0.5,
+        supply      DOUBLE        NOT NULL DEFAULT 0.5,
+        volume      INT           NOT NULL DEFAULT 0 COMMENT 'Cumulative trade volume',
+        buys        INT           NOT NULL DEFAULT 0 COMMENT 'Intraday buy volume',
+        sells       INT           NOT NULL DEFAULT 0 COMMENT 'Intraday sell volume',
+        day_open    DOUBLE        DEFAULT NULL COMMENT 'Current day opening price',
+        day_high    DOUBLE        DEFAULT NULL COMMENT 'Intraday high',
+        day_low     DOUBLE        DEFAULT NULL COMMENT 'Intraday low',
+        day_reset_at BIGINT       DEFAULT NULL,
+        total_revenue DOUBLE      NOT NULL DEFAULT 0 COMMENT 'Total dividend revenue paid to owners',
+        price_history JSON        DEFAULT NULL COMMENT 'Rolling array of last 80 price points',
+        created     BIGINT        NOT NULL,
+        updated     BIGINT        NOT NULL,
+        PRIMARY KEY (sym)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela companies criada.');
+  }
+
+  // ── Owners table (revenue share — many-to-many) ────────────────
+  if (!(await columnExists('company_owners', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS company_owners (
+        id          BIGINT       NOT NULL AUTO_INCREMENT,
+        sym         VARCHAR(10)  NOT NULL,
+        user_id     VARCHAR(36)  NOT NULL,
+        pct         DOUBLE       NOT NULL COMMENT 'Revenue share %',
+        created_at  BIGINT       NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_sym_user (sym, user_id),
+        KEY idx_sym (sym),
+        KEY idx_user_id (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela company_owners criada.');
+  }
+
+  // ── Ownership listings (P2P revenue-share marketplace) ─────────
+  if (!(await columnExists('ownership_listings', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ownership_listings (
+        id          VARCHAR(30)  NOT NULL,
+        sym         VARCHAR(10)  NOT NULL,
+        stock_name  VARCHAR(255) NOT NULL,
+        seller_id   VARCHAR(36)  NOT NULL,
+        seller_name VARCHAR(255) NOT NULL,
+        pct_to_sell DOUBLE       NOT NULL COMMENT 'Revenue share % being sold',
+        ask_price   DOUBLE       NOT NULL,
+        status      VARCHAR(10)  NOT NULL DEFAULT 'open' COMMENT 'open|sold|cancelled',
+        buyer_id    VARCHAR(36)  DEFAULT NULL,
+        buyer_name  VARCHAR(255) DEFAULT NULL,
+        sold_at     BIGINT       DEFAULT NULL,
+        created_at  BIGINT       NOT NULL,
+        PRIMARY KEY (id),
+        KEY idx_sym_status (sym, status),
+        KEY idx_seller (seller_id),
+        KEY idx_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela ownership_listings criada.');
+  }
+
+  // ── Dividends (revenue share payments to owners) ───────────────
+  if (!(await columnExists('dividends', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS dividends (
+        id            BIGINT       NOT NULL AUTO_INCREMENT,
+        sym           VARCHAR(10)  NOT NULL,
+        stock_name    VARCHAR(255) NOT NULL,
+        owner_id      VARCHAR(36)  NOT NULL,
+        owner_name    VARCHAR(255) NOT NULL,
+        trader_name   VARCHAR(255) DEFAULT '',
+        type          VARCHAR(10)  NOT NULL COMMENT 'buy OR sell',
+        trade_total   DOUBLE       NOT NULL COMMENT 'Total value of the triggering trade',
+        pct           DOUBLE       NOT NULL COMMENT 'Owner revenue share %',
+        fee           DOUBLE       NOT NULL COMMENT 'Dividend amount paid',
+        time          VARCHAR(20)  DEFAULT '',
+        ts            BIGINT       DEFAULT 0,
+        PRIMARY KEY (id),
+        KEY idx_sym (sym),
+        KEY idx_owner_id (owner_id),
+        KEY idx_ts (ts)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela dividends criada.');
+  }
+
+  // ── Ownership offers (P2P — separate from revenue-share listings) ─
+  if (!(await columnExists('ownership_offers', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ownership_offers (
+        id          VARCHAR(40)  NOT NULL,
+        sym         VARCHAR(10)  NOT NULL,
+        stock_name  VARCHAR(255) DEFAULT '',
+        seller_id   VARCHAR(36)  NOT NULL,
+        pct         DOUBLE       NOT NULL,
+        ask_price   DOUBLE       NOT NULL,
+        status      VARCHAR(10)  NOT NULL DEFAULT 'open' COMMENT 'open|sold|cancelled',
+        buyer_id    VARCHAR(36)  DEFAULT NULL,
+        buyer_name  VARCHAR(255) DEFAULT NULL,
+        sold_at     BIGINT       DEFAULT NULL,
+        created_at  BIGINT       NOT NULL,
+        time        VARCHAR(20)  DEFAULT '',
+        PRIMARY KEY (id),
+        KEY idx_sym_status (sym, status),
+        KEY idx_seller (seller_id),
+        KEY idx_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela ownership_offers criada.');
+  }
+
+  // ── Market state (singleton row) ────────────────────────────────
+  if (!(await columnExists('market_state', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS market_state (
+        id        INT          NOT NULL DEFAULT 1,
+        open      TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '1 = market open',
+        ibcx      DOUBLE       NOT NULL DEFAULT 1000 COMMENT 'IBOVESPA-like index',
+        total_vol BIGINT       NOT NULL DEFAULT 0 COMMENT 'Market-wide trade volume',
+        updated   BIGINT       NOT NULL,
+        PRIMARY KEY (id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela market_state criada.');
+  }
+
+  // ── Admin event log ────────────────────────────────────────────
+  if (!(await columnExists('admin_events', 'id'))) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin_events (
+        id      BIGINT       NOT NULL AUTO_INCREMENT,
+        t       VARCHAR(20)  DEFAULT '',
+        msg     VARCHAR(500) NOT NULL,
+        ts      BIGINT       DEFAULT 0,
+        PRIMARY KEY (id),
+        KEY idx_ts (ts)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    console.log('📦 MySQL: tabela admin_events criada.');
+  }
 }
 
 module.exports = migrateUsersTable;
