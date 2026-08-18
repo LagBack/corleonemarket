@@ -83,7 +83,7 @@ router.post('/', requireMod, async (req, res) => {
     const p  = parseFloat(price);
     const now = Date.now();
     await pool.query(
-      `INSERT INTO companies (sym, name, sector, desc, price, open, shares, vol, status, demand, supply, volume, buys, sells, day_open, day_high, day_low, day_reset_at, total_revenue, price_history, created, updated)
+      `INSERT INTO companies (\`sym\`, \`name\`, \`sector\`, \`desc\`, \`price\`, \`open\`, \`shares\`, \`vol\`, \`status\`, \`demand\`, \`supply\`, \`volume\`, \`buys\`, \`sells\`, \`day_open\`, \`day_high\`, \`day_low\`, \`day_reset_at\`, \`total_revenue\`, \`price_history\`, \`created\`, \`updated\`)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.5, 0.5, 0, 0, 0, ?, ?, ?, ?, ?, NULL, ?, ?)`,
       [clean, name, sector || 'Outros', desc || '', p, p, parseInt(shares), parseFloat(vol) || 0.015, status || 'active', p, p, p, now, now]
     );
@@ -129,7 +129,7 @@ router.put('/:sym', requireMod, async (req, res) => {
     const setClauses = [];
     const values = [];
     for (const [k, v] of Object.entries(updates)) {
-      setClauses.push(`${k} = ?`);
+      setClauses.push("\`" + k.replace(/`/g, '') + "\` = ?");
       values.push(v);
     }
     values.push(Date.now()); // updated
