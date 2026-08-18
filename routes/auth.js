@@ -68,7 +68,7 @@ router.post('/register', async (req, res) => {
       joined:  Date.now()
     };
     await pool.query(
-      `INSERT INTO users (id, email, pass, name, nick, avatar, photo, country, bio, role, balance, joined, has_donated)
+      `INSERT INTO users (\`id\`, \`email\`, \`pass\`, \`name\`, \`nick\`, \`avatar\`, \`photo\`, \`country\`, \`bio\`, \`role\`, \`balance\`, \`joined\`, \`has_donated\`)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [newUser.id, newUser.email, newUser.pass, newUser.name, newUser.nick,
        newUser.avatar, newUser.photo, newUser.country, newUser.bio,

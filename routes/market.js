@@ -72,7 +72,7 @@ async function setPortfolioQty(uid, sym, qty) {
 
 async function addTransaction(tx) {
   await pool.query(
-    `INSERT INTO transactions (uid, uname, type, sym, qty, price, total, time, ts)
+    `INSERT INTO transactions (\`uid\`, \`uname\`, \`type\`, \`sym\`, \`qty\`, \`price\`, \`total\`, \`time\`, \`ts\`)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [tx.uid, tx.uname, tx.type, tx.sym, tx.qty, tx.price, tx.total, tx.time, tx.ts]
   );
@@ -202,7 +202,7 @@ router.post('/order', requireAuth, async (req, res) => {
     };
 
     await pool.query(
-      `INSERT INTO transactions (uid, uname, type, sym, qty, price, total, fee, fee_type, time, ts)
+      `INSERT INTO transactions (\`uid\`, \`uname\`, \`type\`, \`sym\`, \`qty\`, \`price\`, \`total\`, \`fee\`, \`fee_type\`, \`time\`, \`ts\`)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [tx.uid, tx.uname, tx.type, tx.sym, tx.qty, tx.price, tx.total, tx.fee, tx.fee_type, tx.time, tx.ts]
     );
@@ -219,7 +219,7 @@ router.post('/order', requireAuth, async (req, res) => {
         await usersStore.adjustUserBalance(owner.userId, fee);
         totalPaid += fee;
         await pool.query(
-          `INSERT INTO dividends (sym, stock_name, owner_id, owner_name, trader_name, type, trade_total, pct, fee, time, ts)
+          `INSERT INTO dividends (\`sym\`, \`stock_name\`, \`owner_id\`, \`owner_name\`, \`trader_name\`, \`type\`, \`trade_total\`, \`pct\`, \`fee\`, \`time\`, \`ts\`)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [freshStock.sym, freshStock.name, owner.userId, owner.name || '', user.nick || user.name, type, total, owner.pct, fee, tx.time, tx.ts]
         );

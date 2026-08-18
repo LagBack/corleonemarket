@@ -6,23 +6,23 @@ async function seedMySQL() {
     // MySQL 5.6 compatible — use VARCHAR instead of ENUM/JSON
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id       VARCHAR(36)   NOT NULL,
-        email    VARCHAR(255)  NOT NULL,
-        pass     VARCHAR(255)  NOT NULL,
-        name     VARCHAR(255)  DEFAULT '',
-        nick     VARCHAR(255)  DEFAULT '',
-        avatar   VARCHAR(20)   DEFAULT '',
-        photo      VARCHAR(500)  DEFAULT NULL,
-        banner     VARCHAR(500)  DEFAULT NULL,
-        banner_data MEDIUMBLOB   DEFAULT NULL,
-        banner_mime VARCHAR(64)  DEFAULT NULL,
-        country    VARCHAR(100)  DEFAULT '',
-        bio      TEXT,
-        role     VARCHAR(20)   DEFAULT 'user',
-        balance  DOUBLE        DEFAULT 50000,
-        joined   BIGINT        DEFAULT 0,
-        PRIMARY KEY (id),
-        UNIQUE KEY unique_email (email)
+        \`id\`       VARCHAR(36)   NOT NULL,
+        \`email\`    VARCHAR(255)  NOT NULL,
+        \`pass\`     VARCHAR(255)  NOT NULL,
+        \`name\`     VARCHAR(255)  DEFAULT '',
+        \`nick\`     VARCHAR(255)  DEFAULT '',
+        \`avatar\`   VARCHAR(20)   DEFAULT '',
+        \`photo\`    VARCHAR(500)  DEFAULT NULL,
+        \`banner\`   VARCHAR(500)  DEFAULT NULL,
+        \`banner_data\` MEDIUMBLOB   DEFAULT NULL,
+        \`banner_mime\` VARCHAR(64)  DEFAULT NULL,
+        \`country\`    VARCHAR(100)  DEFAULT '',
+        \`bio\`      TEXT,
+        \`role\`     VARCHAR(20)   DEFAULT 'user',
+        \`balance\`  DOUBLE        DEFAULT 50000,
+        \`joined\`   BIGINT        DEFAULT 0,
+        PRIMARY KEY (\`id\`),
+        UNIQUE KEY unique_email (\`email\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
@@ -37,20 +37,20 @@ async function seedMySQL() {
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS transactions (
-        id     BIGINT        NOT NULL AUTO_INCREMENT,
-        uid    VARCHAR(36)   NOT NULL,
-        uname  VARCHAR(255)  DEFAULT '',
-        type   VARCHAR(10)   NOT NULL,
-        sym    VARCHAR(10)   NOT NULL,
-        qty    INT           NOT NULL,
-        price  DOUBLE        NOT NULL,
-        total  DOUBLE        NOT NULL,
-        fee    DOUBLE        DEFAULT NULL,
-        fee_type  VARCHAR(20)  DEFAULT NULL,
-        time   VARCHAR(20)   DEFAULT '',
-        ts     BIGINT        DEFAULT 0,
-        PRIMARY KEY (id),
-        KEY idx_uid (uid)
+        \`id\`     BIGINT        NOT NULL AUTO_INCREMENT,
+        \`uid\`    VARCHAR(36)   NOT NULL,
+        \`uname\`  VARCHAR(255)  DEFAULT '',
+        \`type\`   VARCHAR(10)   NOT NULL,
+        \`sym\`    VARCHAR(10)   NOT NULL,
+        \`qty\`    INT           NOT NULL,
+        \`price\`  DOUBLE        NOT NULL,
+        \`total\`  DOUBLE        NOT NULL,
+        \`fee\`    DOUBLE        DEFAULT NULL,
+        \`fee_type\`  VARCHAR(20)  DEFAULT NULL,
+        \`time\`   VARCHAR(20)   DEFAULT '',
+        \`ts\`     BIGINT        DEFAULT 0,
+        PRIMARY KEY (\`id\`),
+        KEY idx_uid (\`uid\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
@@ -116,7 +116,7 @@ async function seedMySQL() {
     for (const u of users) {
       await pool.query(
         `INSERT INTO users
-           (id, email, pass, name, nick, avatar, photo, banner, banner_data, banner_mime, country, bio, role, balance, joined, wealth_tier)
+           (\`id\`, \`email\`, \`pass\`, \`name\`, \`nick\`, \`avatar\`, \`photo\`, \`banner\`, \`banner_data\`, \`banner_mime\`, \`country\`, \`bio\`, \`role\`, \`balance\`, \`joined\`, \`wealth_tier\`)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [u.id, u.email, u.pass, u.name, u.nick, u.avatar,
          u.photo, null, null, null, u.country, u.bio, u.role, u.balance, u.joined, 'investidor']
