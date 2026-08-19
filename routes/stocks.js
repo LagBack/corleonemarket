@@ -83,34 +83,23 @@ router.post('/', requireMod, async (req, res) => {
     const p  = parseFloat(price);
     const now = Date.now();
 
-    // Step 1: Test mysql2 parameter binding with a simple query first
-    const [testResult] = await pool.query('SELECT 1 AS ok WHERE ?', [1]);
-    console.log('[TEST-BINDING] Simple binding test:', JSON.stringify(testResult));
+    // Single-line INSERT with all values as parameters (no inline defaults mixed with ? placeholders)
+    await pool.query(
+      'INSERT INTO companies (`sym`,`name`,`sector`,`desc`,`price`,`open`,`shares`,`vol`,`status`,`demand`,`supply`,`volume`,`buys`,`sells`,`day_open`,`day_high`,`day_low`,`day_reset_at`,`total_revenue`,`price_history`,`created`,`updated`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      [clean, name, sector || 'Outros', desc || '', p, p, parseInt(shares), parseFloat(vol) || 0.015, status || 'active', 0.5, 0.5, 0, 0, 0, p, p, p, now, 0, null, now, now]
+    );
 
-    // Step 2: Single-line INSERT — all backtick-escaped columns, explicit values (no defaults)
-    const sqlInsert = 'INSERT INTO companies (`sym`,`name`,`sector`,`desc`,`price`,`open`,`shares`,`vol`,`status`,`demand`,`supply`,`volume`,`buys`,`sells`,`day_open`,`day_high`,`day_low`,`day_reset_at`,`total_revenue`,`price_history`,`created`,`updated`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
-    const paramsInsert = [clean, name, sector || 'Outros', desc || '', p, p, parseInt(shares), parseFloat(vol) || 0.015, status || 'active', 0.5, 0.5, 0, 0, 0, p, p, p, now, 0, null, now, now];
-    console.log('[SQL-INSERT] Query:', sqlInsert);
-    console.log('[SQL-INSERT] Params count:', paramsInsert.length, 'Values:', JSON.stringify(paramsInsert));
-    await pool.query(sqlInsert, paramsInsert);
-
-    // Step 3: Save owners
+    // Save owners
     if (validatedOwners.length > 0) {
       for (const o of validatedOwners) {
         await pool.query('INSERT INTO company_owners (`sym`,`user_id`,`pct`,`created_at`) VALUES (?,?,?,?)', [clean, o.userId, o.pct, now]);
       }
     }
 
-    // Step 4: Log admin event
+    // Log admin event
     await logAdmin(`Ativo ${clean} criado por ${req.session.userId}`);
-    console.log('[OK] Stock created:', clean);
     res.json({ ok: true, stock: { sym: clean } });
   } catch(e) {
-    console.error('[ERROR] POST /api/stocks');
-    console.error('[ERROR] message:', e.message);
-    console.error('[ERROR] sqlState:', e.sqlState, 'errno:', e.errno, 'code:', e.code);
-    if (e.sql) console.error('[ERROR] e.sql:', e.sql);
-    if (e.stack) console.error('[ERROR] stack (first 500 chars):', e.stack.substring(0, 500));
     if (e.message.includes('Duplicate entry')) return res.status(409).json({ error: 'Código já existe.' });
     res.status(500).json({ error: e.message });
   }
@@ -310,26 +299,6 @@ router.delete('/:sym/ownership-listings/:listingId', (req, res) => {
     [req.params.listingId, uid]
   ).then(() => res.json({ ok: true }))
    .catch(e => res.status(404).json({ error: 'Listagem não encontrada.' }));
-});
-
-// ── Diagnostic: check database schema and test connectivity ──
-router.get('/_debug/schema', async (_req, res) => {
-  try {
-    const cols = await pool.query(
-      `SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_KEY, IS_NULLABLE, DATA_TYPE, COLUMN_DEFAULT
-       FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME IN ('companies', 'company_owners')
-       ORDER BY TABLE_NAME, ORDINAL_POSITION`
-    );
-    const tablesInfo = cols[0];
-    res.json({
-      companies:     tablesInfo.filter(c => c.TABLE_NAME === 'companies'),
-      company_owners:tablesInfo.filter(c => c.TABLE_NAME === 'company_owners'),
-    });
-  } catch(e) {
-    res.status(500).json({ error: e.message, sqlState: e.sqlState, errno: e.errno });
-  }
 });
 
 module.exports = router;
