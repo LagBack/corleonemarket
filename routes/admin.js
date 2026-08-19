@@ -47,7 +47,7 @@ function restoreLowdbFromFile(buffer) {
 // ── helpers ───────────────────────────────────────────────────────
 
 async function logAdmin(msg) {
-  pool.query('INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+  pool.query('INSERT INTO admin_events (`t`, `msg`, `ts`) VALUES (?, ?, ?)',
     [new Date().toLocaleTimeString('pt-BR'), msg, Date.now()]
   ).catch(() => {});
 }
@@ -64,7 +64,7 @@ router.get('/log', requireMod, async (req, res) => {
 router.get('/users', requireMod, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users');
-    const [stockRows] = await pool.query('SELECT sym, price FROM companies WHERE status = "active"');
+    const [stockRows] = await pool.query('SELECT `sym`, `price` FROM companies WHERE `status` = "active"');
     const stockMap = {};
     stockRows.forEach(s => stockMap[s.sym] = s.price);
 
@@ -89,7 +89,7 @@ router.get('/users', requireMod, async (req, res) => {
 router.post('/market/open', requireMod, async (req, res) => {
   try {
     const reset = simulator.resetDayCounters();
-    await pool.query('UPDATE market_state SET open=1, updated=? WHERE id=1', [Date.now()]);
+    await pool.query('UPDATE market_state SET `open`=1, `updated`=? WHERE `id`=1', [Date.now()]);
     simulator.start();
     if (reset) {
       await logAdmin('🔄 Máx/Mín/Abertura do dia resetados ao abrir o pregão');
@@ -102,7 +102,7 @@ router.post('/market/open', requireMod, async (req, res) => {
 // POST /api/admin/market/close
 router.post('/market/close', requireMod, async (req, res) => {
   try {
-    await pool.query('UPDATE market_state SET open=0, updated=? WHERE id=1', [Date.now()]);
+    await pool.query('UPDATE market_state SET `open`=0, `updated`=? WHERE `id`=1', [Date.now()]);
     await logAdmin(`Mercado FECHADO por ${req.session.userId}`);
     res.json({ ok: true, open: false });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -111,11 +111,11 @@ router.post('/market/close', requireMod, async (req, res) => {
 // POST /api/admin/market/crash
 router.post('/market/crash', requireMod, async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT sym, price, open, supply, demand FROM companies WHERE status = 'active'");
+    const [rows] = await pool.query("SELECT `sym`, `price`, `open`, `supply`, `demand` FROM companies WHERE `status` = 'active'");
     for (const s of rows) {
       const newPrice = Math.max(s.open * 0.10, Math.round(s.price * (0.91 + Math.random() * 0.05) * 100) / 100);
       await pool.query(
-        "UPDATE companies SET price=?, supply=LEAST(0.9, supply+0.2), demand=GREATEST(0.1, demand-0.2) WHERE sym=?",
+        "UPDATE companies SET `price`=?, `supply`=LEAST(0.9, `supply`+0.2), `demand`=GREATEST(0.1, `demand`-0.2) WHERE `sym`=?",
         [newPrice, s.sym]
       );
     }
@@ -127,11 +127,11 @@ router.post('/market/crash', requireMod, async (req, res) => {
 // POST /api/admin/market/bull
 router.post('/market/bull', requireMod, async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT sym, price, demand, supply FROM companies WHERE status = 'active'");
+    const [rows] = await pool.query("SELECT `sym`, `price`, `demand`, `supply` FROM companies WHERE `status` = 'active'");
     for (const s of rows) {
       const newPrice = Math.round(s.price * (1.02 + Math.random() * 0.04) * 100) / 100;
       await pool.query(
-        "UPDATE companies SET price=?, demand=LEAST(0.9, demand+0.2), supply=GREATEST(0.1, supply-0.2) WHERE sym=?",
+        "UPDATE companies SET `price`=?, `demand`=LEAST(0.9, `demand`+0.2), `supply`=GREATEST(0.1, `supply`-0.2) WHERE `sym`=?",
         [newPrice, s.sym]
       );
     }
@@ -143,7 +143,7 @@ router.post('/market/bull', requireMod, async (req, res) => {
 // POST /api/admin/market/reset — admin only
 router.post('/market/reset', requireAdmin, async (req, res) => {
   try {
-    await pool.query("UPDATE companies SET price=open, demand=0.5, supply=0.5, volume=0, buys=0, sells=0, updated=? WHERE status='active'", [Date.now()]);
+    await pool.query("UPDATE companies SET `price`=?, `demand`=0.5, `supply`=0.5, `volume`=0, `buys`=0, `sells`=0, `updated`=? WHERE `status`='active'", [Date.now(), Date.now()]);
     await logAdmin(`Mercado RESETADO por ${req.session.userId}`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -163,7 +163,7 @@ router.put('/users/:id/role', requireAdmin, async (req, res) => {
     if (currentRole === 'dev' && role !== 'dev') {
       return res.status(403).json({ error: 'O papel Dev não pode ser removido.' });
     }
-    await pool.query('UPDATE users SET role = ? WHERE id = ?', [role, req.params.id]);
+    await pool.query('UPDATE users SET `role` = ? WHERE `id` = ?', [role, req.params.id]);
     if (String(req.params.id) === String(req.session.userId)) {
       req.session.role = role;
       req.session.roleSyncedAt = Date.now();
@@ -187,10 +187,10 @@ router.put('/users/:id/balance', requireMod, async (req, res) => {
     if (mode === 'add')           newBalance = Math.round((currentBal + amt) * 100) / 100;
     else if (mode === 'subtract') newBalance = Math.max(0, Math.round((currentBal - amt) * 100) / 100);
     else                          newBalance = Math.max(0, Math.round(amt * 100) / 100);
-    await pool.query('UPDATE users SET balance = ? WHERE id = ?', [newBalance, req.params.id]);
+    await pool.query('UPDATE users SET `balance` = ? WHERE `id` = ?', [newBalance, req.params.id]);
 
     // Recompute wealth_tier from balance + portfolio market value
-    const [stockRows] = await pool.query('SELECT sym, price FROM companies WHERE status = "active"');
+    const [stockRows] = await pool.query('SELECT `sym`, `price` FROM companies WHERE `status` = "active"');
     const stockMap = {};
     stockRows.forEach(s => stockMap[s.sym] = s.price);
 
@@ -201,7 +201,7 @@ router.put('/users/:id/balance', requireMod, async (req, res) => {
     }
     const totalWealth = newBalance + mv;
     const newTier = computeTier(totalWealth);
-    await pool.query('UPDATE users SET wealth_tier = ? WHERE id = ?', [newTier, req.params.id]);
+    await pool.query('UPDATE users SET `wealth_tier` = ? WHERE `id` = ?', [newTier, req.params.id]);
 
     await logAdmin(`Saldo de ${target.nick || target.name} alterado para R$${newBalance.toFixed(2)} por ${req.session.userId}`);
     res.json({ ok: true, balance: newBalance, wealthTier: newTier });
@@ -216,7 +216,7 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });
     const target = rows[0];
     if (target.role === 'dev') return res.status(403).json({ error: 'Usuários Dev não podem ser deletados.' });
-    await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
+    await pool.query('DELETE FROM users WHERE `id` = ?', [req.params.id]);
     await logAdmin(`Usuário ${target.email} DELETADO por ${req.session.userId}`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -240,7 +240,7 @@ function handleImportDb(req, res) {
     if (parsed.market && parsed.market.open && !wasOpen) simulator.start();
     else if (parsed.market && !parsed.market.open && wasOpen) simulator.stop();
 
-    pool.query('INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+    pool.query('INSERT INTO admin_events (`t`, `msg`, `ts`) VALUES (?, ?, ?)',
       [new Date().toLocaleTimeString('pt-BR'), `db.json restaurado via import por ${req.session.userId}`, Date.now()]
     ).catch(() => {});
 

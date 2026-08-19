@@ -27,7 +27,7 @@ function formatCurrency(value) {
 }
 
 async function logAdmin(msg) {
-  pool.query('INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+  pool.query('INSERT INTO admin_events (`t`, `msg`, `ts`) VALUES (?, ?, ?)',
     [new Date().toLocaleTimeString('pt-BR'), msg, Date.now()]
   ).catch(() => {});
 }
@@ -45,7 +45,7 @@ async function computeNetWorth(uid) {
   let mv = 0;
   for (const r of pfRows) {
     try {
-      const [stockRows] = await pool.query('SELECT price, status FROM companies WHERE sym = ?', [r.sym]);
+      const [stockRows] = await pool.query('SELECT `price`, `status` FROM companies WHERE `sym` = ?', [r.sym]);
       if (stockRows.length && stockRows[0].status === 'active') mv += stockRows[0].price * r.qty;
     } catch(_) {} // company table may not exist yet during migration
   }
@@ -67,7 +67,7 @@ async function recordDebt(uid, amountNeeded) {
   const clampedDebt = Math.min(debt, 50000);
   const newBalance = Math.max(-50000, user.balance - amountNeeded);
 
-  await pool.query('UPDATE users SET balance = ? WHERE id = ?', [newBalance, uid]);
+  await pool.query('UPDATE users SET `balance` = ? WHERE `id` = ?', [newBalance, uid]);
 
   await logAdmin(`⚠️ ${user.nick || user.name} acumula dívida de R$${formatCurrency(clampedDebt)} por taxa econômica`);
   return clampedDebt;
@@ -102,7 +102,7 @@ async function recordEconomicFee(userId, feeType, amount, netWorth, dayKey, cycl
   const createdAt = Date.now();
   try {
     await pool.query(
-      `INSERT INTO economic_fees (user_id, fee_type, amount, net_worth, day_key, cycle_key, created_at)
+      `INSERT INTO economic_fees (\`user_id\`, \`fee_type\`, \`amount\`, \`net_worth\`, \`day_key\`, \`cycle_key\`, \`created_at\`)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [uid, feeType, Math.round(amount * 100) / 100, Math.round(netWorth * 100) / 100, dedupCol === 'day_key' ? dedupVal : null, dedupCol === 'cycle_key' ? dedupVal : null, createdAt]
     );
@@ -133,7 +133,7 @@ async function chargeDailyMaintenance() {
       if (fee <= 0) continue;
 
       if (cash >= fee) {
-        await pool.query('UPDATE users SET balance = balance - ? WHERE id = ?', [fee, user.id]);
+        await pool.query('UPDATE users SET `balance` = `balance` - ? WHERE `id` = ?', [fee, user.id]);
       } else {
         const debt = await recordDebt(user.id, fee);
         // Partial payment recorded above
@@ -178,7 +178,7 @@ async function chargeWealthTax() {
       if (tax <= 0) continue;
 
       if (cash >= tax) {
-        await pool.query('UPDATE users SET balance = balance - ? WHERE id = ?', [tax, user.id]);
+        await pool.query('UPDATE users SET `balance` = `balance` - ? WHERE `id` = ?', [tax, user.id]);
       } else {
         await recordDebt(user.id, tax);
       }
@@ -193,7 +193,7 @@ async function chargeWealthTax() {
 
   try {
     await pool.query(
-      `INSERT INTO economic_fees (user_id, fee_type, amount, net_worth, cycle_key, created_at)
+      `INSERT INTO economic_fees (\`user_id\`, \`fee_type\`, \`amount\`, \`net_worth\`, \`cycle_key\`, \`created_at\`)
        VALUES (?, 'wealth_tax_cycle_mark', 0, 0, ?, ?)`,
       ['system', cycleKey, Date.now()]
     );
@@ -229,9 +229,9 @@ async function checkMissedEconomicEvents() {
 
               const [userRows2] = await pool.query('SELECT id, balance FROM users WHERE id = ?', [user.id]);
               if (userRows2.length && userRows2[0].balance >= fee) {
-                await pool.query('UPDATE users SET balance = balance - ? WHERE id = ?', [fee, user.id]);
+                await pool.query('UPDATE users SET `balance` = `balance` - ? WHERE `id` = ?', [fee, user.id]);
               } else if (userRows2.length) {
-                await pool.query('UPDATE users SET balance = GREATEST(balance - fee, -50000) WHERE id = ?', [fee, user.id]);
+                await pool.query('UPDATE users SET `balance` = GREATEST(`balance` - fee, -50000) WHERE `id` = ?', [fee, user.id]);
               }
 
               await logAdmin(`⏰ Recarga de taxa diária (dia perdido ${missDayKey}): ${user.nick || user.name} — R$${formatCurrency(fee)}`);

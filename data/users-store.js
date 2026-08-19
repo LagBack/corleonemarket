@@ -17,7 +17,7 @@ async function getAllUsers() {
 
 async function setUserBalance(id, balance) {
   const rounded = Math.max(0, Math.round(balance * 100) / 100);
-  await pool.query('UPDATE users SET balance = ? WHERE id = ?', [rounded, id]);
+  await pool.query('UPDATE users SET `balance` = ? WHERE `id` = ?', [rounded, id]);
   return rounded;
 }
 

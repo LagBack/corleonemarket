@@ -10,7 +10,7 @@ function syncSessionRole(req, force = false) {
     req.session.role = normalizeRole(req.session.role);
     return Promise.resolve();
   }
-  return pool.query('SELECT role FROM users WHERE id = ?', [req.session.userId])
+  return pool.query('SELECT `role` FROM users WHERE `id` = ?', [req.session.userId])
     .then(([rows]) => {
       if (rows.length) req.session.role = normalizeRole(rows[0].role);
       req.session.roleSyncedAt = now;

@@ -32,13 +32,13 @@ const EVENTS = [
 
 async function isAdminEventLogged(msg) {
   // Async — don't await, just fire and forget
-  pool.query('INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+  pool.query('INSERT INTO admin_events (`t`, `msg`, `ts`) VALUES (?, ?, ?)',
     [new Date().toLocaleTimeString('pt-BR'), msg, Date.now()]
   ).catch(() => {});
 }
 
 function loadCache() {
-  return pool.query('SELECT * FROM companies WHERE status = "active"').then(([rows]) => {
+  return pool.query('SELECT * FROM companies WHERE `status` = "active"').then(([rows]) => {
     stocksCache = rows.map(r => ({
       ...r,
       priceHistory: typeof r.price_history === 'string' ? JSON.parse(r.price_history) : (r.price_history || []),
@@ -52,7 +52,7 @@ function flushPriceHistories() {
   for (const s of stocksCache) {
     if (!s.priceHistory || s.priceHistory.length === 0) continue;
     promises.push(
-      pool.query('UPDATE companies SET price_history = ? WHERE sym = ?', [JSON.stringify(s.priceHistory), s.sym])
+      pool.query('UPDATE companies SET `price_history` = ? WHERE `sym` = ?', [JSON.stringify(s.priceHistory), s.sym])
     );
   }
   return Promise.all(promises).catch(() => {});
@@ -60,7 +60,7 @@ function flushPriceHistories() {
 
 function tick() {
   // Load market state and stocks each tick (market can be toggled open/closed externally)
-  pool.query('SELECT open FROM market_state WHERE id = 1')
+  pool.query('SELECT `open` FROM market_state WHERE `id` = 1')
     .then(([rows]) => {
       if (!rows.length || !rows[0].open) return;
       _runTick();
@@ -121,7 +121,7 @@ async function _runTick() {
   // Write back scalar fields every tick (price, demand, supply, volume, day counters)
   const updatePromises = stocksCache.map(s =>
     pool.query(
-      'UPDATE companies SET price=?, demand=?, supply=?, volume=?, buys=?, sells=?, day_open=?, day_high=?, day_low=?, updated=? WHERE sym=?',
+      'UPDATE companies SET `price`=?, `demand`=?, `supply`=?, `volume`=?, `buys`=?, `sells`=?, `day_open`=?, `day_high`=?, `day_low`=?, `updated`=? WHERE `sym`=?',
       [s.price, s.demand, s.supply, s.volume, s.buys, s.sells, s.dayOpen, s.dayHigh, s.dayLow, Date.now(), s.sym]
     )
   );
@@ -139,7 +139,7 @@ async function _runTick() {
 async function resetDayCounters() {
   const now = Date.now();
   try {
-    await pool.query('UPDATE companies SET day_open=?, day_high=?, day_low=?, day_reset_at=?, updated=?', [now, now, now, now, now]);
+    await pool.query('UPDATE companies SET `day_open`=?, `day_high`=?, `day_low`=?, `day_reset_at`=?, `updated`=?', [now, now, now, now, now]);
     return true;
   } catch(e) { return false; }
 }
@@ -150,7 +150,7 @@ async function maybeResetDay() {
   const ok = await resetDayCounters();
   lastDayReset = today;
   if (ok) {
-    pool.query('INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+    pool.query('INSERT INTO admin_events (`t`, `msg`, `ts`) VALUES (?, ?, ?)',
       [new Date().toLocaleTimeString('pt-BR'), '🌅 Novo dia — contadores intraday (máx/mín/abertura do dia) resetados', Date.now()]
     ).catch(() => {});
     console.log('🌅 Day counters reset (new local day: ' + today + ')');
@@ -164,7 +164,7 @@ async function fireRandomEvent() {
     const [marketRows] = await pool.query('SELECT open FROM market_state WHERE id = 1');
     if (!marketRows.length || !marketRows[0].open) return;
 
-    const [rows] = await pool.query("SELECT * FROM companies WHERE status = 'active'");
+    const [rows] = await pool.query("SELECT * FROM companies WHERE `status` = 'active'");
     if (!rows.length) return;
 
     const target = rows[Math.floor(Math.random() * rows.length)];
@@ -173,32 +173,32 @@ async function fireRandomEvent() {
     // Update this stock's price/demand/supply via SQL
     const newPrice = Math.max(target.open * 0.10, Math.round(target.price * event.priceFactor * 100) / 100);
     await pool.query(
-      "UPDATE companies SET price=?, demand=LEAST(GREATEST(demand + ?, 0.05), 0.95), supply=LEAST(GREATEST(supply + ?, 0.05), 0.95), updated=? WHERE sym=?",
+      "UPDATE companies SET `price`=?, `demand`=LEAST(GREATEST(`demand` + ?, 0.05), 0.95), `supply`=LEAST(GREATEST(`supply` + ?, 0.05), 0.95), `updated`=? WHERE `sym`=?",
       [newPrice, event.demandDelta, event.supplyDelta, Date.now(), target.sym]
     );
 
     // Update priceHistory (read-modify-write for this single stock)
-    const [phRows] = await pool.query('SELECT price_history FROM companies WHERE sym = ?', [target.sym]);
+    const [phRows] = await pool.query('SELECT `price_history` FROM companies WHERE `sym` = ?', [target.sym]);
     if (phRows.length) {
       let hist = typeof phRows[0].price_history === 'string' ? JSON.parse(phRows[0].price_history) : (phRows[0].price_history || []);
       hist.push(newPrice);
       if (hist.length > 80) hist.shift();
-      await pool.query('UPDATE companies SET price_history=?, updated=? WHERE sym=?', [JSON.stringify(hist), Date.now(), target.sym]);
+      await pool.query('UPDATE companies SET `price_history`=?, `updated`=? WHERE `sym`=?', [JSON.stringify(hist), Date.now(), target.sym]);
     }
 
     // Update day high/low
     const currentDay = new Date();
     const todayStr = currentDay.toDateString();
-    const [dayRows] = await pool.query("SELECT day_open, day_high, day_low FROM companies WHERE sym = ? AND status='active'", [target.sym]);
+    const [dayRows] = await pool.query("SELECT `day_open`, `day_high`, `day_low` FROM companies WHERE `sym` = ? AND `status`='active'", [target.sym]);
     if (dayRows.length) {
       const d = dayRows[0];
       await pool.query(
-        "UPDATE companies SET day_high=GREATEAST(day_high, ?), day_low=LEAST(day_low, ?), updated=? WHERE sym=?",
+        "UPDATE companies SET `day_high`=GREATEAST(`day_high`, ?), `day_low`=LEAST(`day_low`, ?), `updated`=? WHERE `sym`=?",
         [newPrice, newPrice, Date.now(), target.sym]
       );
     }
 
-    pool.query('INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+    pool.query('INSERT INTO admin_events (`t`, `msg`, `ts`) VALUES (?, ?, ?)',
       [new Date().toLocaleTimeString('pt-BR'),
        `📰 EVENTO [${target.sym}]: ${event.name} (${event.priceFactor >= 1 ? '+' : ''}${((event.priceFactor - 1) * 100).toFixed(0)}%)`,
        Date.now()]
@@ -230,7 +230,7 @@ async function start() {
         }
         s.priceHistory = hist;
         await pool.query(
-          'UPDATE companies SET price_history=?, high=COALESCE(high,?), low=COALESCE(low,?) WHERE sym=?',
+          'UPDATE companies SET `price_history`=?, `high`=COALESCE(`high`,?), `low`=COALESCE(`low`,?) WHERE `sym`=?',
           [JSON.stringify(hist), s.high || s.price, s.low || s.price, s.sym]
         );
       }
@@ -238,7 +238,7 @@ async function start() {
 
     // Ensure day counters exist
     for (const s of stocksCache) {
-      if (s.dayOpen == null)  await pool.query("UPDATE companies SET day_open=?, day_high=?, day_low=?, day_reset_at=?, updated=? WHERE sym=?", [s.price, s.price, s.price, Date.now(), Date.now(), s.sym]);
+      if (s.dayOpen == null)  await pool.query("UPDATE companies SET `day_open`=?, `day_high`=?, `day_low`=?, `day_reset_at`=?, `updated`=? WHERE `sym`=?", [s.price, s.price, s.price, Date.now(), Date.now(), s.sym]);
     }
   }
 

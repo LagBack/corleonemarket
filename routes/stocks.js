@@ -6,7 +6,7 @@ const { requireMod, requireAdmin } = require('../middleware/auth');
 // ── helpers ───────────────────────────────────────────────────────
 
 async function getStock(sym) {
-  const [rows] = await pool.query('SELECT * FROM companies WHERE sym = ?', [sym.toUpperCase()]);
+  const [rows] = await pool.query('SELECT * FROM companies WHERE `sym` = ?', [sym.toUpperCase()]);
   return rows[0] || null;
 }
 
@@ -43,7 +43,7 @@ async function validateOwners(owners) {
 
 async function logAdmin(msg) {
   await pool.query(
-    'INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+    'INSERT INTO admin_events (`t`, `msg`, `ts`) VALUES (?, ?, ?)',
     [new Date().toLocaleTimeString('pt-BR'), msg, Date.now()]
   );
 }
@@ -92,7 +92,7 @@ router.post('/', requireMod, async (req, res) => {
     if (validatedOwners.length > 0) {
       for (const o of validatedOwners) {
         await pool.query(
-          'INSERT INTO company_owners (sym, user_id, pct, created_at) VALUES (?, ?, ?, ?)',
+          'INSERT INTO company_owners (`sym`, `user_id`, `pct`, `created_at`) VALUES (?, ?, ?, ?)',
           [clean, o.userId, o.pct, now]
         );
       }
@@ -139,10 +139,10 @@ router.put('/:sym', requireMod, async (req, res) => {
     if (owners !== undefined) {
       const validated = await validateOwners(owners);
       // Replace all owners
-      await pool.query('DELETE FROM company_owners WHERE sym = ?', [sym]);
+      await pool.query('DELETE FROM company_owners WHERE `sym` = ?', [sym]);
       const now = Date.now();
       for (const o of validated) {
-        await pool.query('INSERT INTO company_owners (sym, user_id, pct, created_at) VALUES (?, ?, ?, ?)', [sym, o.userId, o.pct, now]);
+        await pool.query('INSERT INTO company_owners (`sym`, `user_id`, `pct`, `created_at`) VALUES (?, ?, ?, ?)', [sym, o.userId, o.pct, now]);
       }
     }
 
@@ -161,8 +161,8 @@ router.put('/:sym', requireMod, async (req, res) => {
 // DELETE /api/stocks/:sym — admin only
 router.delete('/:sym', requireAdmin, async (req, res) => {
   const sym = req.params.sym.toUpperCase();
-  await pool.query('DELETE FROM companies WHERE sym = ?', [sym]);
-  await pool.query('DELETE FROM company_owners WHERE sym = ?', [sym]);
+  await pool.query('DELETE FROM companies WHERE `sym` = ?', [sym]);
+  await pool.query('DELETE FROM company_owners WHERE `sym` = ?', [sym]);
   await logAdmin(`Ativo ${sym} DELETADO por ${req.session.userId}`);
   res.json({ ok: true });
 });
@@ -174,7 +174,7 @@ router.get('/:sym/ownership-listings', async (req, res) => {
   try {
     const sym = req.params.sym.toUpperCase();
     const [rows] = await pool.query(
-      'SELECT * FROM ownership_listings WHERE sym = ? AND status = "open"',
+      'SELECT * FROM ownership_listings WHERE `sym` = ? AND `status` = "open"',
       [sym]
     );
     res.json(rows);
@@ -196,7 +196,7 @@ router.post('/:sym/ownership-listings', requireMod, async (req, res) => {
   if (!stock) return res.status(404).json({ error: 'Ativo não encontrado.' });
 
   // Get owners from MySQL
-  const [rows] = await pool.query('SELECT * FROM company_owners WHERE sym = ?', [sym]);
+  const [rows] = await pool.query('SELECT * FROM company_owners WHERE `sym` = ?', [sym]);
   const owner = rows.find(o => o.user_id === uid);
   if (!owner) return res.status(403).json({ error: 'Você não é dono desta empresa.' });
 
@@ -210,7 +210,7 @@ router.post('/:sym/ownership-listings', requireMod, async (req, res) => {
 
   // Check not already listing more than they own
   const [alreadyRows] = await pool.query(
-    'SELECT COALESCE(SUM(pct_to_sell), 0) as total FROM ownership_listings WHERE sym = ? AND seller_id = ? AND status = "open"',
+    'SELECT COALESCE(SUM(`pct_to_sell`), 0) as total FROM ownership_listings WHERE `sym` = ? AND `seller_id` = ? AND `status` = "open"',
     [sym, uid]
   );
   if (alreadyRows.total + pctToSell > owner.pct)
@@ -219,7 +219,7 @@ router.post('/:sym/ownership-listings', requireMod, async (req, res) => {
   const id = `ol_${Date.now()}`;
   const now = Date.now();
   await pool.query(
-    'INSERT INTO ownership_listings (id, sym, stock_name, seller_id, seller_name, pct_to_sell, ask_price, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO ownership_listings (`id`, `sym`, `stock_name`, `seller_id`, `seller_name`, `pct_to_sell`, `ask_price`, `status`, `created_at`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [id, sym, stock.name, uid, owner.name || '', pctToSell, askPrice, 'open', now]
   );
 
@@ -252,8 +252,8 @@ router.post('/:sym/ownership-listings/:listingId/buy', async (req, res) => {
     if (!seller) return res.status(404).json({ error: 'Vendedor não encontrado.' });
 
     // Process payment
-    await pool.query('UPDATE users SET balance = balance - ? WHERE id = ?', [listing.ask_price, buyerId]);
-    await pool.query('UPDATE users SET balance = balance + ? WHERE id = ?', [listing.ask_price, listing.seller_id]);
+    await pool.query('UPDATE users SET `balance` = `balance` - ? WHERE `id` = ?', [listing.ask_price, buyerId]);
+    await pool.query('UPDATE users SET `balance` = `balance` + ? WHERE `id` = ?', [listing.ask_price, listing.seller_id]);
 
     // Transfer ownership in the stock
     const sym = listing.sym.toUpperCase();
@@ -275,15 +275,15 @@ router.post('/:sym/ownership-listings/:listingId/buy', async (req, res) => {
     }
 
     // Replace all company_owners rows
-    await pool.query('DELETE FROM company_owners WHERE sym = ?', [sym]);
+    await pool.query('DELETE FROM company_owners WHERE `sym` = ?', [sym]);
     const now = Date.now();
     for (const o of owners) {
-      await pool.query('INSERT INTO company_owners (sym, user_id, pct, created_at) VALUES (?, ?, ?, ?)', [sym, o.userId, o.pct, now]);
+      await pool.query('INSERT INTO company_owners (`sym`, `user_id`, `pct`, `created_at`) VALUES (?, ?, ?, ?)', [sym, o.userId, o.pct, now]);
     }
 
     // Close listing
     await pool.query(
-      'UPDATE ownership_listings SET status = "sold", buyer_id = ?, buyer_name = ?, sold_at = ? WHERE id = ?',
+      'UPDATE ownership_listings SET `status` = "sold", `buyer_id` = ?, `buyer_name` = ?, `sold_at` = ? WHERE `id` = ?',
       [buyerId, buyer.nick || buyer.name, Date.now(), listingId]
     );
 
@@ -299,7 +299,7 @@ router.delete('/:sym/ownership-listings/:listingId', (req, res) => {
   if (!req.session.userId) return res.status(401).json({ error: 'Não autenticado.' });
   const uid = req.session.userId;
   pool.query(
-    'UPDATE ownership_listings SET status = "cancelled" WHERE id = ? AND seller_id = ? AND status = "open"',
+    'UPDATE ownership_listings SET `status` = "cancelled" WHERE `id` = ? AND `seller_id` = ? AND `status` = "open"',
     [req.params.listingId, uid]
   ).then(() => res.json({ ok: true }))
    .catch(e => res.status(404).json({ error: 'Listagem não encontrada.' }));

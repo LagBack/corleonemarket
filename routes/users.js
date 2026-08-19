@@ -33,7 +33,7 @@ router.get('/me', requireAuth, async (req, res) => {
     // Compute wealth tier (balance + portfolio market value)
     let mv = 0;
     const pfRows = await pool.query('SELECT sym, qty FROM portfolios WHERE user_id = ? AND qty > 0', [req.session.userId]);
-    const [stockRows] = await pool.query('SELECT sym, price FROM companies WHERE status = "active"');
+    const [stockRows] = await pool.query('SELECT `sym`, `price` FROM companies WHERE `status` = "active"');
     const stockMap = {};
     stockRows.forEach(s => stockMap[s.sym] = s.price);
 
@@ -59,7 +59,7 @@ router.get('/me/dividends', requireAuth, async (req, res) => {
     const total = divs.reduce((a, d) => a + (d.fee || d.fee || 0), 0);
 
     // Owned stocks from MySQL
-    const [stockRows] = await pool.query('SELECT sym, price, name, total_revenue FROM companies WHERE status = "active"');
+    const [stockRows] = await pool.query('SELECT `sym`, `price`, `name`, `total_revenue` FROM companies WHERE `status` = "active"');
     const stockMap = {};
     stockRows.forEach(s => stockMap[s.sym] = s);
 
@@ -91,11 +91,11 @@ router.put('/me', requireAuth, async (req, res) => {
   const body = req.body; // may include name, nick, bio, country, avatar
   const sets = [];
   const vals = [];
-  if (body.name !== undefined)       { sets.push('name=?');   vals.push(body.name); }
-  if (body.nick !== undefined)       { sets.push('nick=?');   vals.push(body.nick); }
-  if (body.bio !== undefined)        { sets.push('bio=?');    vals.push(body.bio); }
-  if (body.country !== undefined)    { sets.push('country=?'); vals.push(normalizeCountry(body.country)); }
-  if (body.avatar !== undefined)     { sets.push('avatar=?');  vals.push(body.avatar); }
+  if (body.name !== undefined)       { sets.push('`name`=?');   vals.push(body.name); }
+  if (body.nick !== undefined)       { sets.push('`nick`=?');   vals.push(body.nick); }
+  if (body.bio !== undefined)        { sets.push('`bio`=?');    vals.push(body.bio); }
+  if (body.country !== undefined)    { sets.push('`country`=?'); vals.push(normalizeCountry(body.country)); }
+  if (body.avatar !== undefined)     { sets.push('`avatar`=?');  vals.push(body.avatar); }
   try {
     if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar.' });
     const query = 'UPDATE users SET ' + sets.join(', ') + ' WHERE id=?';
@@ -120,7 +120,7 @@ router.post('/me/photo', requireAuth, (req, res, next) => {
     if (rows.length && rows[0].photo) unlinkLegacyPhoto(rows[0].photo);
 
     await pool.query(
-      `UPDATE users SET photo=?, photo_data=?, photo_mime=? WHERE id=?`,
+      `UPDATE users SET \`photo\`=?, \`photo_data\`=?, \`photo_mime\`=? WHERE \`id\`=?`,
       [photoUrl, req.file.buffer, req.file.mimetype, uid]
     );
 
@@ -150,7 +150,7 @@ router.delete('/me/photo', requireAuth, async (req, res) => {
     }
 
     await pool.query(
-      'UPDATE users SET photo=NULL, photo_data=NULL, photo_mime=NULL WHERE id=?',
+      'UPDATE users SET `photo`=NULL, `photo_data`=NULL, `photo_mime`=NULL WHERE `id`=?',
       [req.session.userId]
     );
     res.json({ ok: true });
@@ -188,7 +188,7 @@ router.post('/me/banner', requireAuth, (req, res, next) => {
     if (rows.length && rows[0].banner) unlinkLegacyBanner(rows[0].banner);
 
     await pool.query(
-      `UPDATE users SET banner=?, banner_data=?, banner_mime=? WHERE id=?`,
+      `UPDATE users SET \`banner\`=?, \`banner_data\`=?, \`banner_mime\`=? WHERE \`id\`=?`,
       [bannerUrl, req.file.buffer, req.file.mimetype, uid]
     );
 
@@ -218,7 +218,7 @@ router.delete('/me/banner', requireAuth, async (req, res) => {
     }
 
     await pool.query(
-      'UPDATE users SET banner=NULL, banner_data=NULL, banner_mime=NULL WHERE id=?',
+      'UPDATE users SET `banner`=NULL, `banner_data`=NULL, `banner_mime`=NULL WHERE `id`=?',
       [req.session.userId]
     );
     res.json({ ok: true });
@@ -243,7 +243,7 @@ router.get('/:id/public', async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [uid]);
     if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado.' });
     const user = rows[0];
-    const stocks = await pool.query('SELECT sym, price, name, sector, shares, status, day_open, open FROM companies WHERE status = "active"');
+    const stocks = await pool.query('SELECT `sym`, `price`, `name`, `sector`, `shares`, `status`, `day_open`, `open` FROM companies WHERE `status` = "active"');
     const stockMap = {};
     stocks.forEach(s => { stockMap[s.sym] = s; });
     const hideFinance = ['admin', 'dev'].includes(user.role);
@@ -253,7 +253,7 @@ router.get('/:id/public', async (req, res) => {
       [uid]
     );
     const [txRows] = await pool.query(
-      'SELECT type, sym, qty, price, total, time, ts FROM transactions WHERE uid = ? ORDER BY ts DESC LIMIT 100',
+      'SELECT `type`, `sym`, `qty`, `price`, `total`, `time`, `ts` FROM transactions WHERE `uid` = ? ORDER BY `ts` DESC LIMIT 100',
       [uid]
     );
     const [txCountRows] = await pool.query(

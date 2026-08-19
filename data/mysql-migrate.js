@@ -10,7 +10,7 @@ async function columnExists(table, column) {
 }
 
 async function migrateUsersTable() {
-  await pool.query(`UPDATE users SET role = LOWER(TRIM(role)) WHERE role IS NOT NULL`).catch(() => {});
+  await pool.query(`UPDATE users SET \`role\` = LOWER(TRIM(\`role\`)) WHERE \`role\` IS NOT NULL`).catch(() => {});
   if (!(await columnExists('users', 'photo'))) {
     await pool.query(`ALTER TABLE users ADD COLUMN photo VARCHAR(500) DEFAULT NULL`);
     console.log('📦 MySQL: coluna photo adicionada.');

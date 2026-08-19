@@ -56,7 +56,7 @@ router.post('/:id/read', requireAuth, async (req, res) => {
     }
 
     // Mark as read
-    await pool.query('UPDATE notifications SET is_read = 1 WHERE id = ?', [notificationId]);
+    await pool.query('UPDATE notifications SET `is_read` = 1 WHERE `id` = ?', [notificationId]);
 
     res.json({ ok: true });
   } catch (e) {
@@ -68,7 +68,7 @@ router.post('/:id/read', requireAuth, async (req, res) => {
 router.post('/read-all', requireAuth, async (req, res) => {
   try {
     const userId = req.session.userId;
-    await pool.query('UPDATE notifications SET is_read = 1 WHERE recipient_user_id = ?', [userId]);
+    await pool.query('UPDATE notifications SET `is_read` = 1 WHERE `recipient_user_id` = ?', [userId]);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

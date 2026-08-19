@@ -10,7 +10,7 @@ const econConfig         = require('../data/economic-config');
 // ── helpers ───────────────────────────────────────────────────────
 
 async function getStock(sym) {
-  const [rows] = await pool.query('SELECT * FROM companies WHERE sym = ?', [sym.toUpperCase()]);
+  const [rows] = await pool.query('SELECT * FROM companies WHERE `sym` = ?', [sym.toUpperCase()]);
   return rows[0] || null;
 }
 
@@ -21,7 +21,7 @@ async function getStockWithOwners(sym) {
   s.priceHistory = typeof s.price_history === 'string' ? JSON.parse(s.price_history) : (s.price_history || []);
   // Get owners from company_owners table
   const [ownerRows] = await pool.query(
-    'SELECT user_id, pct FROM company_owners WHERE sym = ?',
+    'SELECT user_id, pct FROM company_owners WHERE `sym` = ?',
     [sym.toUpperCase()]
   );
   // Attach owner names by querying users
@@ -62,9 +62,9 @@ async function setPortfolioQty(uid, sym, qty) {
     );
   } else {
     await pool.query(
-      `INSERT INTO portfolios (user_id, sym, qty)
+      `INSERT INTO portfolios (\`user_id\`, \`sym\`, \`qty\`)
        VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE qty = ?`,
+       ON DUPLICATE KEY UPDATE \`qty\` = ?`,
       [uid, sym, qty, qty]
     );
   }
@@ -80,7 +80,7 @@ async function addTransaction(tx) {
 
 async function getUserTransactions(uid) {
   const [rows] = await pool.query(
-    'SELECT * FROM transactions WHERE uid = ? ORDER BY ts DESC',
+    'SELECT * FROM transactions WHERE `uid` = ? ORDER BY `ts` DESC',
     [uid]
   );
   return rows;
@@ -88,7 +88,7 @@ async function getUserTransactions(uid) {
 
 async function logAdmin(msg) {
   await pool.query(
-    'INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+    'INSERT INTO admin_events (`t`, `msg`, `ts`) VALUES (?, ?, ?)',
     [new Date().toLocaleTimeString('pt-BR'), msg, Date.now()]
   );
 }
@@ -171,7 +171,7 @@ router.post('/order', requireAuth, async (req, res) => {
       // Update demand/supply/volume on companies row
       const newDemand = Math.min(0.95, stock.demand + 0.03);
       await pool.query(
-        'UPDATE companies SET demand = ?, buys = buys + ?, volume = volume + ? WHERE sym = ?',
+        'UPDATE companies SET `demand` = ?, `buys` = `buys` + ?, `volume` = `volume` + ? WHERE `sym` = ?',
         [newDemand, quantity, quantity, sym.toUpperCase()]
       );
     } else if (type === 'sell') {
@@ -183,7 +183,7 @@ router.post('/order', requireAuth, async (req, res) => {
       // Update demand/supply/volume on companies row
       const newSupply = Math.min(0.95, stock.supply + 0.03);
       await pool.query(
-        'UPDATE companies SET supply = ?, sells = sells + ?, volume = volume + ? WHERE sym = ?',
+        'UPDATE companies SET `supply` = ?, `sells` = `sells` + ?, `volume` = `volume` + ? WHERE `sym` = ?',
         [newSupply, quantity, quantity, sym.toUpperCase()]
       );
     } else {
@@ -226,7 +226,7 @@ router.post('/order', requireAuth, async (req, res) => {
       }
       if (totalPaid > 0) {
         await pool.query(
-          'UPDATE companies SET total_revenue = total_revenue + ? WHERE sym = ?',
+          'UPDATE companies SET `total_revenue` = `total_revenue` + ? WHERE `sym` = ?',
           [totalPaid, freshStock.sym]
         );
       }
@@ -314,7 +314,7 @@ router.get('/ranking', async (req, res) => {
 router.get('/ownership-offers', async (req, res) => {
   try {
     const [offers] = await pool.query(
-      'SELECT * FROM ownership_offers WHERE status = "open"'
+      'SELECT * FROM ownership_offers WHERE `status` = "open"'
     );
     if (!offers.length) return res.json([]);
 
@@ -361,7 +361,7 @@ router.post('/ownership-offers', requireAuth, async (req, res) => {
     if (!stock) return res.status(404).json({ error: 'Ativo não encontrado.' });
 
     // Check ownership from company_owners table
-    const [ownerRows] = await pool.query('SELECT * FROM company_owners WHERE sym = ? AND user_id = ?', [sym.toUpperCase(), uid]);
+    const [ownerRows] = await pool.query('SELECT * FROM company_owners WHERE `sym` = ? AND `user_id` = ?', [sym.toUpperCase(), uid]);
     let ownedPct = 0;
     ownerRows.forEach(o => { ownedPct += o.pct; });
     if (ownedPct <= 0) return res.status(403).json({ error: 'Você não tem participação nessa empresa.' });
@@ -373,7 +373,7 @@ router.post('/ownership-offers', requireAuth, async (req, res) => {
     const id = 'offer_' + Date.now();
     const now = Date.now();
     await pool.query(
-      'INSERT INTO ownership_offers (id, sym, stock_name, seller_id, pct, ask_price, status, created_at, time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO ownership_offers (`id`, `sym`, `stock_name`, `seller_id`, `pct`, `ask_price`, `status`, `created_at`, `time`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [id, sym.toUpperCase(), stock.name, uid, pct, parseFloat(askPrice), 'open', now, new Date().toLocaleTimeString('pt-BR')]
     );
 
@@ -388,7 +388,7 @@ router.post('/ownership-offers/:id/buy', requireAuth, async (req, res) => {
   try {
     const uid      = req.session.userId;
     const [offerRows] = await pool.query(
-      'SELECT * FROM ownership_offers WHERE id = ? AND status = "open"',
+      'SELECT * FROM ownership_offers WHERE `id` = ? AND `status` = "open"',
       [req.params.id]
     );
     if (offerRows.length === 0) return res.status(404).json({ error: 'Oferta não encontrada ou já encerrada.' });
@@ -403,8 +403,8 @@ router.post('/ownership-offers/:id/buy', requireAuth, async (req, res) => {
     if (buyer.balance < offer.ask_price) return res.status(400).json({ error: 'Saldo insuficiente.' });
 
     // Process payment
-    await pool.query('UPDATE users SET balance = balance - ? WHERE id = ?', [offer.ask_price, uid]);
-    await pool.query('UPDATE users SET balance = balance + ? WHERE id = ?', [offer.ask_price, offer.seller_id]);
+    await pool.query('UPDATE users SET `balance` = `balance` - ? WHERE `id` = ?', [offer.ask_price, uid]);
+    await pool.query('UPDATE users SET `balance` = `balance` + ? WHERE `id` = ?', [offer.ask_price, offer.seller_id]);
 
     // Transfer ownership
     const sym = offer.sym.toUpperCase();
@@ -426,15 +426,15 @@ router.post('/ownership-offers/:id/buy', requireAuth, async (req, res) => {
     }
 
     // Replace company_owners rows
-    await pool.query('DELETE FROM company_owners WHERE sym = ?', [sym]);
+    await pool.query('DELETE FROM company_owners WHERE `sym` = ?', [sym]);
     const now = Date.now();
     for (const o of owners) {
-      await pool.query('INSERT INTO company_owners (sym, user_id, pct, created_at) VALUES (?, ?, ?, ?)', [sym, o.userId, o.pct, now]);
+      await pool.query('INSERT INTO company_owners (`sym`, `user_id`, `pct`, `created_at`) VALUES (?, ?, ?, ?)', [sym, o.userId, o.pct, now]);
     }
 
     // Close offer
     await pool.query(
-      'UPDATE ownership_offers SET status = "sold", buyer_id = ?, buyer_name = ?, sold_at = ? WHERE id = ?',
+      'UPDATE ownership_offers SET `status` = "sold", `buyer_id` = ?, `buyer_name` = ?, `sold_at` = ? WHERE `id` = ?',
       [uid, buyer.nick || buyer.name, Date.now(), req.params.id]
     );
 
@@ -447,7 +447,7 @@ router.post('/ownership-offers/:id/buy', requireAuth, async (req, res) => {
 router.delete('/ownership-offers/:id', requireAuth, async (req, res) => {
   const uid    = req.session.userId;
   const [result] = await pool.query(
-    'UPDATE ownership_offers SET status = "cancelled" WHERE id = ? AND seller_id = ? AND status = "open"',
+    'UPDATE ownership_offers SET `status` = "cancelled" WHERE `id` = ? AND `seller_id` = ? AND `status` = "open"',
     [req.params.id, uid]
   );
   if (result.affectedRows === 0) return res.status(404).json({ error: 'Oferta não encontrada.' });

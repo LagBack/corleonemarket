@@ -68,7 +68,7 @@ async function createNotification(recipientUserId, actorUserId, type, referenceT
   if (String(recipientUserId) === String(actorUserId)) return; // Don''' notify self
   try {
     await pool.query(
-      `INSERT INTO notifications (recipient_user_id, actor_user_id, type, reference_type, reference_id, message, is_read, created_at)
+      `INSERT INTO notifications (\`recipient_user_id\`, \`actor_user_id\`, \`type\`, \`reference_type\`, \`reference_id\`, \`message\`, \`is_read\`, \`created_at\`)
        VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
       [recipientUserId, actorUserId, type, referenceType, referenceId, message, Date.now()]
     );
@@ -105,7 +105,7 @@ router.get('/posts', async (req, res) => {
     }));
 
     // Get total count
-    const [countRows] = await pool.query('SELECT COUNT(*) as cnt FROM social_posts WHERE type = ?', [type]);
+    const [countRows] = await pool.query('SELECT COUNT(*) as cnt FROM social_posts WHERE `type` = ?', [type]);
     const total = countRows[0].cnt;
 
     res.json({ posts: postsWithAuthors, total, page, limit });
@@ -157,7 +157,7 @@ router.post('/posts', requireAuth, async (req, res) => {
     const sanitized = sanitizeContent(content);
     
     const [result] = await pool.query(
-      `INSERT INTO social_posts (author_id, title, content, type, is_pinned, is_locked, like_count, comment_count, created_at, updated_at)
+      `INSERT INTO social_posts (\`author_id\`, \`title\`, \`content\`, \`type\`, \`is_pinned\`, \`is_locked\`, \`like_count\`, \`comment_count\`, \`created_at\`, \`updated_at\`)
        VALUES (?, ?, ?, ?, 0, 0, 0, 0, ?, ?)`,
       [req.session.userId, sanitizedTitle, sanitized, type, now, now]
     );
@@ -281,7 +281,7 @@ router.post('/posts/:id/pin', requireAdmin, async (req, res) => {
     if (!posts.length) return res.status(404).json({ error: 'Post não encontrado' });
 
     const newState = posts[0].is_pinned ? 0 : 1;
-    await pool.query('UPDATE social_posts SET is_pinned = ? WHERE id = ?', [newState, postId]);
+    await pool.query('UPDATE social_posts SET `is_pinned` = ? WHERE `id` = ?', [newState, postId]);
 
     res.json({ ok: true, is_pinned: newState });
   } catch (e) {
@@ -298,7 +298,7 @@ router.post('/posts/:id/lock', requireAdmin, async (req, res) => {
     if (!posts.length) return res.status(404).json({ error: 'Post não encontrado' });
 
     const newState = posts[0].is_locked ? 0 : 1;
-    await pool.query('UPDATE social_posts SET is_locked = ? WHERE id = ?', [newState, postId]);
+    await pool.query('UPDATE social_posts SET `is_locked` = ? WHERE `id` = ?', [newState, postId]);
 
     // Notify post author if locked
     if (newState && String(posts[0].author_id) !== String(req.session.userId)) {
@@ -335,12 +335,12 @@ router.post('/posts/:id/like', requireAuth, async (req, res) => {
     if (!posts.length) return res.status(404).json({ error: 'Post não encontrado' });
 
     // Add like
-    await pool.query('INSERT INTO social_post_likes (user_id, post_id, created_at) VALUES (?, ?, ?)',
+    await pool.query('INSERT INTO social_post_likes (`user_id`, `post_id`, `created_at`) VALUES (?, ?, ?)',
       [userId, postId, Date.now()]);
 
     // Update like count
     const [counts] = await pool.query('SELECT COUNT(*) as cnt FROM social_post_likes WHERE post_id = ?', [postId]);
-    await pool.query('UPDATE social_posts SET like_count = ? WHERE id = ?', [counts[0].cnt, postId]);
+    await pool.query('UPDATE social_posts SET `like_count` = ? WHERE `id` = ?', [counts[0].cnt, postId]);
 
     // Create notification
     if (String(posts[0].author_id) !== String(userId)) {
@@ -363,7 +363,7 @@ router.delete('/posts/:id/like', requireAuth, async (req, res) => {
 
     // Update like count
     const [counts] = await pool.query('SELECT COUNT(*) as cnt FROM social_post_likes WHERE post_id = ?', [postId]);
-    await pool.query('UPDATE social_posts SET like_count = ? WHERE id = ?', [counts[0].cnt, postId]);
+    await pool.query('UPDATE social_posts SET `like_count` = ? WHERE `id` = ?', [counts[0].cnt, postId]);
 
     res.json({ ok: true, like_count: counts[0].cnt });
   } catch (e) {
@@ -470,14 +470,14 @@ router.post('/posts/:id/comments', requireAuth, async (req, res) => {
     }
 
     const [result] = await pool.query(
-      `INSERT INTO social_comments (post_id, author_id, parent_comment_id, content, created_at, updated_at)
+      `INSERT INTO social_comments (\`post_id\`, \`author_id\`, \`parent_comment_id\`, \`content\`, \`created_at\`, \`updated_at\`)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [postId, req.session.userId, parentId, sanitized, now, now]
     );
 
     // Update comment count on post
     const [counts] = await pool.query('SELECT COUNT(*) as cnt FROM social_comments WHERE post_id = ?', [postId]);
-    await pool.query('UPDATE social_posts SET comment_count = ? WHERE id = ?', [counts[0].cnt, postId]);
+    await pool.query('UPDATE social_posts SET `comment_count` = ? WHERE `id` = ?', [counts[0].cnt, postId]);
 
     // Create notification
     const notificationType = parentId ? 'COMMENT_REPLY' : 'POST_COMMENT';
@@ -528,7 +528,7 @@ router.put('/comments/:id', requireAuth, async (req, res) => {
     const now = Date.now();
     const sanitized = sanitizeContent(content);
 
-    await pool.query('UPDATE social_comments SET content = ?, updated_at = ? WHERE id = ?',
+    await pool.query('UPDATE social_comments SET `content` = ?, `updated_at` = ? WHERE `id` = ?',
       [sanitized, now, commentId]);
 
     const [comments] = await pool.query('SELECT * FROM social_comments WHERE id = ?', [commentId]);
@@ -564,7 +564,7 @@ router.delete('/comments/:id', requireAuth, async (req, res) => {
 
     // Update comment count
     const [counts] = await pool.query('SELECT COUNT(*) as cnt FROM social_comments WHERE post_id = ?', [postId]);
-    await pool.query('UPDATE social_posts SET comment_count = ? WHERE id = ?', [counts[0].cnt, postId]);
+    await pool.query('UPDATE social_posts SET `comment_count` = ? WHERE `id` = ?', [counts[0].cnt, postId]);
 
     res.json({ ok: true });
   } catch (e) {
@@ -589,7 +589,7 @@ router.post('/comments/:id/like', requireAuth, async (req, res) => {
     if (!comments.length) return res.status(404).json({ error: 'Comentário não encontrado' });
 
     // Add like
-    await pool.query('INSERT INTO social_comment_likes (user_id, comment_id, created_at) VALUES (?, ?, ?)',
+    await pool.query('INSERT INTO social_comment_likes (`user_id`, `comment_id`, `created_at`) VALUES (?, ?, ?)',
       [userId, commentId, Date.now()]);
 
     // Update like count

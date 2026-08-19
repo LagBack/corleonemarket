@@ -104,7 +104,7 @@ router.put('/config', requireAuth, async (req, res) => {
     // Log to admin log
     try {
       await pool.query(
-        'INSERT INTO admin_events (t, msg, ts) VALUES (?, ?, ?)',
+        'INSERT INTO admin_events (`t`, `msg`, `ts`) VALUES (?, ?, ?)',
         [new Date().toLocaleTimeString('pt-BR'), `⚙️ Configuração econômica atualizada por ${req.user?.nick || req.user?.name || 'unknown'}`, Date.now()]
       );
     } catch (_) { /* non-critical */ }
