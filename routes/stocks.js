@@ -82,11 +82,11 @@ router.post('/', requireMod, async (req, res) => {
 
     const p  = parseFloat(price);
     const now = Date.now();
-    await pool.query(
-      `INSERT INTO companies (\`sym\`, \`name\`, \`sector\`, \`desc\`, \`price\`, \`open\`, \`shares\`, \`vol\`, \`status\`, \`demand\`, \`supply\`, \`volume\`, \`buys\`, \`sells\`, \`day_open\`, \`day_high\`, \`day_low\`, \`day_reset_at\`, \`total_revenue\`, \`price_history\`, \`created\`, \`updated\`)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.5, 0.5, 0, 0, 0, ?, ?, ?, ?, ?, NULL, ?, ?)`,
-      [clean, name, sector || 'Outros', desc || '', p, p, parseInt(shares), parseFloat(vol) || 0.015, status || 'active', p, p, p, now, now]
-    );
+    const sql1 = `INSERT INTO companies (\`sym\`, \`name\`, \`sector\`, \`desc\`, \`price\`, \`open\`, \`shares\`, \`vol\`, \`status\`, \`demand\`, \`supply\`, \`volume\`, \`buys\`, \`sells\`, \`day_open\`, \`day_high\`, \`day_low\`, \`day_reset_at\`, \`total_revenue\`, \`price_history\`, \`created\`, \`updated\`)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.5, 0.5, 0, 0, 0, ?, ?, ?, ?, ?, NULL, ?, ?)`;
+    const params1 = [clean, name, sector || 'Outros', desc || '', p, p, parseInt(shares), parseFloat(vol) || 0.015, status || 'active', p, p, p, now, now];
+    console.log('[DEBUG] companies INSERT placeholder count:', (sql1.match(/\?/g) || []).length, 'param count:', params1.length);
+    await pool.query(sql1, params1);
 
     // Save owners
     if (validatedOwners.length > 0) {
@@ -104,6 +104,15 @@ router.post('/', requireMod, async (req, res) => {
     await logAdmin(`Ativo ${clean} criado por ${req.session.userId}${ownerNote}`);
     res.json({ ok: true, stock: { sym: clean } });
   } catch(e) {
+    console.error('[DEBUG] POST /api/stocks ERROR:', e.message);
+    if (e.sqlState) console.error('[DEBUG] SQLSTATE:', e.sqlState);
+    if (e.errno) console.error('[DEBUG] errno:', e.errno);
+    // Log the full error structure to catch all properties
+    const errKeys = Object.getOwnPropertyNames(e);
+    console.error('[DEBUG] Error keys:', errKeys);
+    for (const k of ['sql', 'errno', 'sqlState', 'code', 'message', 'index', 'column_name']) {
+      if (e[k] !== undefined) console.error(`[DEBUG] e.${k}:`, e[k]);
+    }
     if (e.message.includes('Duplicate entry')) return res.status(409).json({ error: 'Código já existe.' });
     res.status(500).json({ error: e.message });
   }
@@ -303,6 +312,26 @@ router.delete('/:sym/ownership-listings/:listingId', (req, res) => {
     [req.params.listingId, uid]
   ).then(() => res.json({ ok: true }))
    .catch(e => res.status(404).json({ error: 'Listagem não encontrada.' }));
+});
+
+// ── Diagnostic: check database schema and test connectivity ──
+router.get('/_debug/schema', async (_req, res) => {
+  try {
+    const cols = await pool.query(
+      `SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_KEY, IS_NULLABLE, DATA_TYPE, COLUMN_DEFAULT
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME IN ('companies', 'company_owners')
+       ORDER BY TABLE_NAME, ORDINAL_POSITION`
+    );
+    const tablesInfo = cols[0];
+    res.json({
+      companies:     tablesInfo.filter(c => c.TABLE_NAME === 'companies'),
+      company_owners:tablesInfo.filter(c => c.TABLE_NAME === 'company_owners'),
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message, sqlState: e.sqlState, errno: e.errno });
+  }
 });
 
 module.exports = router;
