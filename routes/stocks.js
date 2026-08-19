@@ -82,37 +82,35 @@ router.post('/', requireMod, async (req, res) => {
 
     const p  = parseFloat(price);
     const now = Date.now();
-    const sql1 = `INSERT INTO companies (\`sym\`, \`name\`, \`sector\`, \`desc\`, \`price\`, \`open\`, \`shares\`, \`vol\`, \`status\`, \`demand\`, \`supply\`, \`volume\`, \`buys\`, \`sells\`, \`day_open\`, \`day_high\`, \`day_low\`, \`day_reset_at\`, \`total_revenue\`, \`price_history\`, \`created\`, \`updated\`)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.5, 0.5, 0, 0, 0, ?, ?, ?, ?, ?, NULL, ?, ?)`;
-    const params1 = [clean, name, sector || 'Outros', desc || '', p, p, parseInt(shares), parseFloat(vol) || 0.015, status || 'active', p, p, p, now, now];
-    console.log('[DEBUG] companies INSERT placeholder count:', (sql1.match(/\?/g) || []).length, 'param count:', params1.length);
-    await pool.query(sql1, params1);
 
-    // Save owners
+    // Step 1: Test mysql2 parameter binding with a simple query first
+    const [testResult] = await pool.query('SELECT 1 AS ok WHERE ?', [1]);
+    console.log('[TEST-BINDING] Simple binding test:', JSON.stringify(testResult));
+
+    // Step 2: Single-line INSERT — all backtick-escaped columns, explicit values (no defaults)
+    const sqlInsert = 'INSERT INTO companies (`sym`,`name`,`sector`,`desc`,`price`,`open`,`shares`,`vol`,`status`,`demand`,`supply`,`volume`,`buys`,`sells`,`day_open`,`day_high`,`day_low`,`day_reset_at`,`total_revenue`,`price_history`,`created`,`updated`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)';
+    const paramsInsert = [clean, name, sector || 'Outros', desc || '', p, p, parseInt(shares), parseFloat(vol) || 0.015, status || 'active', 0.5, 0.5, 0, 0, 0, p, p, p, now, 0, null, now, now];
+    console.log('[SQL-INSERT] Query:', sqlInsert);
+    console.log('[SQL-INSERT] Params count:', paramsInsert.length, 'Values:', JSON.stringify(paramsInsert));
+    await pool.query(sqlInsert, paramsInsert);
+
+    // Step 3: Save owners
     if (validatedOwners.length > 0) {
       for (const o of validatedOwners) {
-        await pool.query(
-          'INSERT INTO company_owners (`sym`, `user_id`, `pct`, `created_at`) VALUES (?, ?, ?, ?)',
-          [clean, o.userId, o.pct, now]
-        );
+        await pool.query('INSERT INTO company_owners (`sym`,`user_id`,`pct`,`created_at`) VALUES (?,?,?,?)', [clean, o.userId, o.pct, now]);
       }
     }
 
-    const ownerNote = validatedOwners.length
-      ? ` | Donos: ${validatedOwners.map(o => `${o.name}(${o.pct}%)`).join(', ')}`
-      : '';
-    await logAdmin(`Ativo ${clean} criado por ${req.session.userId}${ownerNote}`);
+    // Step 4: Log admin event
+    await logAdmin(`Ativo ${clean} criado por ${req.session.userId}`);
+    console.log('[OK] Stock created:', clean);
     res.json({ ok: true, stock: { sym: clean } });
   } catch(e) {
-    console.error('[DEBUG] POST /api/stocks ERROR:', e.message);
-    if (e.sqlState) console.error('[DEBUG] SQLSTATE:', e.sqlState);
-    if (e.errno) console.error('[DEBUG] errno:', e.errno);
-    // Log the full error structure to catch all properties
-    const errKeys = Object.getOwnPropertyNames(e);
-    console.error('[DEBUG] Error keys:', errKeys);
-    for (const k of ['sql', 'errno', 'sqlState', 'code', 'message', 'index', 'column_name']) {
-      if (e[k] !== undefined) console.error(`[DEBUG] e.${k}:`, e[k]);
-    }
+    console.error('[ERROR] POST /api/stocks');
+    console.error('[ERROR] message:', e.message);
+    console.error('[ERROR] sqlState:', e.sqlState, 'errno:', e.errno, 'code:', e.code);
+    if (e.sql) console.error('[ERROR] e.sql:', e.sql);
+    if (e.stack) console.error('[ERROR] stack (first 500 chars):', e.stack.substring(0, 500));
     if (e.message.includes('Duplicate entry')) return res.status(409).json({ error: 'Código já existe.' });
     res.status(500).json({ error: e.message });
   }
