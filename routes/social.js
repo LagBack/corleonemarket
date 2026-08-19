@@ -238,7 +238,7 @@ router.put('/posts/:id', requireAuth, async (req, res) => {
     values.push(now);
     values.push(postId);
 
-    await pool.query(`UPDATE social_posts SET ${updates.join(', ')} WHERE id = ?`, values);
+    await pool.query(`UPDATE social_posts SET ${updates.join(', ')} WHERE \`id\` = ?`, values);
 
     // Return updated post
     const [posts] = await pool.query('SELECT * FROM social_posts WHERE id = ?', [postId]);

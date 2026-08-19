@@ -161,7 +161,7 @@ async function maybeResetDay() {
 // Fire a random news event on one stock every ~90s
 async function fireRandomEvent() {
   try {
-    const [marketRows] = await pool.query('SELECT open FROM market_state WHERE id = 1');
+    const [marketRows] = await pool.query('SELECT `open` FROM market_state WHERE `id` = 1');
     if (!marketRows.length || !marketRows[0].open) return;
 
     const [rows] = await pool.query("SELECT * FROM companies WHERE `status` = 'active'");
@@ -193,7 +193,7 @@ async function fireRandomEvent() {
     if (dayRows.length) {
       const d = dayRows[0];
       await pool.query(
-        "UPDATE companies SET `day_high`=GREATEAST(`day_high`, ?), `day_low`=LEAST(`day_low`, ?), `updated`=? WHERE `sym`=?",
+        "UPDATE companies SET `day_high`=GREATEST(`day_high`, ?), `day_low`=LEAST(`day_low`, ?), `updated`=? WHERE `sym`=?",
         [newPrice, newPrice, Date.now(), target.sym]
       );
     }

@@ -99,7 +99,7 @@ async function logAdmin(msg) {
 router.get('/state', async (req, res) => {
   try {
     const [stocks] = await pool.query('SELECT * FROM companies');
-    const [marketRows] = await pool.query('SELECT * FROM market_state WHERE id = 1');
+    const [marketRows] = await pool.query('SELECT * FROM market_state WHERE `id` = 1');
     const market = marketRows[0] || { open: 1 };
     const open = !!market.open;
 
@@ -140,7 +140,7 @@ router.get('/portfolio', requireAuth, async (req, res) => {
 // POST /api/market/order
 router.post('/order', requireAuth, async (req, res) => {
   try {
-    const [marketRows] = await pool.query('SELECT * FROM market_state WHERE id = 1');
+    const [marketRows] = await pool.query('SELECT * FROM market_state WHERE `id` = 1');
     const market = marketRows[0] || { open: 1 };
     if (!market.open)
       return res.status(403).json({ error: 'Mercado está fechado.' });

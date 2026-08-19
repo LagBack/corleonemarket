@@ -90,7 +90,7 @@ async function recordEconomicFee(userId, feeType, amount, netWorth, dayKey, cycl
 
   try {
     const [rows] = await pool.query(
-      `SELECT id FROM economic_fees WHERE user_id = ? AND fee_type = ? AND ${dedupCol} = ?`,
+      `SELECT \`id\` FROM economic_fees WHERE \`user_id\` = ? AND \`fee_type\` = ? AND \`${dedupCol}\` = ?`,
       [uid, feeType, dedupVal]
     );
     if (rows.length > 0) return null;

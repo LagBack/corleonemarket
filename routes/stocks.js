@@ -134,7 +134,7 @@ router.put('/:sym', requireMod, async (req, res) => {
     }
     values.push(Date.now()); // updated
     values.push(sym);
-    await pool.query(`UPDATE companies SET ${setClauses.join(', ')} WHERE sym = ?`, values);
+    await pool.query(`UPDATE companies SET ${setClauses.join(', ')} WHERE \`sym\` = ?`, values);
 
     if (owners !== undefined) {
       const validated = await validateOwners(owners);
@@ -238,7 +238,7 @@ router.post('/:sym/ownership-listings/:listingId/buy', async (req, res) => {
 
     const listingId = req.params.listingId;
     const [listingRows] = await pool.query(
-      'SELECT * FROM ownership_listings WHERE id = ? AND status = "open"',
+      'SELECT * FROM ownership_listings WHERE `id` = ? AND `status` = "open"',
       [listingId]
     );
     if (listingRows.length === 0) return res.status(404).json({ error: 'Listagem não encontrada ou já fechada.' });
