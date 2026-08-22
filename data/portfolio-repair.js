@@ -85,7 +85,10 @@ async function main() {
     console.log('  ✓ No orphaned holdings found.\n');
   } else {
     const userIds = Object.keys(orphanedByUser);
-    console.log(`  Found ${orphanedByUser[userIds[0]] ? 'orphans in ' + userIds.length + ' user(s):\n' : 'orphans\n'});
+    const countStr = orphanedByUser[userIds[0]]
+      ? `orphans in ${userIds.length} user(s):`
+      : 'orphans:';
+    console.log(`  Found ${countStr}\n`);
 
     for (const uid of userIds) {
       const info = orphanedByUser[uid];
