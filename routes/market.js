@@ -98,7 +98,7 @@ async function logAdmin(msg) {
 // GET /api/market/state
 router.get('/state', async (req, res) => {
   try {
-    const [stocks] = await pool.query('SELECT * FROM companies');
+    const [stocks] = await pool.query('SELECT * FROM companies WHERE `status` != "deleted"');
     const [marketRows] = await pool.query('SELECT * FROM market_state WHERE `id` = 1');
     const market = marketRows[0] || { open: 1 };
     const open = !!market.open;
@@ -133,12 +133,26 @@ router.get('/portfolio', requireAuth, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     const pf  = await getPortfolio(uid);
     const txs = await getUserTransactions(uid);
-    res.json({ user: usersStore.safeUser(user), portfolio: pf, transactions: txs });
+
+    // Detect orphans for this user's portfolio
+    const [activeStockRows] = await pool.query('SELECT `sym` FROM companies WHERE `status` = "active"');
+    const activeSyms = new Set(activeStockRows.map(s => s.sym));
+    let orphanQty = 0;
+    const orphans = [];
+    Object.entries(pf).forEach(([sym, qty]) => {
+      if (!activeSyms.has(sym)) {
+        orphanQty += qty;
+        orphans.push({ sym, qty });
+      }
+    });
+
+    res.json({ user: usersStore.safeUser(user), portfolio: pf, transactions: txs, orphanQty, orphans: orphans.length > 0 ? orphans : undefined });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // POST /api/market/order
 router.post('/order', requireAuth, async (req, res) => {
+  let conn;
   try {
     const [marketRows] = await pool.query('SELECT * FROM market_state WHERE `id` = 1');
     const market = marketRows[0] || { open: 1 };
@@ -163,26 +177,46 @@ router.post('/order', requireAuth, async (req, res) => {
     const sellFee   = econConfig.calculateTradingFee(total, 'sell');
     const pf        = await getPortfolio(uid);
 
+    // ── ATOMIC TRANSACTION: balance + portfolio + volume all succeed or fail together ──
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
     if (type === 'buy') {
       const totalCost = total + buyFee;          // trade value + fee
-      if (user.balance < totalCost) return res.status(400).json({ error: 'Saldo insuficiente.' });
-      await usersStore.setUserBalance(uid, user.balance - totalCost);
-      await setPortfolioQty(uid, sym.toUpperCase(), (pf[sym] || 0) + quantity);
-      // Update demand/supply/volume on companies row
+      if (user.balance < totalCost) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Saldo insuficiente.' });
+      }
+      await conn.query('UPDATE users SET `balance` = `balance` - ? WHERE `id` = ?', [totalCost, uid]);
+      const newQty = (pf[sym] || 0) + quantity;
+      await conn.query(
+        'INSERT INTO portfolios (`user_id`, `sym`, `qty`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `qty` = ?',
+        [uid, sym.toUpperCase(), newQty, newQty]
+      );
       const newDemand = Math.min(0.95, stock.demand + 0.03);
-      await pool.query(
+      await conn.query(
         'UPDATE companies SET `demand` = ?, `buys` = `buys` + ?, `volume` = `volume` + ? WHERE `sym` = ?',
         [newDemand, quantity, quantity, sym.toUpperCase()]
       );
     } else if (type === 'sell') {
       const owned = pf[sym] || 0;
-      if (owned < quantity) return res.status(400).json({ error: 'Cotas insuficientes.' });
+      if (owned < quantity) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Cotas insuficientes.' });
+      }
       const netReceived = total - sellFee;         // sale value minus fee
-      await usersStore.setUserBalance(uid, user.balance + netReceived);
-      await setPortfolioQty(uid, sym.toUpperCase(), owned - quantity);
-      // Update demand/supply/volume on companies row
+      await conn.query('UPDATE users SET `balance` = `balance` + ? WHERE `id` = ?', [netReceived, uid]);
+      const newQty = owned - quantity;
+      if (newQty > 0) {
+        await conn.query(
+          'INSERT INTO portfolios (`user_id`, `sym`, `qty`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `qty` = ?',
+          [uid, sym.toUpperCase(), newQty, newQty]
+        );
+      } else {
+        await conn.query('DELETE FROM portfolios WHERE `user_id` = ? AND `sym` = ?', [uid, sym.toUpperCase()]);
+      }
       const newSupply = Math.min(0.95, stock.supply + 0.03);
-      await pool.query(
+      await conn.query(
         'UPDATE companies SET `supply` = ?, `sells` = `sells` + ?, `volume` = `volume` + ? WHERE `sym` = ?',
         [newSupply, quantity, quantity, sym.toUpperCase()]
       );
@@ -190,7 +224,7 @@ router.post('/order', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Tipo de ordem inválido.' });
     }
 
-    // Record fee in transaction table
+    // Record fee in transaction table (inside same transaction)
     const tx = {
       uid, uname: user.nick || user.name,
       type, sym, qty: quantity,
@@ -201,13 +235,17 @@ router.post('/order', requireAuth, async (req, res) => {
       ts:   Date.now()
     };
 
-    await pool.query(
+    await conn.query(
       `INSERT INTO transactions (\`uid\`, \`uname\`, \`type\`, \`sym\`, \`qty\`, \`price\`, \`total\`, \`fee\`, \`fee_type\`, \`time\`, \`ts\`)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [tx.uid, tx.uname, tx.type, tx.sym, tx.qty, tx.price, tx.total, tx.fee, tx.fee_type, tx.time, tx.ts]
     );
 
-    // ── Owner revenue share ──
+    // ── Owner revenue share (separate from trade transaction since it touches different users) ──
+    await conn.commit();
+    conn.release();
+    conn = null;
+
     const freshStock = await getStockWithOwners(sym.toUpperCase());
     if (freshStock && Array.isArray(freshStock.owners) && freshStock.owners.length > 0) {
       let totalPaid = 0;
@@ -243,7 +281,12 @@ router.post('/order', requireAuth, async (req, res) => {
       user:  usersStore.safeUser(updatedUser),
       portfolio: await getPortfolio(uid)
     });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) {
+    if (conn) { try { await conn.rollback(); } catch(_) {} }
+    res.status(500).json({ error: e.message });
+  } finally {
+    if (conn) conn.release();
+  }
 });
 
 // GET /api/market/ranking
@@ -268,9 +311,17 @@ router.get('/ranking', async (req, res) => {
       .map(u => {
         const pf = pfMap[u.id] || {};
         let mv = 0;
+        let orphanMv = 0;
+        const orphans = [];
         Object.entries(pf).forEach(([sym, qty]) => {
           const s = stockMap[sym];
-          if (s) mv += s.price * qty;
+          if (s) {
+            mv += s.price * qty;
+          } else {
+            // ORPHAN: portfolio holds a stock that no longer exists in companies
+            orphanMv += qty;
+            orphans.push({ sym, qty });
+          }
         });
         const total = Math.round((u.balance + mv) * 100) / 100;
         return {
@@ -278,10 +329,11 @@ router.get('/ranking', async (req, res) => {
           avatar: u.avatar, photo: hasAnyPhoto(u) ? photoUrlForUser(u) : null,
           role: normalizeRole(u.role), country: u.country,
           total, cash: u.balance, stocks: mv,
+          orphanMv, orphans: orphans.length > 0 ? orphans : undefined,
           wealthTier: computeTier(total),
           hasDonated: !!u.has_donated,
         };
-      }).sort((a, b) => b.total - b.total);
+      }).sort((a, b) => b.total - a.total);
 
     const supplyDemand = [...stocks].sort((a, b) =>
       (b.demand / (b.demand + b.supply)) - (a.demand / (a.demand + a.supply)));

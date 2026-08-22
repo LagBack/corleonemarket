@@ -77,10 +77,17 @@ router.get('/users', requireMod, async (req, res) => {
 
     res.json(rows.map(u => {
       let mv = 0;
+      let orphanMv = 0;
+      const orphans = [];
       Object.entries(pfMap[u.id] || {}).forEach(([sym, qty]) => {
-        if (stockMap[sym]) mv += stockMap[sym] * qty;
+        if (stockMap[sym]) {
+          mv += stockMap[sym] * qty;
+        } else {
+          orphanMv += qty;
+          orphans.push({ sym, qty });
+        }
       });
-      return { ...toPublicUser(u), wealthTier: computeTier(u.balance + mv) };
+      return { ...toPublicUser(u), wealthTier: computeTier(u.balance + mv), orphanMv, orphans: orphans.length > 0 ? orphans : undefined };
     }));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -143,7 +150,14 @@ router.post('/market/bull', requireMod, async (req, res) => {
 // POST /api/admin/market/reset — admin only
 router.post('/market/reset', requireAdmin, async (req, res) => {
   try {
-    await pool.query("UPDATE companies SET `price`=?, `demand`=0.5, `supply`=0.5, `volume`=0, `buys`=0, `sells`=0, `updated`=? WHERE `status`='active'", [Date.now(), Date.now()]);
+    // FIX: preserve original open price as reset price instead of Date.now()
+    const [rows] = await pool.query("SELECT `sym`, `open` FROM companies WHERE `status`='active'");
+    for (const s of rows) {
+      await pool.query(
+        "UPDATE companies SET `price`=?, `demand`=0.5, `supply`=0.5, `volume`=0, `buys`=0, `sells`=0, `updated`=? WHERE `sym`=?",
+        [s.open, Date.now(), s.sym]
+      );
+    }
     await logAdmin(`Mercado RESETADO por ${req.session.userId}`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -196,15 +210,22 @@ router.put('/users/:id/balance', requireMod, async (req, res) => {
 
     const [pfRows] = await pool.query('SELECT sym, qty FROM portfolios WHERE user_id = ? AND qty > 0', [req.params.id]);
     let mv = 0;
+    let orphanMv = 0;
+    const orphans = [];
     for (const r of pfRows) {
-      if (stockMap[r.sym]) mv += stockMap[r.sym] * r.qty;
+      if (stockMap[r.sym]) {
+        mv += stockMap[r.sym] * r.qty;
+      } else {
+        orphanMv += r.qty;
+        orphans.push({ sym: r.sym, qty: r.qty });
+      }
     }
     const totalWealth = newBalance + mv;
     const newTier = computeTier(totalWealth);
     await pool.query('UPDATE users SET `wealth_tier` = ? WHERE `id` = ?', [newTier, req.params.id]);
 
     await logAdmin(`Saldo de ${target.nick || target.name} alterado para R$${newBalance.toFixed(2)} por ${req.session.userId}`);
-    res.json({ ok: true, balance: newBalance, wealthTier: newTier });
+    res.json({ ok: true, balance: newBalance, wealthTier: newTier, orphanMv, orphans: orphans.length > 0 ? orphans : undefined });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -32,17 +32,24 @@ router.get('/me', requireAuth, async (req, res) => {
 
     // Compute wealth tier (balance + portfolio market value)
     let mv = 0;
+    let orphanQty = 0;
+    const orphans = [];
     const pfRows = await pool.query('SELECT sym, qty FROM portfolios WHERE user_id = ? AND qty > 0', [req.session.userId]);
     const [stockRows] = await pool.query('SELECT `sym`, `price` FROM companies WHERE `status` = "active"');
     const stockMap = {};
     stockRows.forEach(s => stockMap[s.sym] = s.price);
 
     for (const r of pfRows) {
-      if (stockMap[r.sym]) mv += stockMap[r.sym] * r.qty;
+      if (stockMap[r.sym]) {
+        mv += stockMap[r.sym] * r.qty;
+      } else {
+        orphanQty += r.qty;
+        orphans.push({ sym: r.sym, qty: r.qty });
+      }
     }
     const totalWealth = rows[0].balance + mv;
 
-    res.json({ ...toPublicUser(rows[0], { includePhotoData: true }), wealthTier: computeTier(totalWealth) });
+    res.json({ ...toPublicUser(rows[0], { includePhotoData: true }), wealthTier: computeTier(totalWealth), orphanQty, orphans: orphans.length > 0 ? orphans : undefined });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -269,9 +276,15 @@ router.get('/:id/public', async (req, res) => {
     const txStats = txCountRows[0] || {};
 
     let mv = 0;
+    let orphanQty = 0;
+    const orphans = [];
     const holdings = pfRows.map(({ sym, qty }) => {
       const s = stockMap[sym];
-      if (!s) return null;
+      if (!s) {
+        orphanQty += qty;
+        orphans.push({ sym, qty });
+        return null;
+      }
       const value = s.price * qty;
       mv += value;
       const ref = s.day_open != null ? s.day_open : s.open;
@@ -330,6 +343,7 @@ router.get('/:id/public', async (req, res) => {
       holdings,
       transactions,
       assetsCount: holdings.length,
+      orphanQty, orphans: orphans.length > 0 ? orphans : undefined,
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

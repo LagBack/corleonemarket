@@ -867,9 +867,11 @@ async function renderPortfolio() {
     CU.balance = user.balance;
     const pf = portfolio || {};
     let mv = 0;
+    let orphanQty = 0;
     Object.entries(pf).forEach(([sym, qty]) => {
       const s = stocks.find(x => x.sym === sym);
       if (s) mv += s.price * qty;
+      else orphanQty += qty; // track orphaned qty even when stock is missing
     });
     const total = CU.balance + mv;
     const txs = (transactions || []);
@@ -880,10 +882,18 @@ async function renderPortfolio() {
       <div class="stat"><div class="stat-label">Operações</div><div class="stat-val serif">${txs.length}</div><div class="stat-sub">C:${txs.filter(t=>t.type==='buy').length} V:${txs.filter(t=>t.type==='sell').length}</div></div>
     `;
     const pfArr = Object.entries(pf).filter(([, q]) => q > 0);
-    document.getElementById('pf-assets').innerHTML = pfArr.length
-      ? pfArr.map(([sym, qty]) => {
+    const validAssets = [];
+    const orphanAssets = [];
+    pfArr.forEach(([sym, qty]) => {
+      const s = stocks.find(x => x.sym === sym);
+      if (s) validAssets.push([sym, qty]);
+      else orphanAssets.push([sym, qty]);
+    });
+
+    let assetHtml = '';
+    if (validAssets.length > 0 || orphanAssets.length > 0) {
+      assetHtml = validAssets.map(([sym, qty]) => {
           const s = stocks.find(x => x.sym === sym);
-          if (!s) return '';
           const val = s.price * qty;
           const pl = (s.price - s.open) * qty;
           return `<div class="pf-item">
@@ -892,8 +902,21 @@ async function renderPortfolio() {
             <div style="text-align:right"><div class="mono" style="font-size:13px">R$${val.toFixed(2)}</div><div class="${pl>=0?'price-up':'price-dn'} mono" style="font-size:10px">${pl>=0?'+':''}R$${pl.toFixed(2)}</div></div>
             <button class="btn btn-r btn-sm" style="margin-left:10px" onclick="goTrade('${sym}');setOT('sell')">Vender</button>
           </div>`;
-        }).join('')
-      : '<p style="color:var(--text3);font-size:12px;padding:10px 0">Nenhum ativo.</p>';
+        }).join('') + 
+        (orphanAssets.length > 0 ? orphanAssets.map(([sym, qty]) =>
+          `<div class="pf-item" style="border:1px solid var(--red2);opacity:0.7">
+            <span class="sym-tag" style="background:var(--red2);color:#fff">⚠ ORFÃ</span>
+            <div style="flex:1;margin-left:10px"><div style="font-weight:600;font-size:12px;color:var(--text3)">${sym} (empresa removida)</div><div style="font-size:10px;color:var(--red2)">${qty} cotas — valor não recuperado</div></div>
+          </div>`
+        ).join('') : '');
+    }
+    document.getElementById('pf-assets').innerHTML = assetHtml || '<p style="color:var(--text3);font-size:12px;padding:10px 0">Nenhum ativo.</p>';
+
+    // Warn about orphaned holdings
+    if (orphanQty > 0) {
+      const warnDiv = document.getElementById('pf-orphan-warn');
+      if (warnDiv) warnDiv.style.display = 'block';
+    }
     // Compute fee totals for summary
     const totalBuyFees = txs.filter(t => t.fee_type === 'buy_fee').reduce((a, t) => a + (t.fee || 0), 0);
     const totalSellFees = txs.filter(t => t.fee_type === 'sell_fee').reduce((a, t) => a + (t.fee || 0), 0);
@@ -950,6 +973,7 @@ async function renderRanking() {
     document.getElementById('rank-inv').innerHTML = pageInvestors.map((r, i) => {
       const realIdx = start + i;
       const avHtml = userAvatarHtml(r, { wrapClass: 'rank-av' });
+      const orphanBadge = r.orphans ? `<span class="badge-tip" style="margin-left:4px"><span class="badge" style="background:var(--red2);color:#fff;font-size:9px">⚠ ${r.orphans.length} orfã</span></span>` : '';
       return `<div class="rank-row" onclick="openProfileModal('${r.id}')" style="cursor:pointer" title="Ver perfil">
         <div class="rank-n ${medals[realIdx]||''} serif">${realIdx+1}</div>
         ${avHtml}
@@ -957,7 +981,7 @@ async function renderRanking() {
           <div style="font-weight:600;font-size:13px" class="${getFontClass()}">${r.name} <span style="font-size:10px;color:var(--text3)">${formatCountry(r.country)}</span></div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
             <span class="badge-tip"><span class="tier-badge ${r.wealthTier}" style="color:${tierColorStr(r.wealthTier)}">${tierBadge(r.wealthTier)} ${tierName(r.wealthTier)}</span><span class="tip-bubble">${tierTooltip(r.wealthTier)}</span></span>
-            ${r.role !== 'user' ? `<span class="badge-tip"><span class="role-badge ${r.role}">${roleLabel(r.role)}</span></span>` : ''}${supporterBadge(r)}
+            ${orphanBadge}${r.role !== 'user' ? `<span class="badge-tip"><span class="role-badge ${r.role}">${roleLabel(r.role)}</span></span>` : ''}${supporterBadge(r)}
           </div>
           <div style="font-size:10px;color:var(--text3)">Cash R$${fmtN(r.cash)}</div>
         </div>
@@ -2072,7 +2096,7 @@ async function openProfileModal(uid) {
 
       <div class="prof-tabs">
         <button type="button" class="prof-tab active" data-tab="summary" onclick="switchProfileTab('summary')">Resumo</button>
-        <button type="button" class="prof-tab" data-tab="portfolio" onclick="switchProfileTab('portfolio')">Carteira (${p.assetsCount || 0})</button>
+        <button type="button" class="prof-tab" data-tab="portfolio" onclick="switchProfileTab('portfolio')">Carteira (${p.assetsCount || 0}${p.orphans ? ' ⚠' : ''})</button>
         <button type="button" class="prof-tab" data-tab="ops" onclick="switchProfileTab('ops')">Operações (${p.totalTx || 0})</button>
       </div>
 

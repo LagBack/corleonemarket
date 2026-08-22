@@ -154,12 +154,14 @@ router.put('/:sym', requireMod, async (req, res) => {
   }
 });
 
-// DELETE /api/stocks/:sym — admin only
+// DELETE /api/stocks/:sym — admin only (soft delete: marks as 'deleted', keeps syms for portfolio integrity)
 router.delete('/:sym', requireAdmin, async (req, res) => {
   const sym = req.params.sym.toUpperCase();
-  await pool.query('DELETE FROM companies WHERE `sym` = ?', [sym]);
+  // Soft-delete: set status to 'deleted' so portfolio holdings remain valid
+  // Also clean up company_owners but keep the row in companies table
+  await pool.query("UPDATE companies SET `status`='deleted', `demand`=0, `supply`=0 WHERE `sym` = ?", [sym]);
   await pool.query('DELETE FROM company_owners WHERE `sym` = ?', [sym]);
-  await logAdmin(`Ativo ${sym} DELETADO por ${req.session.userId}`);
+  await logAdmin(`Ativo ${sym} DESATIVADO (soft delete) por ${req.session.userId}`);
   res.json({ ok: true });
 });
 

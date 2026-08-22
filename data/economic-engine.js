@@ -50,6 +50,14 @@ async function computeNetWorth(uid) {
     } catch(_) {} // company table may not exist yet during migration
   }
 
+  // Log any orphaned holdings for this user (for audit/debugging)
+  const allCompanies = await pool.query('SELECT `sym`, `status` FROM companies');
+  const activeSyms = new Set(allCompanies[0].filter(c => c.status === 'active').map(c => c.sym));
+  const orphanSyms = pfRows.filter(r => !activeSyms.has(r.sym)).map(r => r.sym);
+  if (orphanSyms.length > 0) {
+    console.warn(`⚠️ Orphaned portfolio for user ${uid}: holdings in [${orphanSyms.join(', ')}] — no matching active company`);
+  }
+
   const netWorth = user.balance + mv;
   return { netWorth: Math.round(netWorth * 100) / 100, cash: user.balance, marketValue: Math.round(mv * 100) / 100 };
 }
