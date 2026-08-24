@@ -400,6 +400,19 @@ async function startApp() {
   routeFromHash();
   startPolling();
   startKeepAlive();
+  enableHorizontalWheelScroll('.hn');
+  enableHorizontalWheelScroll('.bottom-nav');
+}
+
+function enableHorizontalWheelScroll(selector) {
+  var el = document.querySelector(selector);
+  if (!el) return;
+  el.addEventListener('wheel', function(e) {
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    }
+  }, { passive: false });
 }
 
 function canAccessAdmin() {
