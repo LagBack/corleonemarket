@@ -350,13 +350,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   display:none;position:fixed;bottom:0;left:0;right:0;z-index:60;
   background:var(--s1);border-top:1px solid var(--border);
   padding:6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
-  justify-content:space-around;gap:2px;
+  justify-content:flex-start;gap:2px;
+  overflow-x:auto;overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
 }
+.bottom-nav::-webkit-scrollbar{display:none}
 .bottom-nav-btn{
-  flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;
-  padding:6px 2px;border:none;background:transparent;color:var(--text3);
+  flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:6px 14px;border:none;background:transparent;color:var(--text3);
   cursor:pointer;font-family:'DM Sans',sans-serif;font-size:9px;font-weight:600;
   letter-spacing:.3px;text-transform:uppercase;border-radius:6px;transition:all .15s;
+  white-space:nowrap;min-width:max-content;
 }
 .bottom-nav-btn .bn-icon{font-size:18px;line-height:1}
 .bottom-nav-btn.active{color:var(--gold2);background:var(--gold-dim)}
