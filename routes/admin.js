@@ -243,6 +243,113 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Orphaned Company Cleanup (admin) ─────────────────────────────
+
+/** Calculate cost basis using FIFO purchase history */
+async function calcOrphanRefund(userId, sym) {
+  const [buys] = await pool.query(
+    'SELECT qty, total FROM transactions WHERE uid = ? AND type = "buy" AND sym = ? ORDER BY ts ASC',
+    [userId, sym.toUpperCase()]
+  );
+  if (buys.length === 0) return 0;
+
+  const [pf] = await pool.query(
+    'SELECT qty FROM portfolios WHERE user_id = ? AND sym = ? AND qty > 0 LIMIT 1',
+    [userId, sym.toUpperCase()]
+  );
+  const remainingQty = pf.length > 0 ? pf[0].qty : 0;
+  if (remainingQty <= 0) return 0;
+
+  // Proportional refund based on total paid / total bought
+  const totalBought = buys.reduce((s, b) => s + b.qty, 0);
+  const totalPaid = buys.reduce((s, b) => s + b.total, 0);
+  if (totalBought === 0) return 0;
+
+  const pricePerShare = totalPaid / totalBought;
+  return Math.round(pricePerShare * remainingQty * 100) / 100;
+}
+
+/** GET /api/admin/orphans — audit orphaned holdings */
+router.get('/orphans', requireAdmin, async (req, res) => {
+  try {
+    const [orphanRows] = await pool.query(
+      'SELECT p.user_id, p.sym, p.qty, u.nick, u.name, u.balance, c.name as company_name, c.status as company_status ' +
+      'FROM portfolios p ' +
+      'JOIN users u ON u.id = p.user_id ' +
+      'LEFT JOIN companies c ON c.sym = p.sym ' +
+      'WHERE p.qty > 0 AND (c.sym IS NULL OR c.status != "active") ' +
+      'ORDER BY p.user_id, p.sym'
+    );
+
+    const orphansByUser = {};
+    for (const r of orphanRows) {
+      if (!orphansByUser[r.user_id]) {
+        orphansByUser[r.user_id] = { nick: r.nick, name: r.name, balance: r.balance, holdings: [] };
+      }
+      orphansByUser[r.user_id].holdings.push({ sym: r.sym, qty: r.qty, companyName: r.company_name || '(deleted record)', status: r.company_status });
+    }
+
+    // Calculate estimated refunds
+    const estimates = {};
+    let totalRefund = 0;
+    for (const [uid, info] of Object.entries(orphansByUser)) {
+      estimates[uid] = [];
+      for (const h of info.holdings) {
+        const refund = await calcOrphanRefund(uid, h.sym);
+        if (refund > 0.01) totalRefund += refund;
+        estimates[uid].push({ sym: h.sym, qty: h.qty, estimatedRefund: Math.round(refund * 100) / 100 });
+      }
+    }
+
+    res.json({
+      orphanCount: orphanRows.length,
+      usersAffected: Object.keys(orphansByUser).length,
+      estimates,
+      totalEstimatedRefund: totalRefund,
+      orphansByUser
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/** POST /api/admin/orphans/cleanup — refund users and remove orphaned holdings */
+router.post('/orphans/cleanup', requireAdmin, async (req, res) => {
+  try {
+    const [orphanRows] = await pool.query(
+      'SELECT p.user_id, p.sym, p.qty FROM portfolios p WHERE p.qty > 0 AND p.sym NOT IN (SELECT sym FROM companies WHERE status = "active") ORDER BY p.user_id, p.sym'
+    );
+
+    if (orphanRows.length === 0) {
+      return res.json({ ok: true, refunded: 0, cleaned: 0, message: 'No orphans found.' });
+    }
+
+    let totalRefunded = 0;
+    let refundCount = 0;
+    let cleanCount = 0;
+    const results = [];
+
+    for (const h of orphanRows) {
+      // Calculate and process refund
+      const refund = await calcOrphanRefund(h.user_id, h.sym);
+      if (refund > 0.01) {
+        await pool.query('UPDATE users SET `balance` = `balance` + ? WHERE `id` = ?', [refund, h.user_id]);
+        totalRefunded += refund;
+        refundCount++;
+      }
+
+      // Remove orphaned portfolio entry
+      await pool.query('DELETE FROM portfolios WHERE `user_id` = ? AND `sym` = ?', [h.user_id, h.sym]);
+      cleanCount++;
+
+      results.push({ userId: h.user_id, sym: h.sym, qty: h.qty, refund });
+    }
+
+    // Log admin event
+    await logAdmin(`ORPHAN CLEANUP: Refunded R$${totalRefunded.toFixed(2)} (${refundCount} refunds), removed ${cleanCount} orphaned holdings`);
+
+    res.json({ ok: true, refunded: totalRefunded, refundCount, cleaned: cleanCount, results });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /api/admin/dev/download-db
 router.get('/dev/download-db', requireDev, (req, res) => {
   const dbPath = path.join(__dirname, '../data/db.json');

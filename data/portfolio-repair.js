@@ -6,16 +6,25 @@
  *   2. Deleted companies that still have portfolio references
  *   3. Summary of each user's recoverable/lost value
  * 
- * Usage: node data/portfolio-repair.js [--dry-run] [--repair]
+ * Usage: node data/portfolio-repair.js [--dry-run] [--refund-and-cleanup]
  * 
- * --dry-run (default): Only reports issues, does not modify data
- * --repair: Updates status='deleted' companies to active and logs the action
+ * --dry-run (default):       Only reports issues, does not modify data
+ * --refund-and-cleanup:      Refund users their cost basis and remove orphaned holdings
  */
 
 const mysql = require('mysql2/promise');
 const pool = require('./mysql');
 
+async function logAdmin(msg) {
+  pool.query('INSERT INTO admin_events (`t`, `msg`, `ts`) VALUES (?, ?, ?)',
+    [new Date().toLocaleTimeString('pt-BR'), msg, Date.now()]
+  ).catch(() => {});
+}
+
 async function main() {
+  const args = process.argv.slice(2);
+  const mode = args.includes('--refund-and-cleanup') ? 'refund' : 'dry-run';
+  
   console.log('═══════════════════════════════════════════');
   console.log('  CORLEONE MARKET — Portfolio Audit Report');
   console.log('═══════════════════════════════════════════\n');
@@ -171,14 +180,89 @@ async function main() {
     return portfolioRows.some(pr => pr.sym === c.sym);
   }).length > 0) {
     console.log('── REPAIR SUGGESTIONS ─────────────────────');
-    console.log('\nTo restore deleted companies with their original symbols:');
-    console.log('  1. Recreate each deleted company with the SAME sym code');
-    console.log('  2. Orphans will automatically match to the new company');
-    console.log('\nTo find what symbols were lost, run:');
-    const lostSyms = [...new Set(orphanedByUser[userIds[0]] ? Object.values(orphanedByUser).flatMap(u => u.orphans.map(o => o.sym)) : [])];
-    if (lostSyms.length > 0) {
-      console.log(`  Lost symbols: ${lostSyms.join(', ')}`);
+    
+    if (mode !== 'refund') {
+      console.log('\nTo refund users and remove orphaned holdings:');
+      console.log('  node data/portfolio-repair.js --refund-and-cleanup');
+      console.log('  node data/orphan-cleanup.js --refund-and-cleanup');
+      console.log('\nTo restore deleted companies with their original symbols:');
+      console.log('  1. Recreate each deleted company with the SAME sym code');
+      console.log('  2. Orphans will automatically match to the new company');
+    } else {
+      console.log();
     }
+
+    // ── Execute refund-and-cleanup mode ──
+    if (mode === 'refund') {
+      const readline = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+      console.log('\n⚠️  This will PERMANENTLY delete orphaned holdings and refund users.');
+
+      // Calculate per-user refunds using cost basis from purchase transactions
+      for (const ue of corruptedUsers) {
+        ue.refunds = {};
+        let userTotalRefund = 0;
+        for (const sym of ue.missingSymbols) {
+          const [symBuys] = await pool.query(
+            'SELECT qty, total FROM transactions WHERE uid = ? AND type = "buy" AND sym = ? ORDER BY ts ASC',
+            [ue.id, sym]
+          );
+          if (symBuys.length === 0) { ue.refunds[sym] = { qty: 0, refund: 0 }; continue; }
+          const totalBought = symBuys.reduce((s, b) => s + b.qty, 0);
+          const totalPaid   = symBuys.reduce((s, b) => s + b.total, 0);
+          const pricePerShare = totalBought > 0 ? totalPaid / totalBought : 0;
+          const heldQty     = pfMap[ue.id]?.[sym] || 0;
+          const refund      = Math.round(pricePerShare * heldQty * 100) / 100;
+          ue.refunds[sym] = { qty: heldQty, refund };
+          userTotalRefund += refund;
+        }
+      }
+
+      let totalRefund = corruptedUsers.reduce((s, ue) => s + Object.values(ue.refunds).reduce((rs, r) => rs + r.refund, 0), 0);
+      console.log(`\n── REFUND SUMMARY ──────────────────────`);
+      for (const ue of corruptedUsers) {
+        let userTotalRefund = 0;
+        let symDetails = '';
+        for (const [sym, data] of Object.entries(ue.refunds)) {
+          if (data.refund > 0.01) {
+            userTotalRefund += data.refund;
+            symDetails += `${sym}: ${data.qty} shares → R$${data.refund.toFixed(2)} `;
+          }
+        }
+        totalRefund += userTotalRefund;
+        console.log(`  ${ue.nick}: R$${userTotalRefund.toFixed(2)} (${symDetails})`);
+      }
+      console.log(`\n  TOTAL: R$${totalRefund.toFixed(2)}`);
+      
+      const confirm = await new Promise(resolve => {
+        readline.question('\nProceed? (yes/no): ', (answer) => resolve(answer.toLowerCase().trim()));
+      });
+
+      if (confirm === 'yes') {
+        let cleanCount = 0;
+        for (const ue of corruptedUsers) {
+          const userTotalRefund = Object.values(ue.refunds).reduce((s, r) => s + r.refund, 0);
+          if (userTotalRefund > 0.01) {
+            await pool.query('UPDATE users SET `balance` = `balance` + ? WHERE `id` = ?', [userTotalRefund, ue.id]);
+            console.log(`  ✓ Refunded R$${userTotalRefund.toFixed(2)} to ${ue.nick}`);
+          }
+          for (const sym of ue.missingSymbols) {
+            await pool.query('DELETE FROM portfolios WHERE `user_id` = ? AND `sym` = ?', [ue.id, sym]);
+            cleanCount++;
+          }
+          await logAdmin(`ORPHAN CLEANUP: Refunded R$${userTotalRefund.toFixed(2)} to ${ue.nick} (${Object.keys(ue.refunds).length} orphaned holding(s) removed)`);
+        }
+        console.log(`\n═══════════════════════════════════════════`);
+        console.log(`  ORPHAN CLEANUP COMPLETE`);
+        console.log(`  Users refunded: ${corruptedUsers.filter(u => Object.values(u.refunds).some(r => r.refund > 0)).length}`);
+        console.log(`  Orphaned holdings removed: ${cleanCount}`);
+        console.log(`  Total refunded: R$${totalRefund.toFixed(2)}`);
+        console.log(`═══════════════════════════════════════════\n`);
+      } else {
+        console.log('Aborted. No changes were made.');
+      }
+      readline.close();
+    }
+
     console.log('\n═══════════════════════════════════════════');
     console.log('  Audit complete.');
     console.log('═══════════════════════════════════════════\n');

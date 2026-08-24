@@ -5,6 +5,79 @@ const { requireMod, requireAdmin } = require('../middleware/auth');
 
 // ── helpers ───────────────────────────────────────────────────────
 
+/**
+ * Calculate cost basis for a user's holdings in a symbol using FIFO purchase history.
+ */
+async function calcCostBasis(userId, sym) {
+  const [buys] = await pool.query(
+    'SELECT qty, total FROM transactions WHERE uid = ? AND type = "buy" AND sym = ? ORDER BY ts ASC',
+    [userId, sym.toUpperCase()]
+  );
+  if (buys.length === 0) return 0;
+
+  const [portfolio] = await pool.query(
+    'SELECT qty FROM portfolios WHERE user_id = ? AND sym = ? AND qty > 0 LIMIT 1',
+    [userId, sym.toUpperCase()]
+  );
+  const remainingQty = portfolio.length > 0 ? portfolio[0].qty : 0;
+  if (remainingQty <= 0) return 0;
+
+  // FIFO: account for any sells against earliest buys
+  const [sells] = await pool.query(
+    'SELECT qty FROM transactions WHERE uid = ? AND type = "sell" AND sym = ? ORDER BY ts ASC',
+    [userId, sym.toUpperCase()]
+  );
+  let sellAccum = sells.reduce((s, x) => s + x.qty, 0);
+
+  // Simple proportional refund: totalPaid/totalBought * remainingQty
+  const totalBought = buys.reduce((s, b) => s + b.qty, 0);
+  const totalPaid = buys.reduce((s, b) => s + b.total, 0);
+  if (totalBought === 0) return 0;
+
+  const pricePerShare = totalPaid / totalBought;
+  return Math.round(pricePerShare * remainingQty * 100) / 100;
+}
+
+/**
+ * Process refund for all users holding a company about to be deleted.
+ * Returns array of {userId, amount, sym, qty, userName} records.
+ */
+async function processCompanyDeletionRefund(sym) {
+  const upperSym = sym.toUpperCase();
+  
+  // Find all users holding this symbol
+  const [holders] = await pool.query(
+    'SELECT p.user_id, p.qty, u.nick, u.name FROM portfolios p JOIN users u ON u.id = p.user_id WHERE p.sym = ? AND p.qty > 0',
+    [upperSym]
+  );
+
+  if (holders.length === 0) return [];
+
+  const refunds = [];
+  for (const h of holders) {
+    const refundAmount = await calcCostBasis(h.user_id, upperSym);
+    if (refundAmount > 0.01) {
+      // Refund to user balance
+      await pool.query(
+        'UPDATE users SET `balance` = `balance` + ? WHERE `id` = ?',
+        [refundAmount, h.user_id]
+      );
+      refunds.push({ userId: h.user_id, amount: refundAmount, sym: upperSym, qty: h.qty, userName: h.nick || h.name });
+
+      // Remove orphaned portfolio entry
+      await pool.query(
+        'DELETE FROM portfolios WHERE `user_id` = ? AND `sym` = ?',
+        [h.user_id, upperSym]
+      );
+
+      // Log the action
+      await logAdmin(`ORPHAN CLEANUP: Refunded R$${refundAmount.toFixed(2)} to ${h.nick || h.name} for ${upperSym} (${h.qty} shares) — auto-refund on company deletion`);
+    }
+  }
+
+  return refunds;
+}
+
 async function getStock(sym) {
   const [rows] = await pool.query('SELECT * FROM companies WHERE `sym` = ?', [sym.toUpperCase()]);
   return rows[0] || null;
@@ -154,15 +227,34 @@ router.put('/:sym', requireMod, async (req, res) => {
   }
 });
 
-// DELETE /api/stocks/:sym — admin only (soft delete: marks as 'deleted', keeps syms for portfolio integrity)
+// DELETE /api/stocks/:sym — admin only (soft delete: marks as 'deleted', refunds holders, cleans up)
 router.delete('/:sym', requireAdmin, async (req, res) => {
   const sym = req.params.sym.toUpperCase();
+  
+  // Check if anyone holds this stock
+  const [holders] = await pool.query(
+    'SELECT COUNT(*) as cnt FROM portfolios WHERE sym = ? AND qty > 0',
+    [sym]
+  );
+
+  let refundInfo = null;
+  if (holders[0].cnt > 0) {
+    // Process auto-refunds before deleting
+    refundInfo = await processCompanyDeletionRefund(sym);
+    
+    // Log admin event with refund details
+    const totalRefunded = refundInfo.reduce((s, r) => s + r.amount, 0);
+    await logAdmin(
+      `Ativo ${sym} DESATIVADO com auto-refundo — R$${totalRefunded.toFixed(2)} refunded to ${refundInfo.length} user(s)`
+    );
+  }
+
   // Soft-delete: set status to 'deleted' so portfolio holdings remain valid
   // Also clean up company_owners but keep the row in companies table
   await pool.query("UPDATE companies SET `status`='deleted', `demand`=0, `supply`=0 WHERE `sym` = ?", [sym]);
   await pool.query('DELETE FROM company_owners WHERE `sym` = ?', [sym]);
-  await logAdmin(`Ativo ${sym} DESATIVADO (soft delete) por ${req.session.userId}`);
-  res.json({ ok: true });
+
+  res.json({ ok: true, refundInfo });
 });
 
 // ── Ownership marketplace (P2P revenue-share stake listings) ──────

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Orphaned Company Cleanup — Corleone Market</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; color: #eee; padding: 40px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin-bottom: 8px; color: #e94560; }
+    p.hint { font-size: 0.85rem; color: #888; margin-bottom: 20px; }
+    
+    label { display: block; font-size: 0.85rem; color: #aaa; margin-bottom: 4px; }
+    input[type="text"] { 
+      width: 100%; padding: 10px 14px; background: #16213e; border: 1px solid #0f3460; 
+      color: #eee; font-size: 0.95rem; border-radius: 6px; margin-bottom: 16px;
+    }
+    
+    .btn {
+      display: inline-block; padding: 10px 24px; border: none; border-radius: 6px;
+      font-size: 0.95rem; cursor: pointer; margin-right: 8px; margin-bottom: 8px;
+    }
+    .btn-primary { background: #e94560; color: #fff; }
+    .btn-primary:hover { background: #c73e56; }
+    .btn-danger { background: #ff6b35; color: #fff; }
+    .btn-danger:hover { background: #e85a2a; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .card { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 20px; margin-top: 20px; }
+    .card h2 { font-size: 1.1rem; color: #e94560; margin-bottom: 12px; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #0f3460; font-size: 0.85rem; }
+    th { color: #e94560; font-weight: 600; }
+    td.gold { color: #ffd700; }
+    
+    .status { padding: 6px 12px; border-radius: 4px; display: inline-block; font-size: 0.85rem; }
+    .status.ok { background: #0a3d2e; color: #2ecc71; }
+    .status.error { background: #3d0a0a; color: #e74c3c; }
+    .status.waiting { background: #3d3d0a; color: #f1c40f; }
+    
+    .summary { display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
+    .summary-box { background: #1a1a2e; padding: 16px; border-radius: 6px; flex: 1; min-width: 150px; text-align: center; }
+    .summary-box .val { font-size: 1.8rem; font-weight: bold; color: #ffd700; }
+    .summary-box .label { font-size: 0.8rem; color: #888; margin-top: 4px; }
+    
+    pre.sql { background: #0a0a1a; padding: 16px; border-radius: 6px; overflow-x: auto; 
+               font-size: 0.8rem; color: #aaa; margin-top: 12px; line-height: 1.5; }
+    pre.sql .comment { color: #4a9; }
+    
+    textarea.copy-area { width: 100%; height: 200px; background: #0a0a1a; color: #aaa; border: 1px solid #0f3460; 
+                          padding: 12px; font-size: 0.8rem; border-radius: 6px; font-family: monospace; margin-top: 8px; }
+    
+    .copy-btn { background: #0f3460; color: #eee; padding: 6px 16px; border: none; border-radius: 4px; cursor: pointer; 
+                font-size: 0.8rem; margin-top: 8px; }
+    .copy-btn:hover { background: #1a4f8f; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Orphaned Company Cleanup — Corleone Market</h1>
+    <p class="hint">Audit and refund users holding shares in deleted companies.</p>
+
+    <!-- API URL -->
+    <label for="apiUrl">Remote API Base URL</label>
+    <input type="text" id="apiUrl" value="http://localhost:3000/api/admin" placeholder="https://your-app.herokuapp.com/api/admin">
+
+    <!-- Actions -->
+    <div style="margin-top: 24px;">
+      <button class="btn btn-primary" id="auditBtn" onclick="doAudit()">Orphaned Company Cleanup — Corleone Market</h1>
+    <p class="hint">Audit and refund users holding shares in deleted companies.</p>
+
+    <!-- API URL -->
+    <label for="apiUrl">Remote API Base URL</label>
+    <input type="text" id="apiUrl" value="http://localhost:3000/api/admin" placeholder="https://your-app.herokuapp.com/api/admin">
+
+    <!-- Actions -->
+    <div style="margin-top: 24px;">
+      <button class="btn btn-primary" id="auditBtn" onclick="doAudit()">🔍 Audit Orphans</button>
+      <button class="btn btn-danger" id="cleanupBtn" onclick="doCleanup()" disabled>🧹 Refund & Clean Up All Orphans</button>
+    </div>
+
+    <!-- Results -->
+    <div id="results"></div>
+  </div>
+
+<script>
+const resultsDiv = document.getElementById('results');
+const auditBtn = document.getElementById('auditBtn');
+const cleanupBtn = document.getElementById('cleanupBtn');
+
+function getBaseUrl() {
+  return document.getElementById('apiUrl').value.replace(/\/+$/, '');
+}
+
+async function doAudit() {
+  const base = getBaseUrl();
+  auditBtn.disabled = true;
+  auditBtn.textContent = '⏳ Auditing...';
+  
+  try {
+    const resp = await fetch(base + '/orphans');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+    const data = await resp.json();
+    
+    renderAuditResults(data);
+    cleanupBtn.disabled = false;
+  } catch (err) {
+    resultsDiv.innerHTML = `<div class="card"><h2>Audit Failed</h2><p class="status error">${escapeHtml(err.message)}</p>
+      <p style="margin-top:12px;font-size:0.85rem;color:#888;">Check that your remote app is running and the code includes the orphans endpoints.</p></div>`;
+  } finally {
+    auditBtn.disabled = false;
+    auditBtn.textContent = '🔍 Audit Orphans';
+  }
+}
+
+function renderAuditResults(data) {
+  const totalRefund = (data.totalEstimatedRefund || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  
+  let userRows = '';
+  if (data.orphansByUser) {
+    Object.entries(data.orphansByUser).forEach(([uid, info]) => {
+      userRows += `<tr><td>${escapeHtml(info.nick || info.name)}</td>
+        <td>R$${(info.balance||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+        <td style="font-family:monospace;">${info.holdings.map(h=>`${h.sym} (${h.qty})`).join(', ')}</td></tr>`;
+    });
+  }
+
+  let estimateRows = '';
+  if (data.estimates) {
+    Object.entries(data.estimates).forEach(([uid, items]) => {
+      const symList = items.map(i => `<tr><td style="font-family:monospace;">${escapeHtml(i.sym)}</td>
+        <td>${i.qty}</td>
+        <td class="gold">R$${i.estimatedRefund.toFixed(2)}</td></tr>`).join('');
+      estimateRows += `<tr><th colspan="3" style="background:#0f3460;font-size:0.8rem;">User ${escapeHtml(uid)}</th></tr>${symList}`;
+    });
+  }
+
+  resultsDiv.innerHTML = `
+    <div class="card"><h2>Audit Results</h2>
+      <div class="summary">
+        <div class="summary-box"><div class="val">${data.orphanCount || 0}</div><div class="label">Orphan Holdings</div></div>
+        <div class="summary-box"><div class="val">${data.usersAffected || 0}</div><div class="label">Users Affected</div></div>
+        <div class="summary-box"><div class="val" style="color:#2ecc71;">R$${totalRefund}</div><div class="label">Total Refund</div></div>
+      </div>
+    </div>
+
+    <div class="card"><h2>Affected Users</h2>
+      <table><thead><tr><th>User</th><th>Bal. Cash</th><th>Orphan Shares</th></tr></thead>
+        <tbody>${userRows || '<tr><td colspan="3">None</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <div class="card"><h2>Estimated Refunds (cost basis from purchase transactions)</h2>
+      <table><thead><tr><th>User</th><th>Symbol</th><th>Qty</th><th>Refund Amount</th></tr></thead>
+        <tbody>${estimateRows || '<tr><td colspan="4">None</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+async function doCleanup() {
+  if (!confirm('This will refund all users and remove orphaned holdings. Confirm?')) return;
+  
+  const base = getBaseUrl();
+  cleanupBtn.disabled = true;
+  cleanupBtn.textContent = '⏳ Cleaning up...';
+  
+  try {
+    const resp = await fetch(base + '/orphans/cleanup', { method: 'POST' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+    const data = await resp.json();
+    
+    resultsDiv.innerHTML = `
+      <div class="card"><h2>Cleanup Complete!</h2>
+        <div class="summary">
+          <div class="summary-box"><div class="val" style="color:#2ecc71;">R$${data.refunded.toFixed(2)}</div><div class="label">Total Refunded</div></div>
+          <div class="summary-box"><div class="val">${data.refundCount || 0}</div><div class="label">Refunds</div></div>
+          <div class="summary-box"><div class="val">${data.cleaned || 0}</div><div class="label">Orphans Removed</div></div>
+        </div>
+      </div>`;
+      
+    // Also generate SQL for their records
+    renderGeneratedSQL(data, base);
+    
+  } catch (err) {
+    resultsDiv.innerHTML = `<div class="card"><h2>Cleanup Failed</h2><p class="status error">${escapeHtml(err.message)}</p></div>`;
+  } finally {
+    cleanupBtn.disabled = false;
+    cleanupBtn.textContent = '🧹 Refund & Clean Up All Orphans';
+  }
+}
+
+function renderGeneratedSQL(data, base) {
+  let sql = '-- ============================================================\n';
+  sql += '-- Generated by orphan-cleanup.html\n';
+  sql += '-- Run in your remote MySQL database (phpMyAdmin)\n';
+  sql += '-- ============================================================\n\n';
+  
+  if (data.results && data.results.length > 0) {
+    const byUser = {};
+    data.results.forEach(r => {
+      if (!byUser[r.userId]) byUser[r.userId] = [];
+      byUser[r.userId].push(r);
+    });
+    
+    Object.entries(byUser).forEach(([uid, rows]) => {
+      let total = 0;
+      rows.forEach(r => total += r.refund || 0);
+      if (total > 0.01) {
+        sql += `-- User ${uid}: refund R$${total.toFixed(2)}\n`;
+        sql += `UPDATE users SET \`balance\` = \`balance\` + ${total.toFixed(2)} WHERE \`id\` = '${uid}';\n\n`;
+      }
+    });
+    
+    data.results.forEach(r => {
+      sql += `DELETE FROM portfolios WHERE \`user_id\` = '${r.userId}' AND \`sym\` = '${r.sym}';\n`;
+    });
+  }
+
+  resultsDiv.innerHTML += `<div class="card"><h2>Corresponding SQL (for your records)</h2>
+    <button class="copy-btn" onclick="copySQL(this)">Copy SQL</button>
+    <textarea class="copy-area" id="sqlOutput">${escapeHtml(sql)}</textarea></div>`;
+}
+
+function copySQL(btn) {
+  const ta = document.getElementById('sqlOutput');
+  navigator.clipboard.writeText(ta.value).then(() => {
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = 'Copy SQL', 2000);
+  });
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
