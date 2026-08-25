@@ -35,18 +35,46 @@ router.get('/me', requireAuth, async (req, res) => {
     let orphanQty = 0;
     const orphans = [];
     const pfRows = await pool.query('SELECT sym, qty FROM portfolios WHERE user_id = ? AND qty > 0', [req.session.userId]);
-    const [stockRows] = await pool.query('SELECT `sym`, `price` FROM companies');
+    // Load ALL companies (including deleted) so recreated-company name matching works
+    const [stockRows] = await pool.query('SELECT `sym`, `price`, `name`, `status` FROM companies');
     const stockMap = {};
+    const deletedByName = {};  // maps cleaned-deleted-name -> company row
     // MUST uppercase keys — portfolios table always stores UPPERCASE symbols (e.g. 'CRLNE4')
-    // If companies.sym is stored as lowercase/mixed-case, case-sensitive JS lookup would fail
-    stockRows.forEach(s => { stockMap[s.sym.toUpperCase()] = s.price; });
+    stockRows.forEach(s => {
+      if (!s || !s.sym) return;
+      stockMap[s.sym.toUpperCase()] = s;
+      if (s.status === 'deleted' && s.name) {
+        const clean = s.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        deletedByName[clean] = s;
+      }
+    });
 
     for (const r of pfRows) {
       if (!r?.sym) continue;  // skip rows with null/empty symbol
       const symUpper = r.sym.toUpperCase();
-      if (stockMap[symUpper]) {
-        mv += stockMap[symUpper] * r.qty;
-      } else {
+      let matched = false;
+      
+      // Exact ticker match
+      let s = stockMap[symUpper];
+      if (s && s.status === 'active') {
+        mv += s.price * r.qty;
+        matched = true;
+      } else if (s && s.status === 'deleted' && s.name) {
+        // Deleted ticker — try name match with active companies (recreated companies)
+        const cleanName = s.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        for (const key of Object.keys(stockMap)) {
+          const active = stockMap[key];
+          if (!active || active.status !== 'active' || !active.name) continue;
+          const activeClean = active.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (cleanName.includes(activeClean) || activeClean.includes(cleanName)) {
+            mv += active.price * r.qty;
+            matched = true;
+            break;
+          }
+        }
+      }
+      
+      if (!matched) {
         orphanQty += r.qty;
         orphans.push({ sym: r.sym, qty: r.qty });
       }
@@ -73,7 +101,7 @@ router.get('/me/dividends', requireAuth, async (req, res) => {
     const [stockRows] = await pool.query('SELECT `sym`, `price`, `name`, `total_revenue` FROM companies WHERE `status` = "active"');
     const stockMap = {};
     // MUST uppercase keys — company_owners table stores UPPERCASE symbols
-    stockRows.forEach(s => { stockMap[s.sym.toUpperCase()] = s; });
+    stockRows.forEach(s => { if (s && s.sym) stockMap[s.sym.toUpperCase()] = s; });
 
     const [ownerRows] = await pool.query(
       'SELECT sym, pct FROM company_owners WHERE user_id = ?',
@@ -256,22 +284,12 @@ router.get('/:id/public', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado.' });
     const user = rows[0];
     // Load ALL companies (including deleted) so ticker matching works for re-created companies
-    const stocks = await pool.query('SELECT `sym`, `price`, `name`, `sector`, `shares`, `status`, `day_open`, `open` FROM companies');
+    const [stocks] = await pool.query('SELECT `sym`, `price`, `name`, `sector`, `shares`, `status`, `day_open`, `open` FROM companies');
     const stockMap = {};
-    // MUST uppercase keys — portfolios table always stores UPPERCASE symbols (e.g. 'CRLNE4')
-    if (stocks && stocks.length) {
-      for (const s of stocks) {
-        if (!s || !s.sym) continue;  // skip rows with missing data
-        const key = s.sym.toUpperCase();
-        const existing = stockMap[key];
-        if (!existing) {
-          stockMap[key] = s;
-        } else if (s.status === 'active' && existing.status !== 'active') {
-          // Prefer active over non-active when duplicate ticker exists
-          stockMap[key] = s;
-        }
-      }
-    };
+    // Simple overwrite: if same ticker has both active + deleted rows, last row wins
+    // This is critical because ranking also uses this strategy and must stay consistent
+    (stocks || []).forEach(s => { if (s && s.sym) stockMap[s.sym.toUpperCase()] = s; });
+
     const hideFinance = ['admin', 'dev'].includes(user.role);
 
     const [pfRows] = await pool.query(
@@ -298,56 +316,117 @@ router.get('/:id/public', async (req, res) => {
     let delistedQty = 0;
     const delisteds = [];
     const trueOrphans = [];
+
+    // Helper: find the best available company info for a given ticker/holding
+    function resolveStock(ticker) {
+      const upper = ticker.toUpperCase();
+      
+      // Step 1: exact sym match
+      let s = stockMap[upper];
+      if (s) {
+        if (s.status === 'active') {
+          return { company: s, type: 'active', delisted: false };
+        }
+        // Deleted ticker found — try name matching with active companies first
+        // (company was deleted+recreated with a different ticker but same name)
+        const deletedName = s.name?.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (deletedName) {
+          for (const activeKey of Object.keys(stockMap)) {
+            const active = stockMap[activeKey];
+            if (!active || active.status !== 'active' || !active.name) continue;
+            const activeName = active.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            // Check substring match both directions (handles name changes like "Company A" → "New Company A")
+            if (deletedName.includes(activeName) || activeName.includes(deletedName)) {
+              return { company: active, type: 'linked', delisted: false };
+            }
+          }
+        }
+        // No link found — show as delisted with last known price
+        return { company: s, type: 'delisted', delisted: true };
+      }
+
+      // Step 2: no exact ticker match — check for deleted rows that might have the same name
+      // (company was deleted+recreated with a different ticker but same name)
+      for (const key of Object.keys(stockMap)) {
+        const candidate = stockMap[key];
+        if (!candidate || candidate.status !== 'deleted' || !candidate.name) continue;
+        
+        const cleanName1 = candidate.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        for (const activeKey of Object.keys(stockMap)) {
+          const active = stockMap[activeKey];
+          if (!active || active.status !== 'active' || !active.name) continue;
+          const cleanName2 = active.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          
+          // Check substring match both directions (handles name changes like "Company A" → "New Company A")
+          if (cleanName1.includes(cleanName2) || cleanName2.includes(cleanName1)) {
+            return { company: active, type: 'linked', delisted: false };
+          }
+        }
+      }
+
+      // Step 3: truly orphaned — ticker doesn't exist at all in companies table.
+      // Still show it as delisted (with R$0 price) rather than "not found" to avoid confusion.
+      return { company: null, type: 'orphan', delisted: true };
+    }
+
     const holdings = pfRows.filter(r => r?.sym).map(({ sym, qty }) => {
-      const s = stockMap[sym.toUpperCase()];
-      if (!s) {
-        // True orphan: ticker doesn't exist at all in companies table
-        delistedQty += qty;
-        trueOrphans.push({ sym, qty });
+      const result = resolveStock(sym);
+      const isDelisted = result.delisted;
+
+      if (result.type === 'active') {
+        const s = result.company;
+        const value = s.price * qty;
+        mv += value;
+        const ref = s.day_open != null ? s.day_open : s.open;
+        const dayPct = ref > 0 ? (s.price - ref) / ref * 100 : 0;
         return {
           sym,
-          name: `🗑️ ${sym} (not found)`,
-          sector: 'unknown',
+          name: s.name,
+          sector: s.sector,
           qty,
-          price: 0,
-          value: 0,
-          pctOfCompany: 0,
-          dayPct: 0,
-          status: 'deleted',
-        };
-      }
-      const isDelisted = s.status !== 'active';
-      if (isDelisted) {
-        // Company exists but not active (may have been deleted and re-created with same ticker)
-        delistedQty += qty;
-        delisteds.push({ sym, qty });
-        const value = qty > 0 ? 0 : 0; // don't count delisted value in wealth
-        return {
-          sym: s.sym,
-          name: `🗑️ ${s.name} (${sym})`,
-          sector: s.sector || 'unknown',
-          qty,
-          price: s.price || 0,
-          value: 0,
+          price: s.price,
+          value,
           pctOfCompany: qty / (s.shares || 1) * 100,
-          dayPct: 0,
-          status: s.status,
+          dayPct: Math.round(dayPct * 100) / 100,
+          status: 'active',
         };
       }
-      const value = s.price * qty;
-      mv += value;
-      const ref = s.day_open != null ? s.day_open : s.open;
-      const dayPct = ref > 0 ? (s.price - ref) / ref * 100 : 0;
+
+      // Linked: name-matched a recreated active company — treat as active for display/value
+      if (result.type === 'linked') {
+        const s = result.company;
+        const value = s.price * qty;
+        mv += value;
+        const ref = s.day_open != null ? s.day_open : s.open;
+        const dayPct = ref > 0 ? (s.price - ref) / ref * 100 : 0;
+        return {
+          sym,
+          name: s.name,
+          sector: s.sector,
+          qty,
+          price: s.price,
+          value,
+          pctOfCompany: qty / (s.shares || 1) * 100,
+          dayPct: Math.round(dayPct * 100) / 100,
+          status: 'active',
+          linkedFrom: sym, // preserves original ticker in data for debugging
+        };
+      }
+
+      // Delisted or orphan: show as inactive with last-known price (or 0 if orphaned)
+      const s = result.company;
+      delistedQty += qty;
+      delisteds.push({ sym, qty });
       return {
         sym,
-        name: s.name,
-        sector: s.sector,
+        name: s ? `${s.name} (${sym})` : `🗑️ ${sym}`,
+        sector: s?.sector || 'unknown',
         qty,
-        price: s.price,
-        value,
-        pctOfCompany: qty / (s.shares || 1) * 100,
-        dayPct: Math.round(dayPct * 100) / 100,
-        status: s.status,
+        price: s ? (s.price || 0) : 0,
+        value: 0, // delinated holdings don't count toward net worth
+        pctOfCompany: s && s.shares ? qty / s.shares * 100 : 0,
+        dayPct: 0,
+        status: 'delisted',
       };
     }).sort((a, b) => (b.value || 0) - (a.value || 0));
 
