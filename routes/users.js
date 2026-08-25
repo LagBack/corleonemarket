@@ -49,7 +49,7 @@ router.get('/me', requireAuth, async (req, res) => {
     }
     const totalWealth = rows[0].balance + mv;
 
-    res.json({ ...toPublicUser(rows[0], { includePhotoData: true }), wealthTier: computeTier(totalWealth), assetsCount: holdings.length, orphanQty, orphans: orphans.length > 0 ? orphans : undefined });
+    res.json({ ...toPublicUser(rows[0], { includePhotoData: true }), wealthTier: computeTier(totalWealth), assetsCount: pfRows.length, orphanQty, orphans: orphans.length > 0 ? orphans : undefined });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -283,7 +283,18 @@ router.get('/:id/public', async (req, res) => {
       if (!s) {
         orphanQty += qty;
         orphans.push({ sym, qty });
-        return null;
+        // Include orphaned holdings so user can see what they own (marked as delisted)
+        return {
+          sym,
+          name: `🗑️ ${sym} (delisted)`,
+          sector: 'delisted',
+          qty,
+          price: 0,
+          value: 0,
+          pctOfCompany: 0,
+          dayPct: 0,
+          status: 'deleted',
+        };
       }
       const value = s.price * qty;
       mv += value;
@@ -300,7 +311,7 @@ router.get('/:id/public', async (req, res) => {
         dayPct: Math.round(dayPct * 100) / 100,
         status: s.status,
       };
-    }).filter(Boolean).sort((a, b) => b.value - a.value);
+    }).sort((a, b) => (b.value || 0) - (a.value || 0));
 
     const totalWealth = hideFinance ? null : user.balance + mv;
     holdings.forEach(h => {
