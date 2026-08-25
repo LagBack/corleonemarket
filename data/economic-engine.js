@@ -1,5 +1,5 @@
 // ── Economic Engine (MySQL-backed) ───────────────────────────────────
-// Handles daily maintenance fees, wealth taxes, and insufficient-fund debt tracking.
+// Handles daily maintenance fees, wealth taxes, and insufficient-fund stock liquidation.
 
 const pool = require('./mysql');
 const config = require('./economic-config');
@@ -63,62 +63,237 @@ async function computeNetWorth(uid) {
 }
 
 /**
- * Apply debt to a user who cannot pay a full fee.
+ * Liquidate a user's portfolio holdings proportionally to cover the given amount.
+ * Shares are rounded down to integers (safe — never over-liquidates without adjustment).
+ * If not enough shares exist to cover the fee, liquidates everything and returns what was covered.
+ *
+ * @param {string} uid - User ID
+ * @param {number} amountNeeded - Amount to cover via stock liquidation
+ * @returns {Promise<Array<{sym: string, qtyLiquidated: number, price: number, value: number}>>} Liquidation records
  */
-async function recordDebt(uid, amountNeeded) {
-  const user = await usersStore.getUserById(uid);
-  if (!user) return;
+async function liquidateStocksForFee(uid, amountNeeded) {
+  if (amountNeeded <= 0) return [];
 
-  const debt = Math.max(0, amountNeeded - user.balance);
-  if (debt <= 0) return;
+  // Get user's active portfolio holdings with current prices
+  const [pfRows] = await pool.query(
+    'SELECT p.sym, p.qty FROM portfolios p JOIN companies c ON p.sym = c.sym WHERE p.user_id = ? AND p.qty > 0 AND c.status = "active"',
+    [uid]
+  );
 
-  const clampedDebt = Math.min(debt, 50000);
-  const newBalance = Math.max(-50000, user.balance - amountNeeded);
+  if (!pfRows || pfRows.length === 0) return [];
 
-  await pool.query('UPDATE users SET `balance` = ? WHERE `id` = ?', [newBalance, uid]);
+  // Calculate total portfolio value for proportional allocation
+  let totalPortfolioValue = 0;
+  const holdingsWithPrice = pfRows.map(row => {
+    const price = row.price || 0;
+    const value = price * row.qty;
+    totalPortfolioValue += value;
+    return { sym: row.sym, qty: row.qty, price, value };
+  });
 
-  await logAdmin(`⚠️ ${user.nick || user.name} acumula dívida de R$${formatCurrency(clampedDebt)} por taxa econômica`);
-  return clampedDebt;
+  if (totalPortfolioValue <= 0) return [];
+
+  // Cap at what's available
+  const maxLiquidatable = totalPortfolioValue;
+  const amountToCover = Math.min(amountNeeded, maxLiquidatable);
+
+  const liquidations = [];
+  let remainingAmount = amountToCover;
+
+  // Calculate shares to liquidate proportionally for each holding
+  for (const h of holdingsWithPrice) {
+    if (remainingAmount <= 0) break;
+
+    const proportionalShare = h.value / totalPortfolioValue; // e.g., 0.6667 for 66.67%
+    const rawSharesNeeded = remainingAmount / h.price;
+
+    // Round DOWN to whole shares (safe — never over-liquidates)
+    let sharesToLiquidate = Math.floor(rawSharesNeeded);
+
+    // Ensure we don't liquidate more than held
+    sharesToLiquidate = Math.min(sharesToLiquidate, h.qty);
+
+    if (sharesToLiquidate <= 0) continue;
+
+    const liquidationValue = sharesToLiquidate * h.price;
+    liquidations.push({
+      sym: h.sym,
+      qtyLiquidated: sharesToLiquidate,
+      price: h.price,
+      value: liquidationValue
+    });
+
+    remainingAmount -= liquidationValue;
+  }
+
+  // Handle rounding remainder: if we still haven't covered the full amount,
+  // try adding 1 more share to each holding in order of largest price first
+  if (remainingAmount > 0.01) {
+    // Sort holdings by price descending to maximize coverage per extra share
+    const sortedHoldings = [...holdingsWithPrice].sort((a, b) => b.price - a.price);
+
+    for (const h of sortedHoldings) {
+      if (remainingAmount <= 0.01) break;
+
+      const availableShares = h.qty - liquidations.find(l => l.sym === h.sym)?.qtyLiquidated || h.qty;
+      if (availableShares <= 0) continue;
+
+      // If adding 1 share covers remaining amount, do it
+      if (h.price >= remainingAmount && availableShares > 0) {
+        const existing = liquidations.find(l => l.sym === h.sym);
+        if (existing) {
+          existing.qtyLiquidated += 1;
+          existing.value += h.price;
+        } else {
+          liquidations.push({
+            sym: h.sym,
+            qtyLiquidated: 1,
+            price: h.price,
+            value: h.price
+          });
+        }
+        remainingAmount -= h.price;
+      }
+    }
+  }
+
+  // If we STILL haven't covered the full amount due to rounding, try a second pass
+  if (remainingAmount > 0.01) {
+    const allHoldings = [...holdingsWithPrice].sort((a, b) => b.price - a.price);
+    for (const h of allHoldings) {
+      if (remainingAmount <= 0.01) break;
+      const availableShares = h.qty - liquidations.find(l => l.sym === h.sym)?.qtyLiquidated || h.qty;
+      if (availableShares > 0 && h.price >= remainingAmount) {
+        const existing = liquidations.find(l => l.sym === h.sym);
+        if (existing) {
+          existing.qtyLiquidated += 1;
+          existing.value += h.price;
+        } else {
+          liquidations.push({
+            sym: h.sym,
+            qtyLiquidated: 1,
+            price: h.price,
+            value: h.price
+          });
+        }
+        remainingAmount -= h.price;
+      }
+    }
+  }
+
+  // Update portfolio quantities in database
+  for (const liq of liquidations) {
+    await pool.query(
+      'UPDATE portfolios SET qty = qty - ? WHERE user_id = ? AND sym = ? AND qty >= ?',
+      [liq.qtyLiquidated, uid, liq.sym, liq.qtyLiquidated]
+    );
+  }
+
+  // Clean up rows where quantity becomes zero or less
+  await pool.query(
+    'DELETE FROM portfolios WHERE user_id = ? AND qty <= 0',
+    [uid]
+  );
+
+  return liquidations;
 }
 
 /**
- * Record an economic fee/fee tax to the audit table.
+ * Deduct fees from a user's assets atomically: cash first, then proportional stock liquidation.
+ * Returns { cashDeducted, stockLiquidated: [...], totalCovered, shortfall }.
+ *
+ * This is the NEW safe fee-deduction mechanism that replaces recordDebt().
  */
-async function recordEconomicFee(userId, feeType, amount, netWorth, dayKey, cycleKey) {
-  const uid = String(userId);
+async function deductFeeFromAssets(uid, feeAmount) {
+  // Get fresh user data inside transaction context
+  const [userRows] = await pool.query('SELECT id, balance FROM users WHERE id = ?', [uid]);
+  if (!userRows.length) return { cashDeducted: 0, stockLiquidated: [], totalCovered: 0, shortfall: feeAmount };
 
-  let dedupCol, dedupVal;
-  if (feeType === 'daily_maintenance') {
-    dedupCol = 'day_key';
-    dedupVal = dayKey;
-  } else {
-    dedupCol = 'cycle_key';
-    dedupVal = cycleKey;
+  let cashBalance = userRows[0].balance;
+  const cashDeducted = Math.min(feeAmount, Math.max(0, cashBalance));
+  cashBalance -= cashDeducted;
+
+  // Ensure cash never goes negative (clamp to 0 minimum)
+  if (cashBalance < 0) cashBalance = 0;
+
+  let remainingFee = feeAmount - cashDeducted;
+  const stockLiquidated = [];
+
+  if (remainingFee > 0.01) {
+    const liquidations = await liquidateStocksForFee(uid, remainingFee);
+
+    // The actual value collected from liquidation may slightly differ from requested
+    let liquidatedValue = liquidations.reduce((sum, l) => sum + l.value, 0);
+    stockLiquidated.push(...liquidations.map(l => ({ ...l })));
+    remainingFee -= liquidatedValue;
+
+    // Cash balance is now exactly 0 after deducting what we had + whatever came from stocks
+    cashBalance = Math.max(0, cashBalance);
   }
 
-  try {
-    const [rows] = await pool.query(
-      `SELECT \`id\` FROM economic_fees WHERE \`user_id\` = ? AND \`fee_type\` = ? AND \`${dedupCol}\` = ?`,
-      [uid, feeType, dedupVal]
-    );
-    if (rows.length > 0) return null;
-  } catch (e) {
-    console.warn('economic_fees table may not exist:', e.message);
-    return null;
-  }
+  return {
+    cashDeducted,
+    stockLiquidated,
+    totalCovered: feeAmount - remainingFee,
+    shortfall: remainingFee > 0.01 ? remainingFee : 0
+  };
+}
 
-  const createdAt = Date.now();
+/**
+ * Apply the complete fee deduction atomically within a single transaction.
+ * @returns {Promise<{ success: boolean, cashDeducted: number, stockLiquidated: Array, shortfall: number }>}
+ */
+async function applyDailyFeeWithLiquidation(uid, feeAmount) {
+  // Use a transaction for atomicity
+  await pool.query('START TRANSACTION');
   try {
-    await pool.query(
-      `INSERT INTO economic_fees (\`user_id\`, \`fee_type\`, \`amount\`, \`net_worth\`, \`day_key\`, \`cycle_key\`, \`created_at\`)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [uid, feeType, Math.round(amount * 100) / 100, Math.round(netWorth * 100) / 100, dedupCol === 'day_key' ? dedupVal : null, dedupCol === 'cycle_key' ? dedupVal : null, createdAt]
-    );
-    return { userId: uid, feeType, amount, netWorth, dedupCol, dedupVal };
+    // Step 1: Get current user balance
+    const [userRows] = await pool.query('SELECT id, balance FROM users WHERE id = ?', [uid]);
+    if (!userRows.length) {
+      await pool.query('ROLLBACK');
+      return { success: false, cashDeducted: 0, stockLiquidated: [], shortfall: feeAmount };
+    }
+
+    let cashBalance = userRows[0].balance;
+    const cashAvailable = Math.max(0, cashBalance);
+    const cashDeducted = Math.min(feeAmount, cashAvailable);
+
+    // Step 2: Deduct from cash (never below 0)
+    if (cashAvailable > 0) {
+      await pool.query('UPDATE users SET balance = balance - ? WHERE id = ?', [cashDeducted, uid]);
+    }
+    // Cash is now at 0 or positive — never negative
+
+    let remainingFee = feeAmount - cashDeducted;
+    const stockLiquidated = [];
+
+    // Step 3: If cash insufficient, liquidate stocks proportionally
+    if (remainingFee > 0.01) {
+      const liquidations = await liquidateStocksForFee(uid, remainingFee);
+      stockLiquidated.push(...liquidations.map(l => ({ ...l })));
+
+      let liquidatedValue = liquidations.reduce((sum, l) => sum + l.value, 0);
+      remainingFee -= liquidatedValue;
+    }
+
+    // Step 4: Ensure balance never negative (final safety clamp)
+    const [checkBalance] = await pool.query('SELECT balance FROM users WHERE id = ?', [uid]);
+    if (checkBalance.length && checkBalance[0].balance < 0) {
+      await pool.query('UPDATE users SET balance = 0 WHERE id = ? AND balance < 0', [uid]);
+    }
+
+    await pool.query('COMMIT');
+
+    return {
+      success: true,
+      cashDeducted,
+      stockLiquidated,
+      shortfall: remainingFee > 0.01 ? remainingFee : 0
+    };
   } catch (e) {
-    if (/Duplicate.*uk_user_fee/i.test(e.message)) return null;
-    console.error('Error recording economic fee:', e.message);
-    return null;
+    await pool.query('ROLLBACK').catch(() => {});
+    console.error(`Error applying daily fee for user ${uid}:`, e.message);
+    return { success: false, cashDeducted: 0, stockLiquidated: [], shortfall: feeAmount };
   }
 }
 
@@ -140,15 +315,29 @@ async function chargeDailyMaintenance() {
       const fee = config.calculateDailyMaintenance(netWorth);
       if (fee <= 0) continue;
 
-      if (cash >= fee) {
-        await pool.query('UPDATE users SET `balance` = `balance` - ? WHERE `id` = ?', [fee, user.id]);
+      // Use the NEW safe deduction mechanism: cash first, then proportional stock liquidation
+      const result = await applyDailyFeeWithLiquidation(user.id, fee);
+
+      if (result.success && result.stockLiquidated.length > 0) {
+        // Record automatic liquidation transactions for audit trail
+        for (const liq of result.stockLiquidated) {
+          const timeStr = new Date().toLocaleTimeString('pt-BR');
+          await pool.query(
+            `INSERT INTO transactions (\`uid\`, \`uname\`, \`type\`, \`sym\`, \`qty\`, \`price\`, \`total\`, \`time\`, \`ts\`)
+             VALUES (?, ?, 'maintenance_fee_liquidation', ?, ?, ?, ?, ?, ?)`,
+            [String(user.id), user.nick || user.name, liq.sym, liq.qtyLiquidated, liq.price, Math.round(liq.value * 100) / 100, timeStr, Date.now()]
+          );
+        }
+
+        // Log admin message with liquidation details
+        const totalLiquidated = result.stockLiquidated.reduce((sum, l) => sum + l.value, 0);
+        await logAdmin(`📋 Taxa diária: ${user.nick || user.name} — R$${formatCurrency(fee)} (patrimônio: R$${formatCurrency(netWorth)}) | Liquidado: R$${formatCurrency(totalLiquidated)}`);
       } else {
-        const debt = await recordDebt(user.id, fee);
-        // Partial payment recorded above
+        await logAdmin(`📋 Taxa diária: ${user.nick || user.name} — R$${formatCurrency(fee)} (patrimônio: R$${formatCurrency(netWorth)})`);
       }
 
+      // Record the fee in economic_fees table
       await recordEconomicFee(user.id, 'daily_maintenance', fee, netWorth, dayKey, null);
-      await logAdmin(`📋 Taxa diária: ${user.nick || user.name} — R$${formatCurrency(fee)} (patrimônio: R$${formatCurrency(netWorth)})`);
       processed++;
     } catch (e) {
       console.error(`Error charging daily maintenance for ${user.nick}:`, e.message);
@@ -185,10 +374,18 @@ async function chargeWealthTax() {
       const tax = config.calculateWealthTax(netWorth);
       if (tax <= 0) continue;
 
-      if (cash >= tax) {
-        await pool.query('UPDATE users SET `balance` = `balance` - ? WHERE `id` = ?', [tax, user.id]);
-      } else {
-        await recordDebt(user.id, tax);
+      // Use the NEW safe deduction mechanism
+      const result = await applyDailyFeeWithLiquidation(user.id, tax);
+
+      if (result.success && result.stockLiquidated.length > 0) {
+        for (const liq of result.stockLiquidated) {
+          const timeStr = new Date().toLocaleTimeString('pt-BR');
+          await pool.query(
+            `INSERT INTO transactions (\`uid\`, \`uname\`, \`type\`, \`sym\`, \`qty\`, \`price\`, \`total\`, \`time\`, \`ts\`)
+             VALUES (?, ?, 'wealth_tax_liquidation', ?, ?, ?, ?, ?, ?)`,
+            [String(user.id), user.nick || user.name, liq.sym, liq.qtyLiquidated, liq.price, Math.round(liq.value * 100) / 100, timeStr, Date.now()]
+          );
+        }
       }
 
       await recordEconomicFee(user.id, 'wealth_tax', tax, netWorth, null, cycleKey);
@@ -228,21 +425,38 @@ async function checkMissedEconomicEvents() {
           missDate.setDate(missDate.getDate() - i);
           const missDayKey = missDate.toLocaleDateString('en-CA');
 
-          const [userRows] = await pool.query('SELECT id, nick, name FROM users');
-          for (const user of userRows) {
-            const { netWorth } = await computeNetWorth(user.id);
-            if (netWorth > 1_000_000) {
-              const fee = config.calculateDailyMaintenance(netWorth);
-              await recordEconomicFee(user.id, 'daily_maintenance', fee, netWorth, missDayKey, null);
+          const [missUserRows] = await pool.query('SELECT id, nick, name FROM users');
+          for (const user of missUserRows) {
+            try {
+              const { netWorth } = await computeNetWorth(user.id);
+              if (netWorth > 1_000_000) {
+                const fee = config.calculateDailyMaintenance(netWorth);
+                await recordEconomicFee(user.id, 'daily_maintenance', fee, netWorth, missDayKey, null);
 
-              const [userRows2] = await pool.query('SELECT id, balance FROM users WHERE id = ?', [user.id]);
-              if (userRows2.length && userRows2[0].balance >= fee) {
-                await pool.query('UPDATE users SET `balance` = `balance` - ? WHERE `id` = ?', [fee, user.id]);
-              } else if (userRows2.length) {
-                await pool.query('UPDATE users SET `balance` = GREATEST(`balance` - fee, -50000) WHERE `id` = ?', [fee, user.id]);
+                // Use the NEW safe deduction — cash first, then proportional stock liquidation
+                const result = await applyDailyFeeWithLiquidation(user.id, fee);
+
+                if (result.success && result.stockLiquidated.length > 0) {
+                  for (const liq of result.stockLiquidated) {
+                    const timeStr = new Date().toLocaleTimeString('pt-BR');
+                    await pool.query(
+                      `INSERT INTO transactions (\`uid\`, \`uname\`, \`type\`, \`sym\`, \`qty\`, \`price\`, \`total\`, \`time\`, \`ts\`)
+                       VALUES (?, ?, 'maintenance_fee_liquidation', ?, ?, ?, ?, ?, ?)`,
+                      [String(user.id), user.nick || user.name, liq.sym, liq.qtyLiquidated, liq.price, Math.round(liq.value * 100) / 100, timeStr, Date.now()]
+                    );
+                  }
+                }
+
+                // Final safety: ensure balance is never negative
+                const [finalBalance] = await pool.query('SELECT balance FROM users WHERE id = ?', [user.id]);
+                if (finalBalance.length && finalBalance[0].balance < 0) {
+                  await pool.query('UPDATE users SET balance = 0 WHERE id = ? AND balance < 0', [user.id]);
+                }
+
+                await logAdmin(`⏰ Recarga de taxa diária (dia perdido ${missDayKey}): ${user.nick || user.name} — R$${formatCurrency(fee)}`);
               }
-
-              await logAdmin(`⏰ Recarga de taxa diária (dia perdido ${missDayKey}): ${user.nick || user.name} — R$${formatCurrency(fee)}`);
+            } catch (e) {
+              console.error(`Error processing missed fee for ${user.nick}:`, e.message);
             }
           }
         }
@@ -275,6 +489,5 @@ module.exports = {
   chargeWealthTax,
   checkMissedEconomicEvents,
   computeNetWorth,
-  recordDebt,
   formatCurrency,
 };

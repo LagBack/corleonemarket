@@ -49,7 +49,7 @@ router.get('/me', requireAuth, async (req, res) => {
     }
     const totalWealth = rows[0].balance + mv;
 
-    res.json({ ...toPublicUser(rows[0], { includePhotoData: true }), wealthTier: computeTier(totalWealth), orphanQty, orphans: orphans.length > 0 ? orphans : undefined });
+    res.json({ ...toPublicUser(rows[0], { includePhotoData: true }), wealthTier: computeTier(totalWealth), assetsCount: holdings.length, orphanQty, orphans: orphans.length > 0 ? orphans : undefined });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
