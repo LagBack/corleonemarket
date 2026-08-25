@@ -35,13 +35,16 @@ router.get('/me', requireAuth, async (req, res) => {
     let orphanQty = 0;
     const orphans = [];
     const pfRows = await pool.query('SELECT sym, qty FROM portfolios WHERE user_id = ? AND qty > 0', [req.session.userId]);
-    const [stockRows] = await pool.query('SELECT `sym`, `price` FROM companies WHERE `status` = "active"');
+    const [stockRows] = await pool.query('SELECT `sym`, `price` FROM companies');
     const stockMap = {};
-    stockRows.forEach(s => stockMap[s.sym] = s.price);
+    // MUST uppercase keys — portfolios table always stores UPPERCASE symbols (e.g. 'CRLNE4')
+    // If companies.sym is stored as lowercase/mixed-case, case-sensitive JS lookup would fail
+    stockRows.forEach(s => { stockMap[s.sym.toUpperCase()] = s.price; });
 
     for (const r of pfRows) {
-      if (stockMap[r.sym]) {
-        mv += stockMap[r.sym] * r.qty;
+      const symUpper = r.sym.toUpperCase();
+      if (stockMap[symUpper]) {
+        mv += stockMap[symUpper] * r.qty;
       } else {
         orphanQty += r.qty;
         orphans.push({ sym: r.sym, qty: r.qty });
@@ -68,7 +71,8 @@ router.get('/me/dividends', requireAuth, async (req, res) => {
     // Owned stocks from MySQL
     const [stockRows] = await pool.query('SELECT `sym`, `price`, `name`, `total_revenue` FROM companies WHERE `status` = "active"');
     const stockMap = {};
-    stockRows.forEach(s => stockMap[s.sym] = s);
+    // MUST uppercase keys — company_owners table stores UPPERCASE symbols
+    stockRows.forEach(s => { stockMap[s.sym.toUpperCase()] = s; });
 
     const [ownerRows] = await pool.query(
       'SELECT sym, pct FROM company_owners WHERE user_id = ?',
@@ -250,9 +254,20 @@ router.get('/:id/public', async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [uid]);
     if (!rows.length) return res.status(404).json({ error: 'Usuario nao encontrado.' });
     const user = rows[0];
-    const stocks = await pool.query('SELECT `sym`, `price`, `name`, `sector`, `shares`, `status`, `day_open`, `open` FROM companies WHERE `status` = "active"');
+    // Load ALL companies (including deleted) so ticker matching works for re-created companies
+    const stocks = await pool.query('SELECT `sym`, `price`, `name`, `sector`, `shares`, `status`, `day_open`, `open` FROM companies');
     const stockMap = {};
-    stocks.forEach(s => { stockMap[s.sym] = s; });
+    // MUST uppercase keys — portfolios table always stores UPPERCASE symbols (e.g. 'CRLNE4')
+    stocks.forEach(s => {
+      const key = s.sym.toUpperCase();
+      const existing = stockMap[key];
+      if (!existing) {
+        stockMap[key] = s;
+      } else if (s.status === 'active' && existing.status !== 'active') {
+        // Prefer active over non-active when duplicate ticker exists
+        stockMap[key] = s;
+      }
+    });
     const hideFinance = ['admin', 'dev'].includes(user.role);
 
     const [pfRows] = await pool.query(
@@ -276,24 +291,43 @@ router.get('/:id/public', async (req, res) => {
     const txStats = txCountRows[0] || {};
 
     let mv = 0;
-    let orphanQty = 0;
-    const orphans = [];
+    let delistedQty = 0;
+    const delisteds = [];
+    const trueOrphans = [];
     const holdings = pfRows.map(({ sym, qty }) => {
-      const s = stockMap[sym];
+      const s = stockMap[sym.toUpperCase()];
       if (!s) {
-        orphanQty += qty;
-        orphans.push({ sym, qty });
-        // Include orphaned holdings so user can see what they own (marked as delisted)
+        // True orphan: ticker doesn't exist at all in companies table
+        delistedQty += qty;
+        trueOrphans.push({ sym, qty });
         return {
           sym,
-          name: `🗑️ ${sym} (delisted)`,
-          sector: 'delisted',
+          name: `🗑️ ${sym} (not found)`,
+          sector: 'unknown',
           qty,
           price: 0,
           value: 0,
           pctOfCompany: 0,
           dayPct: 0,
           status: 'deleted',
+        };
+      }
+      const isDelisted = s.status !== 'active';
+      if (isDelisted) {
+        // Company exists but not active (may have been deleted and re-created with same ticker)
+        delistedQty += qty;
+        delisteds.push({ sym, qty });
+        const value = qty > 0 ? 0 : 0; // don't count delisted value in wealth
+        return {
+          sym: s.sym,
+          name: `🗑️ ${s.name} (${sym})`,
+          sector: s.sector || 'unknown',
+          qty,
+          price: s.price || 0,
+          value: 0,
+          pctOfCompany: qty / (s.shares || 1) * 100,
+          dayPct: 0,
+          status: s.status,
         };
       }
       const value = s.price * qty;
@@ -354,7 +388,7 @@ router.get('/:id/public', async (req, res) => {
       holdings,
       transactions,
       assetsCount: holdings.length,
-      orphanQty, orphans: orphans.length > 0 ? orphans : undefined,
+      delistedQty, delisteds: delisteds.length > 0 ? delisteds : undefined, orphanQty: trueOrphans.reduce((a,o) => a + o.qty, 0), orphans: trueOrphans.length > 0 ? trueOrphans : undefined,
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

@@ -136,7 +136,8 @@ router.get('/portfolio', requireAuth, async (req, res) => {
 
     // Detect orphans for this user's portfolio
     const [activeStockRows] = await pool.query('SELECT `sym` FROM companies WHERE `status` = "active"');
-    const activeSyms = new Set(activeStockRows.map(s => s.sym));
+    // MUST use toUpperCase() for comparison — portfolio stores UPPERCASE symbols
+    const activeSyms = new Set(activeStockRows.map(s => s.sym.toUpperCase()));
     let orphanQty = 0;
     const orphans = [];
     Object.entries(pf).forEach(([sym, qty]) => {
@@ -303,9 +304,9 @@ router.get('/ranking', async (req, res) => {
       pfMap[r.user_id][r.sym] = r.qty;
     });
 
-    // Build stock lookup by sym for MV computation
+    // Build stock lookup by sym for MV computation — MUST use uppercase keys
     const stockMap = {};
-    stocks.forEach(s => { stockMap[s.sym] = s; });
+    stocks.forEach(s => { stockMap[s.sym.toUpperCase()] = s; });
 
     const investors = users
       .map(u => {
@@ -314,7 +315,7 @@ router.get('/ranking', async (req, res) => {
         let orphanMv = 0;
         const orphans = [];
         Object.entries(pf).forEach(([sym, qty]) => {
-          const s = stockMap[sym];
+          const s = stockMap[sym.toUpperCase()];
           if (s) {
             mv += s.price * qty;
           } else {
@@ -390,12 +391,12 @@ router.get('/ownership-offers', async (req, res) => {
         `SELECT sym, name FROM companies WHERE sym IN (${placeholders})`,
         symList
       );
-      rows.forEach(s => stockMap[s.sym] = s.name);
+      rows.forEach(s => { stockMap[s.sym.toUpperCase()] = s.name; });
     }
 
     const enriched = offers.map(o => ({
       ...o,
-      stockName:  o.stock_name || stockMap[o.sym] || o.sym,
+      stockName:  o.stock_name || stockMap[o.sym?.toUpperCase()] || o.sym,
       sellerName: (sellers.get(o.seller_id) || {}).nick || (sellers.get(o.seller_id) || {}).name || '?',
     }));
     res.json(enriched);
