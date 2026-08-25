@@ -42,6 +42,7 @@ router.get('/me', requireAuth, async (req, res) => {
     stockRows.forEach(s => { stockMap[s.sym.toUpperCase()] = s.price; });
 
     for (const r of pfRows) {
+      if (!r?.sym) continue;  // skip rows with null/empty symbol
       const symUpper = r.sym.toUpperCase();
       if (stockMap[symUpper]) {
         mv += stockMap[symUpper] * r.qty;
@@ -258,16 +259,19 @@ router.get('/:id/public', async (req, res) => {
     const stocks = await pool.query('SELECT `sym`, `price`, `name`, `sector`, `shares`, `status`, `day_open`, `open` FROM companies');
     const stockMap = {};
     // MUST uppercase keys — portfolios table always stores UPPERCASE symbols (e.g. 'CRLNE4')
-    stocks.forEach(s => {
-      const key = s.sym.toUpperCase();
-      const existing = stockMap[key];
-      if (!existing) {
-        stockMap[key] = s;
-      } else if (s.status === 'active' && existing.status !== 'active') {
-        // Prefer active over non-active when duplicate ticker exists
-        stockMap[key] = s;
+    if (stocks && stocks.length) {
+      for (const s of stocks) {
+        if (!s || !s.sym) continue;  // skip rows with missing data
+        const key = s.sym.toUpperCase();
+        const existing = stockMap[key];
+        if (!existing) {
+          stockMap[key] = s;
+        } else if (s.status === 'active' && existing.status !== 'active') {
+          // Prefer active over non-active when duplicate ticker exists
+          stockMap[key] = s;
+        }
       }
-    });
+    };
     const hideFinance = ['admin', 'dev'].includes(user.role);
 
     const [pfRows] = await pool.query(
@@ -294,7 +298,7 @@ router.get('/:id/public', async (req, res) => {
     let delistedQty = 0;
     const delisteds = [];
     const trueOrphans = [];
-    const holdings = pfRows.map(({ sym, qty }) => {
+    const holdings = pfRows.filter(r => r?.sym).map(({ sym, qty }) => {
       const s = stockMap[sym.toUpperCase()];
       if (!s) {
         // True orphan: ticker doesn't exist at all in companies table
@@ -341,7 +345,7 @@ router.get('/:id/public', async (req, res) => {
         qty,
         price: s.price,
         value,
-        pctOfCompany: qty / s.shares * 100,
+        pctOfCompany: qty / (s.shares || 1) * 100,
         dayPct: Math.round(dayPct * 100) / 100,
         status: s.status,
       };

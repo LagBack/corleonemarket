@@ -66,13 +66,14 @@ router.get('/users', requireMod, async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM users');
     const [stockRows] = await pool.query('SELECT `sym`, `price` FROM companies WHERE `status` = "active"');
     const stockMap = {};
-    stockRows.forEach(s => stockMap[s.sym] = s.price);
+    (stockRows || []).forEach(s => { if (s?.sym) stockMap[s.sym.toUpperCase()] = s.price; });
 
     const [pfRows] = await pool.query('SELECT user_id, sym, qty FROM portfolios WHERE qty > 0');
     const pfMap = {};
-    pfRows.forEach(r => {
+    (pfRows || []).forEach(r => {
+      if (!r?.sym) return;  // skip rows with null/empty symbol
       if (!pfMap[r.user_id]) pfMap[r.user_id] = {};
-      pfMap[r.user_id][r.sym] = r.qty;
+      pfMap[r.user_id][r.sym.toUpperCase()] = r.qty;
     });
 
     res.json(rows.map(u => {

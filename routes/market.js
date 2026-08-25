@@ -50,7 +50,7 @@ async function getPortfolio(uid) {
     [uid]
   );
   const pf = {};
-  rows.forEach(r => { pf[r.sym] = r.qty; });
+  (rows || []).forEach(r => { if (r?.sym) pf[r.sym.toUpperCase()] = r.qty; });
   return pf;
 }
 
@@ -137,7 +137,7 @@ router.get('/portfolio', requireAuth, async (req, res) => {
     // Detect orphans for this user's portfolio
     const [activeStockRows] = await pool.query('SELECT `sym` FROM companies WHERE `status` = "active"');
     // MUST use toUpperCase() for comparison — portfolio stores UPPERCASE symbols
-    const activeSyms = new Set(activeStockRows.map(s => s.sym.toUpperCase()));
+    const activeSyms = new Set((activeStockRows || []).map(s => s?.sym ? s.sym.toUpperCase() : null).filter(Boolean));
     let orphanQty = 0;
     const orphans = [];
     Object.entries(pf).forEach(([sym, qty]) => {
@@ -299,14 +299,17 @@ router.get('/ranking', async (req, res) => {
     // Load all portfolios from MySQL in one query
     const [pfRows] = await pool.query('SELECT user_id, sym, qty FROM portfolios WHERE qty > 0');
     const pfMap = {};
-    pfRows.forEach(r => {
+    (pfRows || []).forEach(r => {
+      if (!r?.sym) return;  // skip rows with null/empty symbol
       if (!pfMap[r.user_id]) pfMap[r.user_id] = {};
-      pfMap[r.user_id][r.sym] = r.qty;
+      pfMap[r.user_id][r.sym.toUpperCase()] = r.qty;
     });
 
     // Build stock lookup by sym for MV computation — MUST use uppercase keys
     const stockMap = {};
-    stocks.forEach(s => { stockMap[s.sym.toUpperCase()] = s; });
+    (stocks || []).forEach(s => {
+      if (s && s.sym) stockMap[s.sym.toUpperCase()] = s;
+    });
 
     const investors = users
       .map(u => {
@@ -391,7 +394,7 @@ router.get('/ownership-offers', async (req, res) => {
         `SELECT sym, name FROM companies WHERE sym IN (${placeholders})`,
         symList
       );
-      rows.forEach(s => { stockMap[s.sym.toUpperCase()] = s.name; });
+      (rows || []).forEach(s => { if (s && s.sym) stockMap[s.sym.toUpperCase()] = s.name; });
     }
 
     const enriched = offers.map(o => ({
